@@ -167,7 +167,7 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 
 ## 💡 Credits
 - Inspired by modern productivity apps and luxury UI design.
-- Built with ❤️ by [Your Name] and contributors.
+- Built with ❤️ by Varad Sachin Bhole and contributors.
 
 
  
