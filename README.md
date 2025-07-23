@@ -1,115 +1,119 @@
-# Trackie.in - Habit Tracking Application
+# Trackie.in – Modern Habit, Goal, and Productivity Tracker
 
-A comprehensive habit tracking and goal management application built with PHP, MySQL, and modern web technologies.
+A comprehensive, interactive, and visually stunning productivity platform built with PHP, MySQL, and modern web technologies. Track your habits, goals, todos, routines, and study plans—all in one place.
+
+---
 
 ## 🚀 Features
 
-- **Dashboard**: Interactive dashboard with calendar, weather, and analytics
-- **Habit Tracking**: Create and monitor daily/weekly habits
-- **Goal Management**: Set and track progress towards goals
-- **Routine Management**: Schedule and manage daily routines
-- **Analytics**: Detailed progress tracking and insights
-- **User Management**: Secure authentication and user profiles
-- **Mobile Responsive**: Works seamlessly on all devices
+- **Dashboard**: Unified overview with calendar, weather, analytics, and quick access to all modules.
+- **Todos**: Add, edit, complete, and filter todos. AJAX-powered for instant feedback. Progress bars and stats.
+- **Habits**: Track daily/weekly habits, log completions, view streaks, and see weekly stats. Add/edit/delete with modals and AJAX.
+- **Goals**: Set, track, and update personal goals. Progress bars, completion badges, deadlines, and inline progress updates.
+- **Routines**: Organize routines by time of day (morning, afternoon, evening, night). Grouped display and card-based UI.
+- **Study Plan**: Manage study tasks by subject, type, and priority. Filter and view by date and subject.
+- **Analytics**: Visualize progress across todos, habits, goals, and routines. Weekly habit performance, recent activity, and completion stats.
+- **Calendar**: Monthly view with todos and study tasks. Badges and tooltips for days with tasks. Month navigation.
+- **Profile**: View and update user info, email, password, and profile picture. Instant profile picture upload.
+- **Spotify Integration**: Connect your Spotify account, display your profile and top tracks on the dashboard.
+- **Authentication**: Secure login, registration, and logout flows. Session management and user feedback.
+- **Custom Error Pages**: 404 and 500 error pages for a polished experience.
+- **Responsive & Modern UI**: Card-based, mobile-friendly, and beautiful. Dark mode and luxury design system.
+
+---
 
 ## 📁 Project Structure
 
 ```
 Trackie/
-├── config/
-│   └── database.php          # Database configuration and helper functions
+├── assets/
+│   ├── css/style.css           # Modern luxury design system
+│   ├── js/app.js              # Interactive JS for modals, AJAX, etc.
+│   └── images/                # User avatars, logos, and icons
+├── config/database.php        # Database connection and helpers
 ├── includes/
-│   ├── functions.php         # Common utility functions
-│   ├── header.php           # HTML header with meta tags and CSS
-│   ├── navbar.php           # Navigation bar component
-│   ├── sidebar.php          # Sidebar navigation component
-│   └── footer.php           # Footer component
-├── dashboard.php            # Main dashboard page
-├── test_save_task.php       # API testing utility
-├── trackie_in.sql          # Database schema and sample data
-└── README.md               # This file
+│   ├── header.php             # Shared header (dynamic title, emoji, user menu)
+│   ├── sidebar.php            # Sidebar navigation
+│   ├── footer.php             # Footer
+│   └── functions.php          # Utility functions (AJAX, flash, etc.)
+├── dashboard.php              # Main dashboard (calendar, weather, analytics, goals, etc.)
+├── pages/
+│   ├── todos.php, todo_manager.php, new_todo.php
+│   ├── habits_simple.php, habits.php
+│   ├── goals_simple.php, goals.php
+│   ├── routine_simple.php, routine.php
+│   ├── study_plan.php
+│   ├── analytics_simple.php, analytics.php
+│   ├── calendar.php
+│   ├── profile.php
+│   ├── spotify_auth.php, spotify_api.php
+│   ├── login.php, register.php, logout.php
+│   ├── 404.php, 500.php
+│   └── ...
+├── trackie_in.sql             # Database schema
+├── README.md                  # This file
+└── ...
 ```
 
-## 🛠️ Recent Fixes and Improvements
+---
 
-### 1. **Complete Design Overhaul** - Luxury Dark Theme
-- ✅ Implemented black, white, and cream color scheme with gold accents
-- ✅ Added glassmorphism effects and luxury design elements
-- ✅ Created comprehensive CSS with animations and transitions
-- ✅ Implemented responsive design for all devices
-- ✅ Added dark mode support and user preferences
+## 🛠️ Key Technologies
+- **PHP 7.4+** (backend, AJAX endpoints)
+- **MySQL** (database)
+- **Tailwind CSS** + custom CSS (UI)
+- **Font Awesome** (icons)
+- **JavaScript** (AJAX, modals, interactivity)
+- **Spotify Web API** (music integration)
+- **OpenWeatherMap API** (weather integration)
 
-### 2. **Dashboard.php** - Complete Restructure
-- ✅ Added proper session handling and authentication
-- ✅ Fixed HTML structure with proper DOCTYPE, head, and body tags
-- ✅ Added missing Font Awesome CDN link
-- ✅ Fixed include paths (removed incorrect `../includes/` references)
-- ✅ Added proper closing tags and structure
-- ✅ Improved JavaScript functionality for sidebar toggle
-- ✅ Enhanced calendar and todo list interactions
-- ✅ Implemented luxury design theme
+---
 
-### 3. **Header.php** - Cleanup and Optimization
-- ✅ Removed duplicate Tailwind CSS and Google Fonts links
-- ✅ Reorganized link order for better performance
-- ✅ Added proper Font Awesome integration
-- ✅ Improved meta tag structure
-- ✅ Added dynamic asset path resolution
+## 🧩 Main Modules & Pages
 
-### 4. **Sidebar.php** - Enhanced Navigation
-- ✅ Improved mobile menu functionality
-- ✅ Added proper accessibility attributes
-- ✅ Enhanced click-outside-to-close functionality
-- ✅ Better icon transitions and user experience
-- ✅ Implemented luxury design theme
-- ✅ Added proper navigation links
+### Dashboard
+- Unified overview: calendar, weather, analytics, quick stats, and top goals/habits.
+- Dynamic cards and modals for quick actions.
 
-### 5. **Footer.php** - Structure Fixes
-- ✅ Added proper closing body and html tags
-- ✅ Enhanced content with additional information
-- ✅ Better semantic structure
-- ✅ Implemented luxury design theme
+### Todos
+- Add, edit, complete, and delete todos.
+- Filter by status (all, pending, completed, overdue, today) and search.
+- AJAX for instant updates. Progress bars and stats.
 
-### 6. **Database Configuration** - Centralized Management
-- ✅ Created `config/database.php` with PDO connection
-- ✅ Added helper functions for common database operations
-- ✅ Implemented proper error handling
-- ✅ Added prepared statement support for security
-- ✅ Fixed database name configuration
+### Habits
+- Track daily/weekly habits, log completions, view streaks, and see weekly stats.
+- Add/edit/delete with modals and AJAX. Progress bars and analytics.
 
-### 7. **Utility Functions** - Enhanced Functionality
-- ✅ Created `includes/functions.php` with common utilities
-- ✅ Added input sanitization and validation functions
-- ✅ Implemented secure password hashing
-- ✅ Added session management helpers
-- ✅ Created file upload validation
-- ✅ Added activity logging functionality
+### Goals
+- Set, track, and update personal goals. Progress bars, completion badges, deadlines.
+- Add/edit/delete with modals and AJAX. Inline progress updates.
 
-### 8. **JavaScript Enhancement** - Interactive Features
-- ✅ Created comprehensive `assets/js/app.js` with modern functionality
-- ✅ Added toast notification system
-- ✅ Implemented form validation and AJAX handling
-- ✅ Added dark mode toggle and user preferences
-- ✅ Enhanced sidebar and navigation interactions
-- ✅ Added smooth animations and transitions
+### Routines
+- Organize routines by time of day. Add/edit/delete routines. Grouped display.
 
-### 9. **Security and Deployment** - Production Ready
-- ✅ Created `.htaccess` with security headers and optimization
-- ✅ Added comprehensive deployment guide
-- ✅ Implemented error pages (404, 500)
-- ✅ Added security hardening recommendations
-- ✅ Created connection test script
-- ✅ Added proper file permissions and directory structure
+### Study Plan
+- Manage study tasks by subject, type, and priority. Filter and view by date and subject.
 
-### 10. **Asset Management** - Complete Structure
-- ✅ Created `assets/css/style.css` with luxury design system
-- ✅ Added `assets/js/app.js` with modern JavaScript functionality
-- ✅ Organized images and static assets
-- ✅ Implemented proper asset loading and caching
+### Analytics
+- Visualize progress across todos, habits, goals, and routines. Weekly habit performance, recent activity, and completion stats.
+
+### Calendar
+- Monthly view with todos and study tasks. Badges and tooltips for days with tasks. Month navigation.
+
+### Profile
+- View and update user info, email, password, and profile picture. Instant profile picture upload.
+
+### Spotify Integration
+- Connect your Spotify account via OAuth. Display your profile and top tracks on the dashboard.
+
+### Authentication
+- Secure login, registration, and logout flows. Session management and user feedback.
+
+### Error Pages
+- Custom 404 and 500 error pages for a polished experience.
+
+---
 
 ## 🗄️ Database Schema
-
-The application uses MySQL with the following main tables:
 
 - **users**: User accounts and profiles
 - **habits**: User-defined habits
@@ -117,140 +121,53 @@ The application uses MySQL with the following main tables:
 - **routines**: Scheduled routines and tasks
 - **todos**: Todo items
 - **goals**: User goals and progress
+- **study_plan**: Study tasks and plans
 
-## 🚀 Installation
+See `trackie_in.sql` for full schema and sample data.
+
+---
+
+## 🚦 Setup & Installation
 
 1. **Clone the repository**
    ```bash
-   git clone git@github.com:VaradCoder/Trackie.git
-   cd Track
+   git clone https://github.com/yourusername/Trackie.git
+   cd Trackie
    ```
-
 2. **Set up the database**
-   - Create a MySQL database named `trackie.in`
+   - Create a MySQL database (e.g., `trackie`)
    - Import the `trackie_in.sql` file
-   - Update database credentials in `config/database.php`
-
+   - Update credentials in `config/database.php`
 3. **Configure your web server**
    - Point your web server to the project directory
    - Ensure PHP 7.4+ is installed
    - Enable required PHP extensions (PDO, MySQL)
-
 4. **Set up file permissions**
    ```bash
    chmod 755 -R .
-   chmod 777 uploads/  # If using file uploads
+   chmod 777 assets/images/  # For profile picture uploads
    ```
-
-## 🔧 Configuration
-
-### Database Configuration
-Edit `config/database.php`:
-```php
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'trackie.in');
-define('DB_USER', 'your_username');
-define('DB_PASS', 'your_password');
-```
-
-### API Configuration
-Update API endpoints in relevant files:
-```php
-$api_url = 'http://your-domain.com/api/';
-```
-
-## 🎨 Styling
-
-The application uses:
-- **Tailwind CSS** for styling
-- **Font Awesome** for icons
-- **Google Fonts** (Comic Neue, Bangers) for typography
-- **Custom CSS** for additional styling
-
-## 🔒 Security Features
-
-- ✅ Session-based authentication
-- ✅ Password hashing with bcrypt
-- ✅ Input sanitization and validation
-- ✅ Prepared statements for database queries
-- ✅ CSRF protection (recommended to implement)
-- ✅ XSS prevention through output escaping
-
-## 📱 Responsive Design
-
-The application is fully responsive and works on:
-- Desktop computers
-- Tablets
-- Mobile phones
-- All modern browsers
-
-## 🧪 Testing
-
-Use `test_save_task.php` to test API functionality:
-```bash
-php test_save_task.php
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🆘 Support
-
-For support and questions:
-- Create an issue in the repository
-- Contact the development team
-- Check the documentation
-
-## 🔄 Version History
-
-### v1.1.0 (Current)
-- Complete codebase restructuring
-- Enhanced security features
-- Improved user experience
-- Better mobile responsiveness
-- Centralized configuration management
-
-### v1.0.0
-- Initial release
-- Basic habit tracking functionality
-- User authentication
-- Dashboard interface
-
-## Required Assets
-
-The following files are referenced by the application and should be present in the `assets/images`, `assets/css`, and `assets/js` directories:
-
-- `assets/images/default-user.png` (default user profile image)
-- `assets/images/Logo.png` (site logo)
-- `assets/css/style.css` (custom styles)
-- `assets/js/app.js` (custom JavaScript)
-
-If these files or directories do not exist, create them and add appropriate placeholder files to prevent broken images or missing styles/scripts.
-
-Example placeholder creation:
-
-```sh
-mkdir -p assets/images assets/css assets/js
-cp logo.png assets/images/Logo.png
-# Add a placeholder for default-user.png
-cp logo.png assets/images/default-user.png
-# Create empty style.css and app.js if needed
-> assets/css/style.css
-> assets/js/app.js
-```
+5. **Configure API Keys**
+   - [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/applications) for Spotify integration
+   - [OpenWeatherMap](https://openweathermap.org/api) for weather (add your API key in the relevant PHP file)
 
 ---
 
-**Trackie.in** - Track your habits, achieve your goals! 🎯
+## 🧑‍💻 Contributing
+
+Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
+
+---
+
+## 📄 License
+
+[MIT](LICENSE)
+
+---
+
+## 💡 Credits
+- Inspired by modern productivity apps and luxury UI design.
+- Built with ❤️ by [Your Name] and contributors.
 
 
  
