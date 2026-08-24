@@ -16,3 +16,11 @@ Thumbs.db
 *.swp
 .vscode/
 .idea/
+
+# Legacy / superseded — kept locally, not tracked in the repo
+mobile/ios/
+mobile/download/
+database/trackie_v1.sql
+database/trackie_v1_additions.sql
+database/trackie_v2_schema.sql
+database/migration_hobbies_update.sql
