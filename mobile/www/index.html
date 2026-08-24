@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Trackie</title>
+  <style>
+    html, body {
+      margin: 0; height: 100%;
+      background: #0f172a; color: #f1f5f9;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex; align-items: center; justify-content: center; text-align: center;
+    }
+    .b { width: 64px; height: 64px; border-radius: 16px; background: #ef4444;
+         display: flex; align-items: center; justify-content: center; font-size: 1.8rem;
+         margin: 0 auto 1rem; }
+    p { color: #94a3b8; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <!--
+    This local page is only a fallback. At runtime Capacitor's server.url
+    redirects the webview to https://trackie.free.nf. You normally never see it.
+    If you DO see it, the device is offline or the site is unreachable.
+  -->
+  <div>
+    <div class="b">🎯</div>
+    <h1>Trackie</h1>
+    <p>Loading… check your internet connection.</p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# Block PHP execution in the image upload directory
+<FilesMatch "\.php[0-9]?$">
+    Require all denied
+</FilesMatch>

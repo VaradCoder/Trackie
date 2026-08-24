@@ -1,0 +1,30 @@
+# Trackie v1.0 — Root .htaccess
+# NOTE: <Directory> blocks are invalid in .htaccess.
+# Sub-directory protection is handled by per-directory .htaccess files.
+
+Options -Indexes
+DirectoryIndex index.php
+AddDefaultCharset UTF-8
+
+# Block direct access to sensitive file types
+<FilesMatch "\.(sql|md|log|env|lock|gitignore|keystore|jks|properties|ts)$">
+    Require all denied
+</FilesMatch>
+
+# Security headers for STATIC assets only.
+# HTML responses get their headers from config/app.php instead — PHP is the
+# single authority there, so the two cannot drift and we don't emit each
+# header twice. Static files never touch PHP, so they still need these here.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|json)$">
+        Header always set X-Content-Type-Options "nosniff"
+        Header always set Referrer-Policy "same-origin"
+    </FilesMatch>
+</IfModule>
+
+# Cache static assets
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf)$">
+        Header set Cache-Control "public, max-age=31536000"
+    </FilesMatch>
+</IfModule>

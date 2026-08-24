@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline — Trackie</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #0f172a; color: #f1f5f9; padding: 1.5rem; text-align: center;
+    }
+    .wrap { max-width: 360px; }
+    .logo {
+      width: 72px; height: 72px; border-radius: 18px; margin: 0 auto 1.25rem;
+      background: #ef4444; display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+    }
+    h1 { font-size: 1.375rem; font-weight: 800; margin: 0 0 .5rem; }
+    p { color: #94a3b8; font-size: .9375rem; line-height: 1.6; margin: 0 0 1.5rem; }
+    button {
+      background: #ef4444; color: #fff; border: none; cursor: pointer;
+      padding: .625rem 1.5rem; border-radius: 999px; font-size: .9375rem; font-weight: 600;
+    }
+    button:active { transform: scale(.96); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo" aria-hidden="true">🎯</div>
+    <h1>You're offline</h1>
+    <p>Trackie needs a connection to load this page. Your saved data is safe — reconnect and try again.</p>
+    <button onclick="location.reload()">Retry</button>
+  </div>
+</body>
+</html>

@@ -1,0 +1,18 @@
+# Sensitive — contains DB credentials & API keys
+config/env.php
+
+# Backup archives — may contain old copies of config/env.php with real secrets
+*.rar
+*.zip
+*.7z
+
+# User uploads (keep the folder, ignore uploaded avatars)
+assets/images/profile_*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+.vscode/
+.idea/

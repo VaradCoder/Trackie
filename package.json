@@ -1,0 +1,24 @@
+{
+  "name": "trackie-app",
+  "version": "1.0.0",
+  "description": "Trackie - native wrapper (Capacitor) for https://trackie.free.nf",
+  "private": true,
+  "scripts": {
+    "sync": "npx cap sync",
+    "open:ios": "npx cap open ios",
+    "assets": "npx capacitor-assets generate --assetPath resources --iconBackgroundColor #ffffff --splashBackgroundColor #0f172a --splashBackgroundColorDark #0f172a"
+  },
+  "dependencies": {
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/browser": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/ios": "^6.0.0",
+    "@capacitor/splash-screen": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.0",
+    "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.0.0"
+  }
+}

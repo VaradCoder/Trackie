@@ -1,0 +1,14 @@
+# Maintenance scripts — not public content.
+#
+# regression.sh was downloadable over the web and contains the test account's
+# credentials in plaintext, and build_assets.php could be triggered by anyone.
+# Deny everything by default; the two admin-run PHP tools are re-allowed below
+# and enforce their own requireAdmin() check on top of this.
+
+Require all denied
+
+# Admin-run maintenance tools. Web access is required because InfinityFree
+# gives no shell — but each one calls requireAdmin() before doing anything.
+<FilesMatch "^(build_assets|recompress_avatars)\.php$">
+    Require all granted
+</FilesMatch>
