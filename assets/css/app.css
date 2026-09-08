@@ -769,6 +769,14 @@ a:hover { color: var(--accent-h); }
   grid-template-columns: 1fr 1fr;
   gap:                   .75rem;
 }
+.form-grid-3 {
+  display:               grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap:                   .75rem;
+}
+@media (max-width: 640px) {
+  .form-grid-3 { grid-template-columns: 1fr; gap: 0; }
+}
 
 /* Profile page: avatar column + forms column */
 .profile-grid {

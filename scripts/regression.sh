@@ -51,7 +51,7 @@ LOGIN=$(curl -s -b "$JAR" -c "$JAR" -X POST "$BASE_URL/api/auth.php" \
 if echo "$LOGIN" | grep -q '"success":true'; then green "  login OK"; else red "  login FAIL: $LOGIN"; FAIL=1; fi
 
 note "== 4. Render (authenticated) =="
-PAGES="dashboard todos habits goals routines calendar study_plan finance focus analytics progress
+PAGES="dashboard today todos habits goals routines calendar study_plan finance focus analytics progress
        gym projects library music gaming cooking art photography writing meditation gardening sports
        hobbies profile settings reminders"
 for p in $PAGES; do
@@ -64,7 +64,7 @@ for p in $PAGES; do
     red "  RENDER FAIL: $p (http=$code main=$main) $err"; FAIL=1
   fi
 done
-[ "$FAIL" = 0 ] && green "  all 26 pages render clean (200, 1x #page-main, no PHP errors)"
+[ "$FAIL" = 0 ] && green "  all 27 pages render clean (200, 1x #page-main, no PHP errors)"
 
 note "== 5. Nav integrity =="
 # manifest.json shortcuts are a separate nav surface from navTree() and cannot

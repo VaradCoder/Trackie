@@ -4,14 +4,22 @@
  * Singleton PDO + thin query helpers.
  */
 
-// Credentials may be pre-defined in config/env.php (preferred on shared
-// hosts like InfinityFree where putenv() is disabled). Fall back to
-// environment variables, then to local XAMPP defaults.
-if (!defined('DB_HOST'))    define('DB_HOST',    getenv('DB_HOST')    ?: 'sql108.infinityfree.com');
-if (!defined('DB_NAME'))    define('DB_NAME',    getenv('DB_NAME')    ?: 'if0_42120238_trackie');
-if (!defined('DB_USER'))    define('DB_USER',    getenv('DB_USER')    ?: 'if0_42120238');
-if (!defined('DB_PASS'))    define('DB_PASS',    getenv('DB_PASS')    ?: '5in27Pdbyf');
+// Credentials must come from config/env.php (loaded by config/app.php,
+// required before this file on every entry point) or real environment
+// variables — NEVER a literal fallback here. This file is committed to
+// version control; env.php is gitignored. A hardcoded credential here
+// would mean the live database password ships in the public repo.
+if (!defined('DB_HOST'))    define('DB_HOST',    getenv('DB_HOST') ?: '');
+if (!defined('DB_NAME'))    define('DB_NAME',    getenv('DB_NAME') ?: '');
+if (!defined('DB_USER'))    define('DB_USER',    getenv('DB_USER') ?: '');
+if (!defined('DB_PASS'))    define('DB_PASS',    getenv('DB_PASS') ?: '');
 if (!defined('DB_CHARSET')) define('DB_CHARSET', 'utf8mb4');
+
+if (DB_HOST === '' || DB_NAME === '' || DB_USER === '') {
+    http_response_code(500);
+    error_log('Trackie: database not configured — copy config/env.php.example to config/env.php and fill in DB_* values.');
+    exit('Server misconfigured: database credentials missing. See config/env.php.example.');
+}
 
 function db(): PDO {
     static $pdo = null;

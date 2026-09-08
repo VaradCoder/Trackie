@@ -580,8 +580,9 @@ function navTree(): array {
     ]];
 
     $tree[] = ['key' => 'productivity', 'heading' => 'Productivity', 'items' => [
+        ['page' => 'today',      'href' => 'today.php',      'icon' => 'fa-sun',          'label' => 'Today',      'primary' => true],
         ['page' => 'todos',      'href' => 'todos.php',      'icon' => 'fa-check-square', 'label' => 'Todos',      'primary' => true, 'short' => 'Tasks'],
-        ['page' => 'habits',     'href' => 'habits.php',     'icon' => 'fa-heart',        'label' => 'Habits',     'primary' => true],
+        ['page' => 'habits',     'href' => 'habits.php',     'icon' => 'fa-heart',        'label' => 'Habits'],
         ['page' => 'goals',      'href' => 'goals.php',      'icon' => 'fa-bullseye',     'label' => 'Goals'],
         ['page' => 'routines',   'href' => 'routines.php',   'icon' => 'fa-clock',        'label' => 'Routines'],
         ['page' => 'calendar',   'href' => 'calendar.php',   'icon' => 'fa-calendar',     'label' => 'Calendar',   'primary' => true],
