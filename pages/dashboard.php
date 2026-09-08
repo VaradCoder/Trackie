@@ -136,6 +136,12 @@ $scoreData = function_exists('trackieScore')
 // history yet — the hero must say nothing rather than imply a flat trend.
 $scoreTrendData = function_exists('scoreTrend') ? scoreTrend($uid) : ['delta'=>null];
 
+// ── Today summary (Sprint 1 — "what should I do / what have I done") ──
+$xpToday = (function_exists('tableExists') && tableExists('xp_events')) ? (int)(fetchOne(
+    "SELECT COALESCE(SUM(xp),0) s FROM xp_events WHERE user_id=? AND DATE(created_at)=CURDATE()", [$uid]
+)['s'] ?? 0) : 0;
+$focusToday = function_exists('focusStats') ? focusStats($uid) : ['today' => 0];
+
 // Personalisation: widget order + the focus label shown in the hero.
 $prefs        = userPrefs($uid);
 $dashLayout   = dashboardLayout($prefs['primary_focus']);
@@ -262,6 +268,8 @@ require_once '../includes/head.php';
       if ($crossInsight) echo renderInsight($crossInsight['text'], $crossInsight['icon']);
   }
   ?>
+
+  <?php include '../includes/components/dash_today_summary.php'; ?>
 
   <!-- Reference dashboard composition: personal rail, supportive activity
        column and a primary work area. Fixed placement keeps the visual rhythm

@@ -973,6 +973,62 @@ a:hover { color: var(--accent-h); }
   font-size:     1.125rem;
 }
 
+/* ── Today summary (dashboard, Sprint 1) ─────────────────────────
+   Answers "what should I do / what have I done" before the full widget
+   grid below it. Same card/token language as the rest of the app —
+   no new component system, just one more card. */
+.today-summary {
+  background:    var(--surface);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow:    var(--shadow-sm);
+  padding:       var(--sp-5) var(--sp-5);
+  margin-bottom: var(--sp-5);
+}
+
+.today-summary-grid {
+  display:               grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap:                   var(--sp-5);
+}
+
+.today-summary-item {
+  display:     flex;
+  align-items: center;
+  gap:         var(--sp-3);
+}
+
+.today-summary-icon {
+  width:           2.75rem;
+  height:          2.75rem;
+  flex-shrink:     0;
+  border-radius:   var(--radius);
+  background:      var(--surface2);
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  font-size:       1.125rem;
+  color:           var(--accent);
+}
+
+.today-summary-value {
+  font-size:   .9375rem;
+  font-weight: 700;
+  color:       var(--text);
+  line-height: 1.25;
+}
+
+.today-summary-label {
+  font-size: .75rem;
+  color:     var(--muted);
+  margin-top: .125rem;
+}
+
+@media (max-width: 640px) {
+  .today-summary { padding: var(--sp-4); }
+  .today-summary-grid { grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+}
+
 /* ── Buttons ─────────────────────────────────────────────────── */
 .btn {
   display:         inline-flex;

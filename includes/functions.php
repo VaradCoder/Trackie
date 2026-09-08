@@ -579,7 +579,8 @@ function navTree(): array {
         ['page' => 'dashboard', 'href' => 'dashboard.php', 'icon' => 'fa-gauge', 'label' => 'Dashboard', 'primary' => true, 'short' => 'Home'],
     ]];
 
-    $tree[] = ['key' => 'productivity', 'heading' => 'Productivity', 'items' => [
+    // "Plan" — everything about deciding/tracking what to do (was "Productivity").
+    $tree[] = ['key' => 'plan', 'heading' => 'Plan', 'items' => [
         ['page' => 'today',      'href' => 'today.php',      'icon' => 'fa-sun',          'label' => 'Today',      'primary' => true],
         ['page' => 'todos',      'href' => 'todos.php',      'icon' => 'fa-check-square', 'label' => 'Todos',      'primary' => true, 'short' => 'Tasks'],
         ['page' => 'habits',     'href' => 'habits.php',     'icon' => 'fa-heart',        'label' => 'Habits'],
@@ -591,9 +592,12 @@ function navTree(): array {
         ['page' => 'reminders',  'href' => 'reminders.php',  'icon' => 'fa-bell',         'label' => 'Reminders'],
     ]];
 
-    $tree[] = ['key' => 'money', 'heading' => 'Money', 'items' => [
+    // "Life" — the practical/wellbeing side (was separate Money + Health
+    // groups). Finance always shows; health-tagged hobby modules join it
+    // below once picked hobbies are known.
+    $life = [
         ['page' => 'finance', 'href' => 'finance.php', 'icon' => 'fa-wallet', 'label' => 'Finance'],
-    ]];
+    ];
 
     // ── Hobby modules, split by the registry's navGroup ──────────────────
     // Only modules the user actually picked are shown, but the hobby hub is
@@ -613,7 +617,7 @@ function navTree(): array {
         }
     }
 
-    $health = $lifestyle = [];
+    $hobbies = [];
     foreach (allHobbiesMeta() as $hobby => $meta) {
         if (!$meta['module'] || !in_array($hobby, $picked, true)) continue;
         $entry = [
@@ -622,20 +626,20 @@ function navTree(): array {
             'icon'  => $meta['icon'],
             'label' => $meta['moduleLabel'],
         ];
-        if (($meta['navGroup'] ?? 'lifestyle') === 'health') $health[] = $entry;
-        else                                                 $lifestyle[] = $entry;
+        // Health/fitness-flavoured modules (e.g. Gym) read as "Life", not "Hobbies".
+        if (($meta['navGroup'] ?? 'lifestyle') === 'health') $life[] = $entry;
+        else                                                 $hobbies[] = $entry;
     }
 
-    if ($health) {
-        $tree[] = ['key' => 'health', 'heading' => 'Health', 'items' => $health];
-    }
+    $tree[] = ['key' => 'life', 'heading' => 'Life', 'items' => $life];
 
-    // Music is a permanent integration, not a hobby — always in Lifestyle.
-    $lifestyle[] = ['page' => 'music',   'href' => 'music.php',   'icon' => 'fa-music', 'label' => 'Music'];
-    $lifestyle[] = ['page' => 'hobbies', 'href' => 'hobbies.php', 'icon' => 'fa-star',  'label' => 'All Hobbies'];
-    $tree[] = ['key' => 'lifestyle', 'heading' => 'Lifestyle', 'items' => $lifestyle];
+    // Music is a permanent integration, not a hobby — always in Hobbies.
+    $hobbies[] = ['page' => 'music',   'href' => 'music.php',   'icon' => 'fa-music', 'label' => 'Music'];
+    $hobbies[] = ['page' => 'hobbies', 'href' => 'hobbies.php', 'icon' => 'fa-star',  'label' => 'All Hobbies'];
+    $tree[] = ['key' => 'hobbies', 'heading' => 'Hobbies', 'items' => $hobbies];
 
-    $tree[] = ['key' => 'insights', 'heading' => 'Insights', 'items' => [
+    // "Progress" — how you're doing overall (was "Insights").
+    $tree[] = ['key' => 'progress', 'heading' => 'Progress', 'items' => [
         ['page' => 'analytics', 'href' => 'analytics.php', 'icon' => 'fa-chart-bar', 'label' => 'Analytics'],
         ['page' => 'progress',  'href' => 'progress.php',  'icon' => 'fa-trophy',    'label' => 'Progress'],
     ]];
