@@ -9,6 +9,8 @@ require_once '../config/database.php';
 require_once '../includes/functions.php';
 
 $pageTitle    = 'Privacy Policy';
+$metaIndex = true;
+$metaDescription = 'What data Trackie stores, why, who it is shared with, and your choices.';
 $effective    = 'September 29, 2026';
 $supportEmail = (string)env('SUPPORT_EMAIL');
 $site         = $_SERVER['HTTP_HOST'] ?? 'Trackie';

@@ -15,7 +15,8 @@ See [docs/IDEA.md](docs/IDEA.md) for the full product philosophy.
 - **Productivity** — Todos, Habits, Goals, Routines, Calendar (Microsoft Planner–style Schedule + Board views), Study Plan, Focus, Reminders
 - **Lifestyle** — Finance, Gym (workout plans, live sessions, exercise library, AI coach), Cooking, Gardening, Sports, Meditation
 - **Hobbies / Media** — Gaming (Steam sync), Music (Spotify), Art, Photography, Writing, Library
-- **Cross-cutting** — Dashboard, Analytics, Progress (Trackie Score), Projects (GitHub activity), Settings, Admin
+- **Progress** — one activity log behind everything: Trackie + per-area streaks, XP and levels, achievements, Analytics (7/30/90-day, 26-week heatmap, insights), Weekly Review
+- **Cross-cutting** — Dashboard, Today, Projects (GitHub activity), Settings (currency, week start, notifications), Admin (config + migration status)
 
 Full module map: [docs/PROJECT.md](docs/PROJECT.md)
 
@@ -30,6 +31,11 @@ Full breakdown: [docs/TECH_STACK.md](docs/TECH_STACK.md)
 One consistent visual language across every module — shared cards, buttons, modals, spacing/color tokens, and a small global motion system (page transitions via the View Transitions API, optimistic UI, skeleton loading, a `Ctrl+K` command palette, a mobile bottom-nav app shell).
 
 Full breakdown: [docs/UI.md](docs/UI.md)
+
+## Docs
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — engines (activity, insights, calendar, settings), adding a tracked action, schema-change rule, security model
+- [docs/DEPLOY.md](docs/DEPLOY.md) — deploy bundles, migrations, `config/env.php` keys, host limits
 
 ## Local setup
 

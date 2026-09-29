@@ -37,11 +37,26 @@ unset($_script, $_base);
 // Sent from PHP rather than only .htaccess: mod_headers is not guaranteed on
 // shared hosting (InfinityFree), and a header block that silently does not
 // apply is worse than none because it looks covered in review.
-// Deliberately NOT sending Content-Security-Policy yet — the app still has
-// ~890 inline style attributes and inline <script> blocks, so any useful CSP
-// would need 'unsafe-inline', which buys nothing. That is tracked as debt:
-// remove inline styles first, then add a real CSP.
+// Content-Security-Policy: the app still has inline <script> blocks and style
+// attributes, so script/style need 'unsafe-inline' (tracked debt: move to
+// nonces). The policy still earns its keep — scripts can only load from the
+// origins below (an injected <script src=//evil> is blocked), plugins are
+// off, <base> can't be hijacked, forms can't post off-site and no other site
+// can frame Trackie. Images are https-anywhere because covers/avatars come
+// from many CDNs (Open Library, Spotify, RAWG, GitHub, Google…).
+// Spotify's Web Playback SDK (Music page) needs sdk.scdn.co + *.spotify.com.
+const TRACKIE_CSP = "default-src 'self'; "
+    . "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://sdk.scdn.co; "
+    . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+    . "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
+    . "img-src 'self' data: blob: https:; "
+    . "media-src 'self' blob: https:; "
+    . "connect-src 'self' https://cdn.jsdelivr.net https://*.spotify.com wss://*.spotify.com https://*.scdn.co; "
+    . "frame-src 'self' https://sdk.scdn.co https://*.spotify.com; "
+    . "worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; "
+    . "form-action 'self' https://github.com https://accounts.google.com https://accounts.spotify.com https://www.strava.com";
 if (!headers_sent()) {
+    header('Content-Security-Policy: ' . TRACKIE_CSP);
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: SAMEORIGIN');
     header('Referrer-Policy: same-origin');

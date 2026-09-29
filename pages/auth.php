@@ -8,6 +8,8 @@ require_once '../includes/auth.php';
 if (tryRememberLogin()) redirect(APP_BASE . '/pages/dashboard.php');
 
 $pageTitle = 'Sign in';
+$metaIndex = true;
+$metaDescription = 'Sign in to Trackie or create a free account to track habits, goals, fitness and hobbies.';
 $startTab  = ($_GET['tab'] ?? '') === 'register' ? 'register' : 'login';
 require_once '../includes/head.php';
 ?>

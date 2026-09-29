@@ -55,6 +55,51 @@ $dbVersion = '—';
 try { $dbVersion = fetchOne("SELECT VERSION() v")['v']; } catch (Throwable $e) {}
 $tableCount = adminCount("SELECT COUNT(*) c FROM information_schema.tables WHERE table_schema = DATABASE()");
 
+// ── Configuration (presence only — values are never shown) ─────
+$isSet = static fn(string ...$keys) => array_reduce($keys, fn($ok, $k) => $ok && (string)env($k) !== '', true);
+$mailVia = env('BREVO_API_KEY') !== '' ? 'Brevo API' : ((env('SMTP_HOST') !== '' && env('SMTP_USER') !== '') ? 'SMTP' : null);
+$config = [
+    ['Email (password reset)', $mailVia ? "Configured · {$mailVia}" : 'Not configured — reset links cannot be emailed', (bool)$mailVia],
+    ['Sender address (MAIL_FROM)', $isSet('MAIL_FROM') ? 'Set' : 'Missing', $isSet('MAIL_FROM')],
+    ['Support email', $isSet('SUPPORT_EMAIL') ? 'Set' : 'Missing (shown on Privacy/Terms)', $isSet('SUPPORT_EMAIL')],
+    ['App URL (APP_URL)', $isSet('APP_URL') ? 'Set' : 'Missing — canonical links use the request host', $isSet('APP_URL')],
+    ['Cron token', $isSet('CRON_TOKEN') ? 'Set' : 'Missing — web cron disabled', $isSet('CRON_TOKEN')],
+    ['Token encryption key', $isSet('TRACKIE_ENCRYPTION_KEY') ? 'Set' : 'Missing — connecting GitHub/Google/Spotify will fail', $isSet('TRACKIE_ENCRYPTION_KEY')],
+    ['GitHub sign-in', $isSet('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET')],
+    ['Google sign-in', $isSet('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET')],
+    ['Spotify', $isSet('SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET')],
+    ['HTTPS', (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'On' : 'Off (this request)', !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'],
+    ['Content-Security-Policy', defined('TRACKIE_CSP') ? 'Enforced' : 'Not sent', defined('TRACKIE_CSP')],
+];
+
+// ── Migrations: derived from the schema itself ─────────────────
+// Each file's CREATE TABLE / ADD COLUMN statements are checked against
+// information_schema, so this is accurate without a tracking table.
+$schemaCols = [];
+try {
+    foreach (fetchAll("SELECT table_name t, column_name c FROM information_schema.columns WHERE table_schema = DATABASE()") as $r) {
+        $schemaCols[strtolower($r['t'])][strtolower($r['c'])] = true;
+    }
+} catch (Throwable $e) {}
+$migrations = [];
+foreach (glob(__DIR__ . '/../database/migrations/*.sql') ?: [] as $file) {
+    $sql = preg_replace('/--[^\n]*/', '', (string)file_get_contents($file));
+    $need = $have = 0;
+    if (preg_match_all('/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?/i', $sql, $m)) {
+        foreach ($m[1] as $t) { $need++; if (isset($schemaCols[strtolower($t)])) $have++; }
+    }
+    if (preg_match_all('/ALTER\s+TABLE\s+`?(\w+)`?(.*?);/is', $sql, $m, PREG_SET_ORDER)) {
+        foreach ($m as [, $t, $body]) {
+            preg_match_all('/ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?/i', $body, $cm);
+            foreach ($cm[1] as $c) { $need++; if (isset($schemaCols[strtolower($t)][strtolower($c)])) $have++; }
+        }
+    }
+    $migrations[] = ['file' => basename($file), 'need' => $need, 'have' => $have,
+                     'state' => $need === 0 ? 'n/a' : ($have === $need ? 'applied' : ($have === 0 ? 'missing' : 'partial'))];
+}
+$migrations = array_reverse($migrations);   // newest first
+$pendingMig = count(array_filter($migrations, fn($m) => in_array($m['state'], ['missing', 'partial'], true)));
+
 // ── Security log: recent login rate-limit activity ─────────────
 $secLog = [];
 try {
@@ -119,6 +164,36 @@ require_once '../includes/head.php';
       </div>
     <?php endforeach; ?>
     <p class="form-hint" style="margin-top:.625rem">Backups: use vPanel → MySQL → Backups (InfinityFree), or export <code>database/final.sql</code>.</p>
+  </div>
+</div>
+
+<!-- Configuration + migrations -->
+<div class="grid-2" style="margin-bottom:1.5rem">
+  <div class="card card-body">
+    <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">Configuration <span class="form-hint" style="margin:0">— values are never displayed</span></div>
+    <?php foreach ($config as [$l, $v, $ok]): ?>
+      <div style="display:flex;justify-content:space-between;gap:1rem;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.875rem">
+        <span style="color:var(--muted)"><?= h($l) ?></span>
+        <strong style="color:<?= $ok ? 'var(--ok)' : 'var(--warn)' ?>;text-align:right"><?= $ok ? '●' : '○' ?> <?= h($v) ?></strong>
+      </div>
+    <?php endforeach; ?>
+  </div>
+  <div class="card card-body">
+    <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">
+      Migrations
+      <?= $pendingMig ? '<span class="badge badge-red">' . $pendingMig . ' pending</span>' : '<span class="badge badge-gray">all applied</span>' ?>
+    </div>
+    <div style="max-height:360px;overflow:auto">
+    <?php foreach ($migrations as $m): ?>
+      <div style="display:flex;justify-content:space-between;gap:1rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-size:.8125rem">
+        <code style="font-size:.75rem"><?= h($m['file']) ?></code>
+        <span style="white-space:nowrap;color:<?= ['applied' => 'var(--ok)', 'partial' => 'var(--warn)', 'missing' => 'var(--accent)'][$m['state']] ?? 'var(--muted)' ?>">
+          <?= h($m['state']) ?><?= $m['need'] ? " ({$m['have']}/{$m['need']})" : '' ?>
+        </span>
+      </div>
+    <?php endforeach; ?>
+    </div>
+    <p class="form-hint" style="margin-top:.625rem">Pending? Run the file in phpMyAdmin (vPanel → MySQL). Every migration is additive and safe to re-run.</p>
   </div>
 </div>
 

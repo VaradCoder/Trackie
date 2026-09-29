@@ -71,8 +71,29 @@
   <?php if (!empty($extraCss)): ?>
     <?= $extraCss ?>
   <?php endif; ?>
+
+  <!-- SEO / sharing. Only public pages set $metaIndex = true; the signed-in
+       app is noindex (it's personal data behind a login anyway). -->
+  <?php
+  $seoDesc  = $metaDescription ?? 'Trackie — track habits, todos, goals, fitness, finance and hobbies in one place, with streaks, XP and a weekly review.';
+  $seoBase  = siteBaseUrl();
+  $seoPath  = strtok($_SERVER['REQUEST_URI'] ?? '/', '?');
+  $seoTitle = ($pageTitle ?? 'Trackie') . ' — Trackie';
+  ?>
+  <meta name="description" content="<?= h($seoDesc) ?>">
+  <meta name="robots" content="<?= !empty($metaIndex) ? 'index, follow' : 'noindex, nofollow' ?>">
+  <?php if (!empty($metaIndex) && $seoBase): ?>
+  <link rel="canonical" href="<?= h($seoBase . $seoPath) ?>">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Trackie">
+  <meta property="og:title" content="<?= h($seoTitle) ?>">
+  <meta property="og:description" content="<?= h($seoDesc) ?>">
+  <meta property="og:url" content="<?= h($seoBase . $seoPath) ?>">
+  <meta property="og:image" content="<?= h($seoBase . APP_BASE . '/assets/images/icon-512.png') ?>">
+  <meta name="twitter:card" content="summary">
+  <?php endif; ?>
 </head>
-<body>
+<body<?= !empty($bodyClass) ? ' class="' . h($bodyClass) . '"' : '' ?>>
 <script>
   /* Sidebar docked-state guard — same idea as the theme guard above, but it
      has to run here because it writes to <body>, which does not exist yet in

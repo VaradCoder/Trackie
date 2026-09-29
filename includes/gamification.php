@@ -243,9 +243,10 @@ function checkAchievements(int $uid): array {
         $modules  = $count("SELECT COUNT(DISTINCT module) c FROM activity_log WHERE user_id=?");
         $words    = tableExists('writing_log') ? $count("SELECT COALESCE(SUM(words_added),0) c FROM writing_log WHERE user_id=?") : 0;
         $savedOk  = $count("SELECT COUNT(*) c FROM goals WHERE user_id=? AND kind='savings' AND target_value > 0 AND progress >= target_value");
+        $tBest   = (int)activityStreak($uid)['best'];
         $met += [
-            'trackie_7'   => (int)activityStreak($uid)['best'] >= 7,
-            'trackie_30'  => (int)activityStreak($uid)['best'] >= 30,
+            'trackie_7'   => $tBest >= 7,
+            'trackie_30'  => $tBest >= 30,
             'all_rounder' => $modules >= 5,
             'chef_10'     => $a('recipe_cooked') >= 10,
             'writer_5k'   => $words >= 5000,

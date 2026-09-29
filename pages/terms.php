@@ -5,6 +5,8 @@ require_once '../config/database.php';
 require_once '../includes/functions.php';
 
 $pageTitle    = 'Terms of Service';
+$metaIndex = true;
+$metaDescription = 'The terms for using Trackie, the free habit, goal and life tracker.';
 $effective    = 'September 29, 2026';
 $supportEmail = (string)env('SUPPORT_EMAIL');
 

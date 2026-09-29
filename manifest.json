@@ -1,25 +1,84 @@
 {
-  "name": "Trackie — Personal OS",
+  "name": "Trackie — Life Tracker",
   "short_name": "Trackie",
-  "description": "Tasks, habits, goals, study, finance, reminders & analytics — your personal operating system for students and young professionals.",
+  "id": "pages/dashboard.php",
+  "description": "Habits, todos, goals, focus, fitness, finance and every hobby — with streaks, XP, a calendar and a weekly review.",
   "start_url": "pages/dashboard.php",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "any",
   "background_color": "#ffffff",
   "theme_color": "#ef4444",
   "lang": "en",
-  "categories": ["productivity", "lifestyle", "education"],
+  "categories": [
+    "productivity",
+    "lifestyle",
+    "education"
+  ],
   "icons": [
-    { "src": "assets/images/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "assets/images/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "assets/images/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "assets/images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/images/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Todos",    "url": "pages/todos.php",    "icons": [{ "src": "assets/images/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Habits",   "url": "pages/habits.php",   "icons": [{ "src": "assets/images/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Finance",  "url": "pages/finance.php",  "icons": [{ "src": "assets/images/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Reminders","url": "pages/reminders.php","icons": [{ "src": "assets/images/icon-192.png", "sizes": "192x192" }] }
+    {
+      "name": "Today",
+      "url": "pages/today.php",
+      "icons": [
+        {
+          "src": "assets/images/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Todos",
+      "url": "pages/todos.php",
+      "icons": [
+        {
+          "src": "assets/images/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Habits",
+      "url": "pages/habits.php",
+      "icons": [
+        {
+          "src": "assets/images/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Finance",
+      "url": "pages/finance.php",
+      "icons": [
+        {
+          "src": "assets/images/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
   ]
 }

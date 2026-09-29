@@ -141,6 +141,25 @@ require_once '../includes/head.php';
           </div>
         </div>
 
+        <?php require_once __DIR__ . '/../includes/settings.php'; ?>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="obCurrency">Currency</label>
+            <select id="obCurrency" class="form-input">
+              <?php foreach (CURRENCIES as $code => [$sym, $label]): ?>
+                <option value="<?= $code ?>" <?= $code === SETTINGS_DEFAULTS['currency'] ? 'selected' : '' ?>><?= h("$sym  $label") ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="obWeekStart">Week starts on</label>
+            <select id="obWeekStart" class="form-input">
+              <option value="1" <?= SETTINGS_DEFAULTS['week_start'] === 1 ? 'selected' : '' ?>>Monday</option>
+              <option value="0" <?= SETTINGS_DEFAULTS['week_start'] === 0 ? 'selected' : '' ?>>Sunday</option>
+            </select>
+          </div>
+        </div>
+
         <div style="display:flex;gap:.625rem;margin-top:.75rem">
           <button class="btn btn-secondary" style="flex:1;justify-content:center" onclick="obGoto(3)">Back</button>
           <button class="btn btn-primary" style="flex:2;justify-content:center" onclick="obGoto(5)">
@@ -310,6 +329,14 @@ async function obSubmit() {
 
   try {
     const res = await Trackie.API.post(`${API_BASE}/profile.php`, payload);
+    if (res.success && !obRhythmSkipped) {
+      // Preferences (Settings → Preferences) — best effort; defaults stand if this fails.
+      await Trackie.API.post(`${API_BASE}/settings.php`, {
+        action: 'save',
+        currency:   document.getElementById('obCurrency')?.value || 'INR',
+        week_start: document.getElementById('obWeekStart')?.value ?? '1',
+      }).catch(() => null);
+    }
     if (res.success) {
       const created = res.habits_created || [];
       document.getElementById('obSummary').innerHTML = created.length

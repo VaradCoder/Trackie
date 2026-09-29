@@ -8,7 +8,7 @@
  * Scope is derived from the SW's own location, so it works whether the app
  * is served from "/" (live) or "/Trackie/" (local) without edits.
  */
-const VERSION = 'trackie-v4';   // bumped: purge exercise videos that v3 wrongly cached; skip media + non-http requests
+const VERSION = 'trackie-v5';   // bumped: Phase 6-7 (analytics, weekly review, landing page, CSP)
 const STATIC  = `static-${VERSION}`;
 const RUNTIME = `runtime-${VERSION}`;
 const PAGES   = `pages-${VERSION}`;   // last-seen HTML pages for offline viewing

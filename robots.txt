@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /$
+Allow: /pages/auth.php
+Allow: /pages/privacy.php
+Allow: /pages/terms.php
+Allow: /assets/
+Disallow: /api/
+Disallow: /pages/
+Disallow: /cron/
+Disallow: /storage/
+
+Sitemap: https://trackie.free.nf/sitemap.xml

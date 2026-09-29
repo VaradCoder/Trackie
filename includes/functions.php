@@ -900,6 +900,19 @@ function resetRecurringTodos(int $uid): void {
  * plus an optional right-aligned actions slot (raw HTML — caller builds
  * its own buttons). Matches the v2 spacing used across pages.
  */
+/**
+ * Absolute origin for canonical/OG links: APP_URL from env when set, else the
+ * request's own scheme + host (only letters, digits, dots, dashes and a port
+ * are accepted, so a forged Host header can't inject markup). No trailing slash.
+ */
+function siteBaseUrl(): string {
+    if (defined('APP_URL') && APP_URL !== '') return rtrim(APP_URL, '/');
+    $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+    if (!preg_match('/^[a-z0-9.-]+(:\d{1,5})?$/i', $host)) return '';
+    $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    return ($https ? 'https://' : 'http://') . $host;
+}
+
 function renderPageHeader(string $title, array $opts = []): string {
     $icon    = $opts['icon']    ?? '';
     $sub     = $opts['sub']     ?? '';
