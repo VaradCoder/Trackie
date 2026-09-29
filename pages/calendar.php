@@ -29,30 +29,17 @@ $todayStr     = date('Y-m-d');
 // Load todos and study tasks for this month. `id` + `source` are what let
 // the Planner-style day cards be acted on directly (toggle complete) instead
 // of just displayed — the old calendar only ever showed dots.
-$todos = fetchAll(
-    "SELECT id, title, due_date, priority, completed
-     FROM todos
-     WHERE user_id=? AND due_date BETWEEN ? AND ? AND deleted_at IS NULL",
-    [$uid, $startDate, $endDate]
-);
-foreach ($todos as &$t) { $t['source'] = 'todo'; }
-unset($t);
-
-$studies = fetchAll(
-    "SELECT id, title, due_date, priority, completed
-     FROM study_plan
-     WHERE user_id=? AND due_date BETWEEN ? AND ?",
-    [$uid, $startDate, $endDate]
-);
-foreach ($studies as &$t) { $t['source'] = 'study'; }
-unset($t);
-
-$allTasks = array_merge($todos, $studies);
-
-$tasksByDate = [];
-foreach ($allTasks as $t) {
-    $tasksByDate[$t['due_date']][] = $t;
+require_once '../includes/calendar.php';
+$events   = calendarEvents($uid, $startDate, $endDate);
+// Tasks (todos + study) drive the stats and the Board — they're what you can tick off.
+$allTasks = [];
+foreach ($events as $e) {
+    if (!$e['actionable']) continue;
+    $allTasks[] = ['id' => $e['id'], 'title' => $e['title'], 'due_date' => $e['date'], 'priority' => $e['priority'] ?? 'medium',
+                   'completed' => $e['done'] ? 1 : 0, 'source' => $e['source']];
 }
+$tasksByDate = [];
+foreach ($events as $e) $tasksByDate[$e['date']][] = $e;
 ksort($tasksByDate);
 
 // Month-level progress summary (Planner's "Charts" view, condensed to a
@@ -99,7 +86,7 @@ require_once '../includes/head.php';
 
 <?= renderPageHeader(date('F Y', $firstDay), [
   'icon'    => 'fa-calendar',
-  'sub'     => 'Todos and study tasks due this month.',
+  'sub'     => 'Everything dated in Trackie — tasks, reminders, deadlines, workouts and more.',
   'actions' =>
       '<a href="?month=' . $prevMonth . '&year=' . $prevYear . '" class="btn btn-icon btn-secondary btn-sm" aria-label="Previous month"><i class="fas fa-chevron-left"></i></a>'
     . '<a href="?month=' . date('n') . '&year=' . date('Y') . '" class="btn btn-secondary btn-sm">Today</a>'
@@ -124,6 +111,11 @@ require_once '../includes/head.php';
   </button>
 </div>
 
+<div class="cal-sources" id="calSources">
+  <?php foreach (CALENDAR_SOURCES as $k => [$label, $icon, $color]): ?>
+    <button type="button" class="cal-src active" data-src="<?= $k ?>" style="--c:<?= $color ?>"><i class="fas <?= $icon ?>"></i> <?= $label ?></button>
+  <?php endforeach; ?>
+</div>
 <!-- Schedule view -->
 <div id="calScheduleView">
   <div class="card card-body">
@@ -153,13 +145,15 @@ require_once '../includes/head.php';
               <?php
               $shown = 0;
               foreach ($dayTasks as $t) {
-                  if ($shown >= 2) { echo '<div class="cal-day-more">+'.(count($dayTasks)-2).' more</div>'; break; }
-                  $col = $t['priority']==='high' ? '#ef4444' : ($t['priority']==='medium' ? '#f59e0b' : '#3b82f6');
-                  $done = $t['completed'] ? 'style="opacity:.5;text-decoration:line-through"' : '';
-                  echo '<div class="cal-task-chip" style="border-left-color:'.$col.'" '.$done.' title="'.h($t['title']).'">'.h($t['title']).'</div>';
-                  $shown++;
-              }
-              ?>
+              if ($shown >= 2) { echo '<div class="cal-day-more">+'.(count($dayTasks)-2).' more</div>'; break; }
+              $col = CALENDAR_SOURCES[$t['source']][2] ?? '#64748b';
+              if ($t['actionable']) $col = $t['priority']==='high' ? '#ef4444' : ($t['priority']==='medium' ? '#f59e0b' : '#3b82f6');
+              $done = $t['done'] ? 'style="opacity:.5;text-decoration:line-through"' : '';
+              echo '<div class="cal-task-chip" data-src="'.h($t['source']).'" style="border-left-color:'.$col.'" '.$done.' title="'.h($t['title']).'">'
+                 .($t['time'] ? '<b>'.h($t['time']).'</b> ' : '').h($t['title']).'</div>';
+              $shown++;
+            }
+            ?>
             </div>
           <?php endif; ?>
         </div>
@@ -212,7 +206,7 @@ require_once '../includes/head.php';
 </div>
 
 <script>
-const CAL_TASKS_BY_DATE = <?= json_encode($tasksByDate) ?>;
+const CAL_TASKS_BY_DATE = <?= json_encode($tasksByDate, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
 function switchCalView(view) {
   document.getElementById('calScheduleView').style.display = view === 'schedule' ? '' : 'none';
@@ -224,24 +218,56 @@ function switchCalView(view) {
   });
 }
 
+const CAL_SRC = <?= json_encode(array_map(fn($v) => ['label' => $v[0], 'icon' => $v[1], 'color' => $v[2]], CALENDAR_SOURCES)) ?>;
+let calHidden = new Set();
+try { calHidden = new Set(JSON.parse(localStorage.getItem('trackie.calHidden') || '[]')); } catch {}
+function applyCalFilters() {
+  document.querySelectorAll('#calSources .cal-src').forEach(b => b.classList.toggle('active', !calHidden.has(b.dataset.src)));
+  document.querySelectorAll('.cal-task-chip[data-src]').forEach(c => c.classList.toggle('hidden', calHidden.has(c.dataset.src)));
+}
+document.getElementById('calSources').addEventListener('click', e => {
+  const b = e.target.closest('.cal-src'); if (!b) return;
+  calHidden.has(b.dataset.src) ? calHidden.delete(b.dataset.src) : calHidden.add(b.dataset.src);
+  try { localStorage.setItem('trackie.calHidden', JSON.stringify([...calHidden])); } catch {}
+  applyCalFilters();
+});
+applyCalFilters();
+let calDayOpen = null;
+/** Only in-app links, or Google Calendar's own event pages. */
+function calSafeLink(u) {
+  return typeof u === 'string' && (u.startsWith('/') || u.startsWith('https://www.google.com/calendar') || u.startsWith('https://calendar.google.com/')) ? u : null;
+}
 function openDayDetail(dateStr) {
-  const tasks = CAL_TASKS_BY_DATE[dateStr] || [];
+  calDayOpen = dateStr;
+  const items = (CAL_TASKS_BY_DATE[dateStr] || []).filter(t => !calHidden.has(t.source));
   const d = new Date(dateStr + 'T00:00:00');
   document.getElementById('dayDetailTitle').textContent = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  const body = document.getElementById('dayDetailBody');
-  if (!tasks.length) {
-    body.innerHTML = '<p style="color:var(--muted);font-size:.875rem;padding:var(--sp-3) 0">No tasks due this day.</p>';
-  } else {
-    body.innerHTML = tasks.map(t => {
-      const col = t.priority === 'high' ? '#ef4444' : (t.priority === 'medium' ? '#f59e0b' : '#3b82f6');
-      const doneStyle = t.completed ? 'text-decoration:line-through;opacity:.5' : '';
-      return `<label class="cal-board-check" style="padding:var(--sp-2) 0;border-bottom:1px solid var(--border)">
-        <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleCalendarTask(${t.id}, '${t.source}', this.checked)">
-        <span style="border-left:3px solid ${col};padding-left:var(--sp-2);flex:1;${doneStyle}">${t.title}</span>
-      </label>`;
-    }).join('');
-  }
+  let html = items.length ? '' : '<p style="color:var(--muted);font-size:.875rem;padding:var(--sp-3) 0">Nothing on this day.</p>';
+  html += items.map(t => {
+    const src = CAL_SRC[t.source] || { icon: 'fa-circle', color: '#64748b', label: '' };
+    const done = t.done ? 'text-decoration:line-through;opacity:.5' : '';
+    const title = (t.time ? '<b>' + escHtml(t.time) + '</b> ' : '') + escHtml(t.title);
+    const link = calSafeLink(t.link);
+    const lead = t.actionable
+      ? `<input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleCalendarTask(${+t.id}, '${t.source === 'study' ? 'study' : 'todo'}', this.checked)">`
+      : `<i class="fas ${src.icon}" style="color:${src.color};width:16px;text-align:center"></i>`;
+    return `<div class="cal-board-check" style="padding:var(--sp-2) 0;border-bottom:1px solid var(--border)">${lead}
+      <span style="flex:1;${done}">${title}<small style="display:block;color:var(--muted);font-size:.7rem">${escHtml(src.label)}</small></span>
+      ${link ? `<a href="${escHtml(link)}" class="btn btn-ghost btn-sm" ${link.startsWith('http') ? 'target="_blank" rel="noopener"' : ''} aria-label="Open"><i class="fas fa-arrow-right"></i></a>` : ''}</div>`;
+  }).join('');
+  html += `<div style="display:flex;gap:.5rem;margin-top:.75rem"><input id="calQuickTitle" class="form-input" placeholder="Add a todo for this day…" maxlength="150"
+    onkeydown="if(event.key==='Enter')calQuickAdd()"><button class="btn btn-primary btn-sm" onclick="calQuickAdd()" aria-label="Add todo"><i class="fas fa-plus"></i></button></div>`;
+  document.getElementById('dayDetailBody').innerHTML = html;
   document.getElementById('dayDetailModal').classList.remove('hidden');
+}
+async function calQuickAdd() {
+  const title = document.getElementById('calQuickTitle').value.trim();
+  if (!title || !calDayOpen) return;
+  const base = document.querySelector('meta[name="app-base"]')?.content || '';
+  try {
+    const res = await Trackie.API.post(base + '/api/todos.php', { action: 'add', title, due_date: calDayOpen, priority: 'medium' });
+    if (res.success) { Trackie.Toast.success('Todo added.'); location.reload(); } else Trackie.Toast.error(res.error || 'Failed.');
+  } catch { Trackie.Toast.error('Network error.'); }
 }
 function closeDayDetail() { document.getElementById('dayDetailModal').classList.add('hidden'); }
 
@@ -252,9 +278,9 @@ async function toggleCalendarTask(id, source, completed) {
                                      : { action: 'toggle', todo_id: id, completed: completed ? 1 : 0 };
   const res = await Trackie.API.post(endpoint, params);
   if (res && res.success) {
-    refreshFragments(['page-main']);
+    location.reload();
   } else {
-    Trackie.Toast.show('Could not update task', 'error');
+    Trackie.Toast.error('Could not update task');
   }
 }
 </script>

@@ -4425,3 +4425,10 @@ html { overflow-x: clip; }
 .hb-streak i { color: var(--subtle); }
 .hb-streak-on { color: var(--text); font-weight: 600; }
 .hb-streak-on i { color: #f59e0b; }
+
+/* ── Calendar engine: source filters ─────────────────────────────── */
+.cal-sources { display: flex; flex-wrap: wrap; gap: .375rem; margin-bottom: var(--sp-3); }
+.cal-src { display: inline-flex; align-items: center; gap: .375rem; font-size: .75rem; font-weight: 600; padding: .3125rem .625rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; opacity: .55; }
+.cal-src i { color: var(--c); }
+.cal-src.active { opacity: 1; color: var(--text); border-color: var(--c); }
+.cal-task-chip.hidden { display: none; }
