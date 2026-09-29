@@ -25,14 +25,20 @@ require_once __DIR__ . '/../includes/webpush.php';
 $isCli = (PHP_SAPI === 'cli');
 
 // ── Auth for HTTP invocation ─────────────────────────────────────
+// CRON_TOKEN in config/env.php works on hosts without a command line
+// (InfinityFree); the keys/ file is the fallback for CLI-bootstrapped setups.
 $tokenFile = ROOT_PATH . '/keys/cron_token.txt';
-$token = is_file($tokenFile) ? trim(file_get_contents($tokenFile)) : '';
+$token = (string)env('CRON_TOKEN');
+if (strlen($token) < 24) $token = is_file($tokenFile) ? trim(file_get_contents($tokenFile)) : '';
 
 if ($isCli) {
     // First CLI run bootstraps the token for external HTTP schedulers.
     if ($token === '') {
         $token = bin2hex(random_bytes(24));
         if (!is_dir(ROOT_PATH . '/keys')) mkdir(ROOT_PATH . '/keys', 0700, true);
+        // Never web-readable, even on hosts that ignore file permissions.
+        @file_put_contents(ROOT_PATH . '/keys/.htaccess', "Require all denied
+");
         file_put_contents($tokenFile, $token);
         fwrite(STDERR, "Generated cron token → keys/cron_token.txt\n");
     }

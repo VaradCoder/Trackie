@@ -89,6 +89,14 @@ switch ($action) {
         }
         json_out(['success' => true, 'xp' => $xp, 'achievements' => $newAchievements]);
 
+    case 'restore':
+        // Undo a delete: todos are soft-deleted, so bring back the parent and
+        // the subtasks that were deleted with it (within the last hour).
+        $id = (int)($_POST['todo_id'] ?? 0);
+        $n = update("UPDATE todos SET deleted_at=NULL
+                      WHERE (id=? OR parent_id=?) AND user_id=? AND deleted_at >= NOW() - INTERVAL 1 HOUR", [$id, $id, $uid]);
+        json_out(['success' => $n > 0, 'restored' => $n] + ($n > 0 ? [] : ['error' => 'Nothing to restore.']));
+
     case 'delete':
         $id = (int)($_POST['todo_id'] ?? 0);
         if (!$id) json_out(['success' => false, 'error' => 'Invalid ID.'], 422);

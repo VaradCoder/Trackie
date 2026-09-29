@@ -147,6 +147,7 @@ if ($totalHabits > 0) {
               <span class="badge badge-gray" style="margin-top:var(--sp-1)"><?= ucfirst($h['frequency']) ?></span>
             </div>
           </div>
+          <button class="btn btn-icon btn-ghost btn-sm" onclick="openEditHabit(<?= $h['id'] ?>)" title="Edit" aria-label="Edit habit"><i class="fas fa-pen"></i></button>
           <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)"
                   onclick="deleteHabit(<?= $h['id'] ?>)" title="Delete">
             <i class="fas fa-trash"></i>
@@ -198,12 +199,13 @@ if ($totalHabits > 0) {
 <div id="addHabitModal" class="modal-backdrop hidden">
   <div class="modal-box">
     <div class="modal-header">
-      <span class="modal-title">New Habit</span>
+      <span class="modal-title" id="habitModalTitle">New Habit</span>
       <button class="btn btn-icon btn-ghost btn-sm" data-close-modal="addHabitModal" aria-label="Close dialog">&times;</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
         <label for="habitName" class="form-label">Habit name <span style="color:var(--accent)">*</span></label>
+        <input type="hidden" id="habitId">
         <input id="habitName" class="form-input" placeholder="e.g. Exercise, Read, Meditate">
       </div>
       <div class="form-grid-2">
@@ -248,6 +250,8 @@ async function addSuggested(name, freq, color, btn) {
 }
 
 function openAddHabit() {
+  document.getElementById('habitId').value    = '';
+  document.getElementById('habitModalTitle').textContent = 'New Habit';
   document.getElementById('habitName').value  = '';
   document.getElementById('habitFreq').value  = 'daily';
   document.getElementById('habitColor').value = '#ef4444';
@@ -258,17 +262,31 @@ async function saveHabit() {
   const name = document.getElementById('habitName').value.trim();
   if (!name) { Trackie.Toast.warning('Name is required.'); return; }
   try {
+    const editId = document.getElementById('habitId').value;
     const res = await Trackie.API.post(`${API_BASE}/habits.php`, {
-      action: 'add',
+      action: editId ? 'edit' : 'add', habit_id: editId,
       name,
       frequency: document.getElementById('habitFreq').value,
       color: document.getElementById('habitColor').value,
     });
     if (res.success) {
-      Trackie.Toast.success('Habit added!');
+      Trackie.Toast.success(editId ? 'Habit updated.' : 'Habit added!');
       Trackie.closeModal('addHabitModal');
       await Trackie.refreshFragments(['habitsStatsWrap', 'habitsSuggestionsWrap', 'habitsListWrap']);
     } else Trackie.Toast.error(res.error || 'Failed.');
+  } catch { Trackie.Toast.error('Network error.'); }
+}
+
+async function openEditHabit(id) {
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/habits.php`, { action: 'get', habit_id: id });
+    if (!res.success) { Trackie.Toast.error(res.error || 'Not found.'); return; }
+    document.getElementById('habitId').value    = res.habit.id;
+    document.getElementById('habitName').value  = res.habit.name;
+    document.getElementById('habitFreq').value  = res.habit.frequency;
+    document.getElementById('habitColor').value = res.habit.color || '#ef4444';
+    document.getElementById('habitModalTitle').textContent = 'Edit Habit';
+    Trackie.openModal('addHabitModal');
   } catch { Trackie.Toast.error('Network error.'); }
 }
 

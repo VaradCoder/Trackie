@@ -83,4 +83,46 @@
       try { P.Browser.open({ url: url.href }); } catch (e) { window.open(url.href, '_system'); }
     }
   }, true);
+
+  // ── Native reminders (LocalNotifications plugin) ────────────
+  // Web reminders only fire while a Trackie tab is open (free hosting has no
+  // scheduler). In the app, the next 7 days of reminders are scheduled with
+  // the OS so they fire even when the app is closed. Inactive until the app
+  // is built with @capacitor/local-notifications.
+  var LN = P.LocalNotifications;
+  var syncing = false;
+  function csrf() { var m = document.querySelector('meta[name="csrf-token"]'); return m ? m.content : ''; }
+  function base() { var m = document.querySelector('meta[name="app-base"]'); return m ? m.content : ''; }
+  async function syncReminders() {
+    if (!LN || syncing || !csrf()) return;           // not logged in / plugin missing
+    syncing = true;
+    try {
+      var perm = await LN.checkPermissions();
+      if (perm.display !== 'granted') perm = await LN.requestPermissions();
+      if (perm.display !== 'granted') return;
+      var body = new FormData(); body.append('action', 'upcoming'); body.append('csrf_token', csrf());
+      var res = await fetch(base() + '/api/reminders.php', { method: 'POST', body: body, credentials: 'same-origin',
+                                                          headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf() } });
+      var data = await res.json();
+      if (!data || !data.success) return;
+      // Replace everything previously scheduled by Trackie.
+      var pending = await LN.getPending();
+      if (pending.notifications && pending.notifications.length) await LN.cancel({ notifications: pending.notifications.map(function (n) { return { id: n.id }; }) });
+      var list = (data.occurrences || []).map(function (o, i) {
+        return { id: 1000 + i, title: '⏰ ' + o.title, body: o.body, schedule: { at: new Date(o.at), allowWhileIdle: true },
+                 extra: { url: base() + '/pages/reminders.php' } };
+      });
+      if (list.length) await LN.schedule({ notifications: list });
+    } catch (e) { /* never break the page over notifications */ }
+    finally { syncing = false; }
+  }
+  if (LN) {
+    window.addEventListener('load', function () { setTimeout(syncReminders, 1500); });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') syncReminders(); });
+    window.TrackieNativeSyncReminders = syncReminders;   // called after a reminder is saved
+    if (LN.addListener) LN.addListener('localNotificationActionPerformed', function (ev) {
+      var url = ev && ev.notification && ev.notification.extra && ev.notification.extra.url;
+      if (url && url.charAt(0) === '/') location.href = url;
+    });
+  }
 })();

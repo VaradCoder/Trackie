@@ -449,7 +449,12 @@ async function deleteTodo(id) {
     if (res.success) {
       const row = document.getElementById(`todo-${id}`);
       row?.remove();
-      Trackie.Toast.success('Todo deleted.');
+      Trackie.Toast.action('Todo deleted.', 'Undo', async () => {
+        const r = await Trackie.API.post(`${API_BASE}/todos.php`, {action:'restore', todo_id:id});
+        if (r.success) { Trackie.Toast.success('Restored.'); await Trackie.refreshFragments(['todoStatsWrap', 'todoList']); }
+        else Trackie.Toast.error(r.error || 'Could not restore.');
+      });
+      Trackie.refreshFragments(['todoStatsWrap']);
     } else Trackie.Toast.error(res.error || 'Delete failed.');
   } catch { Trackie.Toast.error('Network error.'); }
 }

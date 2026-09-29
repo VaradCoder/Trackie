@@ -83,6 +83,21 @@ switch ($action) {
         undoActivity($uid, 'habit', 'log:' . $date, $id);
         json_out(['success' => true]);
 
+    case 'get':
+        $h = fetchOne("SELECT id, name, frequency, color FROM habits WHERE id=? AND user_id=?", [(int)($_POST['habit_id'] ?? 0), $uid]);
+        if (!$h) json_out(['success' => false, 'error' => 'Habit not found.'], 404);
+        json_out(['success' => true, 'habit' => $h]);
+
+    case 'edit':
+        $id    = (int)($_POST['habit_id'] ?? 0);
+        $name  = mb_substr(trim(sanitizeInput($_POST['name'] ?? '')), 0, 100);
+        $freq  = in_array($_POST['frequency'] ?? '', ['daily', 'weekly'], true) ? $_POST['frequency'] : 'daily';
+        $color = preg_match('/^#[0-9a-fA-F]{6}$/', $_POST['color'] ?? '') ? $_POST['color'] : '#ef4444';
+        if ($name === '') json_out(['success' => false, 'error' => 'Name is required.'], 422);
+        if (!fetchOne("SELECT id FROM habits WHERE id=? AND user_id=?", [$id, $uid])) json_out(['success' => false, 'error' => 'Habit not found.'], 404);
+        update("UPDATE habits SET name=?, frequency=?, color=? WHERE id=? AND user_id=?", [$name, $freq, $color, $id, $uid]);
+        json_out(['success' => true]);
+
     case 'delete':
         $id = (int)($_POST['habit_id'] ?? 0);
         if (!$id) json_out(['success' => false, 'error' => 'Invalid ID.'], 422);

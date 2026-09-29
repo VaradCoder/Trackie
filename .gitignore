@@ -34,3 +34,7 @@ storage/photos/*
 
 # Deploy bundles built by scripts/deploy_bundle.php
 dist/
+
+# Server-generated secrets (cron token, VAPID keys) — never committed
+keys/*
+!keys/.htaccess

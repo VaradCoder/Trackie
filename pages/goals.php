@@ -58,7 +58,7 @@ require_once '../includes/head.php';
 <?= renderPageHeader('My Goals', [
   'icon'    => 'fa-bullseye',
   'sub'     => 'Set targets, track progress, and hit your milestones.',
-  'actions' => '<button class="btn btn-primary btn-sm" onclick="openModal(\'goalModal\')"><i class="fas fa-plus"></i> New Goal</button>',
+  'actions' => '<button class="btn btn-primary btn-sm" onclick="openNewGoal()"><i class="fas fa-plus"></i> New Goal</button>',
 ]) ?>
 
 <!-- Stats -->
@@ -97,7 +97,7 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-bullseye"></i></div>
       <div class="empty-state-title">No goals yet</div>
       <p>Set a goal and start tracking your progress.</p>
-      <button class="btn btn-primary" style="margin-top:var(--sp-3)" onclick="openModal('goalModal')">
+      <button class="btn btn-primary" style="margin-top:var(--sp-3)" onclick="openNewGoal()">
         <i class="fas fa-plus"></i> Add your first goal
       </button>
     </div>
@@ -119,6 +119,7 @@ require_once '../includes/head.php';
               <div style="font-size:.8125rem;color:var(--muted);margin-top:var(--sp-1)"><?= h($g['description']) ?></div>
             <?php endif; ?>
           </div>
+          <button class="btn btn-icon btn-ghost btn-sm" style="flex-shrink:0" onclick="openEditGoal(<?= $g['id'] ?>)" aria-label="Edit goal" title="Edit"><i class="fas fa-pen"></i></button>
           <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent);flex-shrink:0"
                   onclick="deleteGoal(<?= $g['id'] ?>)">
             <i class="fas fa-trash"></i>
@@ -184,6 +185,7 @@ require_once '../includes/head.php';
     <div class="modal-body">
       <div class="form-group">
         <label for="goalName" class="form-label">Goal name <span style="color:var(--accent)">*</span></label>
+        <input type="hidden" id="goalId">
         <input id="goalName" class="form-input" placeholder="e.g. Read 50 books, Save $10,000">
       </div>
       <div class="form-group">
@@ -220,19 +222,42 @@ require_once '../includes/head.php';
 <script>
 const API_BASE = '<?= APP_BASE ?>/api';
 
+function openNewGoal() {
+  ['goalId', 'goalName', 'goalDesc', 'goalDeadline'].forEach(i => document.getElementById(i).value = '');
+  document.getElementById('goalTarget').value = 100;
+  document.getElementById('goalProgress').value = 0;
+  const t = document.querySelector('#goalModal .modal-title'); if (t) t.textContent = 'New Goal';
+  Trackie.openModal('goalModal');
+}
+async function openEditGoal(id) {
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/goals.php`, { action: 'get', goal_id: id });
+    if (!res.success) { Trackie.Toast.error(res.error || 'Not found.'); return; }
+    const g = res.goal;
+    document.getElementById('goalId').value = g.id;
+    document.getElementById('goalName').value = g.goal_name;
+    document.getElementById('goalDesc').value = g.description || '';
+    document.getElementById('goalTarget').value = g.target_value;
+    document.getElementById('goalProgress').value = g.progress;
+    document.getElementById('goalDeadline').value = g.deadline || '';
+    const t = document.querySelector('#goalModal .modal-title'); if (t) t.textContent = 'Edit Goal';
+    Trackie.openModal('goalModal');
+  } catch { Trackie.Toast.error('Network error.'); }
+}
 async function saveGoal() {
   const name = document.getElementById('goalName').value.trim();
   if (!name) { Trackie.Toast.warning('Goal name required.'); return; }
   try {
+    const editId = document.getElementById('goalId').value;
     const res = await Trackie.API.post(`${API_BASE}/goals.php`, {
-      action: 'add', goal_name: name,
+      action: editId ? 'edit' : 'add', goal_id: editId, goal_name: name,
       description:  document.getElementById('goalDesc').value,
       target_value: document.getElementById('goalTarget').value,
       progress:     document.getElementById('goalProgress').value,
       deadline:     document.getElementById('goalDeadline').value,
     });
     if (res.success) {
-      Trackie.Toast.success('Goal added!');
+      Trackie.Toast.success(editId ? 'Goal updated.' : 'Goal added!');
       Trackie.closeModal('goalModal');
       await Trackie.refreshFragments(['goalsStatsWrap', 'goalsListWrap']);
     }

@@ -190,6 +190,16 @@ const Toast = (() => {
     warning:     (m, d) => show(m, 'warning', d),
     info:        (m, d) => show(m, 'info',    d),
     achievement: (emoji, name, desc, d) => achievement(emoji, name, desc, d),
+    /** Toast with one action button, e.g. Toast.action('Todo deleted.', 'Undo', restoreFn). */
+    action: (m, label, fn, d = 7000) => {
+      const t = show(m, 'info', d);
+      const b = document.createElement('button');
+      b.className = 'toast-action';
+      b.textContent = label;
+      b.addEventListener('click', () => { dismiss(t); fn(); });
+      t.insertBefore(b, t.querySelector('.toast-close'));
+      return t;
+    },
   };
 })();
 

@@ -305,7 +305,7 @@ async function saveReminder() {
   try {
     const res = await Trackie.API.post(`${API_BASE}/reminders.php`, payload);
     if (res.success) {
-      Trackie.Toast.success(id ? 'Reminder updated.' : 'Reminder added.');
+      Trackie.Toast.success(id ? 'Reminder updated.' : 'Reminder added.'); window.TrackieNativeSyncReminders?.();
       Trackie.closeModal('reminderModal');
       await Trackie.refreshFragments(['remActiveCount', 'remListWrap']);
     } else { Trackie.Toast.error(res.error || 'Save failed.'); }
@@ -332,7 +332,7 @@ async function toggleReminder(id, btn) {
       const icon = btn.querySelector('i');
       icon.className = `fas ${isActive ? 'fa-pause' : 'fa-play'}`;
       btn.title = isActive ? 'Pause' : 'Resume';
-      Trackie.Toast.success(isActive ? 'Reminder resumed.' : 'Reminder paused.');
+      Trackie.Toast.success(isActive ? 'Reminder resumed.' : 'Reminder paused.'); window.TrackieNativeSyncReminders?.();
     } else { Trackie.Toast.error(res.error || 'Failed.'); }
   } catch { Trackie.Toast.error('Network error.'); }
   btn.disabled = false;
@@ -343,7 +343,7 @@ async function deleteReminder(id) {
   if (!ok) return;
   try {
     const res = await Trackie.API.post(`${API_BASE}/reminders.php`, { action: 'delete', reminder_id: id });
-    if (res.success) { document.getElementById(`rem-${id}`)?.remove(); Trackie.Toast.success('Reminder deleted.'); }
+    if (res.success) { document.getElementById(`rem-${id}`)?.remove(); Trackie.Toast.success('Reminder deleted.'); window.TrackieNativeSyncReminders?.(); }
     else Trackie.Toast.error(res.error || 'Delete failed.');
   } catch { Trackie.Toast.error('Network error.'); }
 }
@@ -353,7 +353,7 @@ function enableBrowserNotifs() {
   if (!('Notification' in window)) { Trackie.Toast.warning('This browser does not support notifications.'); return; }
   Notification.requestPermission().then(p => {
     if (p === 'granted') {
-      Trackie.Toast.success('Browser notifications enabled!');
+      Trackie.Toast.success('Browser notifications enabled!'); window.TrackieNativeSyncReminders?.();
       document.getElementById('notifPermBtn')?.classList.add('hidden');
       new Notification('🔔 Trackie reminders are on', {
         body: 'You\'ll get a notification when a reminder is due.',

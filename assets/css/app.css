@@ -4432,3 +4432,7 @@ html { overflow-x: clip; }
 .cal-src i { color: var(--c); }
 .cal-src.active { opacity: 1; color: var(--text); border-color: var(--c); }
 .cal-task-chip.hidden { display: none; }
+
+/* Toast action button (Undo) */
+.toast-action { background: none; border: 1px solid currentColor; color: inherit; font: inherit; font-size: .75rem; font-weight: 700; padding: .1875rem .625rem; border-radius: 999px; cursor: pointer; margin-left: .5rem; flex-shrink: 0; }
+.toast-action:hover { background: rgba(255,255,255,.12); }

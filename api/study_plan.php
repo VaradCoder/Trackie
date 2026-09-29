@@ -60,6 +60,25 @@ switch ($action) {
         }
         json_out(['success' => true, 'xp' => $xp]);
 
+    case 'get':
+        $t = fetchOne("SELECT id, title, description, subject, due_date, type, priority, resource FROM study_plan WHERE id=? AND user_id=?", [(int)($_POST['task_id'] ?? 0), $uid]);
+        if (!$t) json_out(['success' => false, 'error' => 'Task not found.'], 404);
+        json_out(['success' => true, 'task' => $t]);
+
+    case 'edit':
+        $id       = (int)($_POST['task_id'] ?? 0);
+        $title    = sanitizeInput($_POST['title']       ?? '');
+        $type     = sanitizeInput($_POST['type']        ?? 'study');
+        $priority = sanitizeInput($_POST['priority']    ?? 'medium');
+        if (!$title) json_out(['success' => false, 'error' => 'Title is required.'], 422);
+        if (!in_array($type, $validTypes, true))        $type     = 'study';
+        if (!in_array($priority, $validPriority, true)) $priority = 'medium';
+        if (!fetchOne("SELECT id FROM study_plan WHERE id=? AND user_id=?", [$id, $uid])) json_out(['success' => false, 'error' => 'Task not found.'], 404);
+        update("UPDATE study_plan SET title=?, description=?, subject=?, due_date=?, type=?, priority=?, resource=? WHERE id=? AND user_id=?",
+               [$title, sanitizeInput($_POST['description'] ?? ''), sanitizeInput($_POST['subject'] ?? ''),
+                sanitizeInput($_POST['due_date'] ?? '') ?: null, $type, $priority, sanitizeInput($_POST['resource'] ?? ''), $id, $uid]);
+        json_out(['success' => true]);
+
     case 'delete':
         $id = (int)($_POST['task_id'] ?? 0);
         if (!$id) json_out(['success' => false, 'error' => 'Invalid ID.'], 422);

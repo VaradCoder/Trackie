@@ -210,16 +210,27 @@ switch ($action) {
         ]);
 
     case 'upcoming':
-        // Future reminders in the next 7 days — used by the native app to
-        // schedule OS-level local notifications that fire even when closed.
-        $rows = fetchAll(
-            "SELECT id, title, notes, type, next_fire_at FROM reminders
-             WHERE user_id=? AND active=1 AND next_fire_at > NOW()
-               AND next_fire_at <= DATE_ADD(NOW(), INTERVAL 7 DAY)
-             ORDER BY next_fire_at ASC LIMIT 50",
-            [$uid]
-        );
-        json_out(['success' => true, 'reminders' => $rows]);
+        // Every occurrence in the next 7 days, for the native app to schedule
+        // as OS-level local notifications that fire even when it's closed.
+        // Smart reminders are left out: they depend on whether the habit is
+        // logged by then, which can't be known in advance (the in-app check
+        // still fires them). Capped at 60 — iOS keeps at most 64 pending.
+        require_once '../includes/settings.php';
+        if (!userSetting($uid, 'notify_reminders')) json_out(['success' => true, 'occurrences' => []]);
+        $until = time() + 7 * 86400;
+        $occ = [];
+        foreach (fetchAll("SELECT id, title, notes, type, repeat_every, repeat_unit, next_fire_at FROM reminders
+                           WHERE user_id=? AND active=1 AND type<>'smart' AND next_fire_at <= DATE_ADD(NOW(), INTERVAL 7 DAY)", [$uid]) as $r) {
+            $t = strtotime($r['next_fire_at']);
+            $step = '+' . max(1, (int)$r['repeat_every']) . ' ' . $r['repeat_unit'];
+            for ($n = 0; $t <= $until && $n < 200; $n++) {
+                if ($t > time()) $occ[] = ['reminder_id' => (int)$r['id'], 'title' => $r['title'], 'body' => $r['notes'] ?: 'Trackie reminder', 'at' => date('c', $t)];
+                if ($r['type'] === 'once') break;
+                $t = strtotime($step, $t);
+            }
+        }
+        usort($occ, static fn($a, $b) => strcmp($a['at'], $b['at']));
+        json_out(['success' => true, 'occurrences' => array_slice($occ, 0, 60)]);
 
     default:
         json_out(['success' => false, 'error' => 'Unknown action.'], 400);

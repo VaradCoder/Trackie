@@ -92,7 +92,7 @@ require_once '../includes/head.php';
 <?= renderPageHeader('Study Plan', [
   'icon'    => 'fa-book-open',
   'sub'     => 'Plan sessions, deadlines, and revision in one place.',
-  'actions' => '<button class="btn btn-primary btn-sm" onclick="openModal(\'studyModal\')"><i class="fas fa-plus"></i> Add Task</button>',
+  'actions' => '<button class="btn btn-primary btn-sm" onclick="openNewStudy()"><i class="fas fa-plus"></i> Add Task</button>',
 ]) ?>
 
 <?= renderInsight($studyInsight) ?>
@@ -163,7 +163,8 @@ function renderTaskList(array $tasks, string $apiBase, string $today): void {
               <?php if ($t['due_date'] && $t['due_date'] !== $today): ?><span><i class="fas fa-calendar" style="font-size:.7rem"></i> <?= htmlspecialchars(date('M j',strtotime($t['due_date']))) ?></span><?php endif; ?>
             </div>
           </div>
-          <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)"
+          <button class="btn btn-icon btn-ghost btn-sm" onclick="openEditStudy(<?= $t['id'] ?>)" aria-label="Edit task" title="Edit"><i class="fas fa-pen"></i></button>
+                <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)"
                   onclick="deleteStudy(<?= $t['id'] ?>)">
             <i class="fas fa-trash"></i>
           </button>
@@ -187,7 +188,7 @@ $studyFiltered = $typeFilter !== 'all' || $subjectFilter !== 'all' || $priorityF
         <div class="empty-state-title">Plan your next study session</div>
         <p>Add a task — a chapter to revise, an assignment, a topic to practice.</p>
       <?php endif; ?>
-      <button class="btn btn-primary" style="margin-top:var(--sp-3)" onclick="openModal('studyModal')">
+      <button class="btn btn-primary" style="margin-top:var(--sp-3)" onclick="openNewStudy()">
         <i class="fas fa-plus"></i> Add a study task
       </button>
     </div>
@@ -225,6 +226,7 @@ $studyFiltered = $typeFilter !== 'all' || $subjectFilter !== 'all' || $priorityF
     <div class="modal-body">
       <div class="form-group">
         <label for="studyTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label>
+        <input type="hidden" id="studyId">
         <input id="studyTitle" class="form-input" placeholder="Task title">
       </div>
       <div class="form-grid-2">
@@ -279,12 +281,32 @@ $studyFiltered = $typeFilter !== 'all' || $subjectFilter !== 'all' || $priorityF
 <script>
 const API_BASE = '<?= APP_BASE ?>/api';
 
+const STUDY_FIELDS = { studyTitle: 'title', studySubject: 'subject', studyDue: 'due_date', studyType: 'type',
+                       studyPriority: 'priority', studyDesc: 'description', studyResource: 'resource' };
+function openNewStudy() {
+  document.getElementById('studyId').value = '';
+  Object.keys(STUDY_FIELDS).forEach(i => { const el = document.getElementById(i); el.value = el.tagName === 'SELECT' ? el.options[0].value : ''; });
+  document.getElementById('studyPriority').value = 'medium';
+  const t = document.querySelector('#studyModal .modal-title'); if (t) t.textContent = 'Add Task';
+  Trackie.openModal('studyModal');
+}
+async function openEditStudy(id) {
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/study_plan.php`, { action: 'get', task_id: id });
+    if (!res.success) { Trackie.Toast.error(res.error || 'Not found.'); return; }
+    document.getElementById('studyId').value = res.task.id;
+    Object.entries(STUDY_FIELDS).forEach(([i, k]) => document.getElementById(i).value = res.task[k] || '');
+    const t = document.querySelector('#studyModal .modal-title'); if (t) t.textContent = 'Edit Task';
+    Trackie.openModal('studyModal');
+  } catch { Trackie.Toast.error('Network error.'); }
+}
 async function saveStudy() {
   const title = document.getElementById('studyTitle').value.trim();
   if (!title) { Trackie.Toast.warning('Title is required.'); return; }
   try {
+    const editId = document.getElementById('studyId').value;
     const res = await Trackie.API.post(`${API_BASE}/study_plan.php`, {
-      action: 'add', title,
+      action: editId ? 'edit' : 'add', task_id: editId, title,
       subject:   document.getElementById('studySubject').value,
       due_date:  document.getElementById('studyDue').value,
       type:      document.getElementById('studyType').value,
@@ -293,7 +315,7 @@ async function saveStudy() {
       resource:  document.getElementById('studyResource').value,
     });
     if (res.success) {
-      Trackie.Toast.success('Task added!');
+      Trackie.Toast.success(editId ? 'Task updated.' : 'Task added!');
       Trackie.closeModal('studyModal');
       await Trackie.refreshFragments(['studyListWrap']);
     }

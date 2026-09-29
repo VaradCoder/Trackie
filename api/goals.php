@@ -47,6 +47,26 @@ switch ($action) {
         }
         json_out(['success' => true, 'progress' => $prog, 'xp' => $xp]);
 
+    case 'get':
+        $g = fetchOne("SELECT id, goal_name, description, progress, target_value, deadline FROM goals WHERE id=? AND user_id=?", [(int)($_POST['goal_id'] ?? 0), $uid]);
+        if (!$g) json_out(['success' => false, 'error' => 'Goal not found.'], 404);
+        json_out(['success' => true, 'goal' => $g]);
+
+    case 'edit':
+        $id     = (int)($_POST['goal_id'] ?? 0);
+        $name   = sanitizeInput($_POST['goal_name']   ?? '');
+        $desc   = sanitizeInput($_POST['description'] ?? '');
+        $target = max(1, (int)($_POST['target_value'] ?? 100));
+        $prog   = min(max(0, (int)($_POST['progress'] ?? 0)), $target);
+        $dead   = sanitizeInput($_POST['deadline']    ?? '') ?: null;
+        if (!$name) json_out(['success' => false, 'error' => 'Goal name is required.'], 422);
+        if (!fetchOne("SELECT id FROM goals WHERE id=? AND user_id=?", [$id, $uid])) json_out(['success' => false, 'error' => 'Goal not found.'], 404);
+        update("UPDATE goals SET goal_name=?, description=?, progress=?, target_value=?, deadline=? WHERE id=? AND user_id=?",
+               [$name, $desc, $prog, $target, $dead, $id, $uid]);
+        $xp = null;
+        if ($prog >= $target) { require_once '../includes/activity.php'; $xp = recordActivity($uid, 'goal', 'goal', $id); }
+        json_out(['success' => true, 'xp' => $xp]);
+
     case 'delete':
         $id = (int)($_POST['goal_id'] ?? 0);
         if (!$id) json_out(['success' => false, 'error' => 'Invalid ID.'], 422);
