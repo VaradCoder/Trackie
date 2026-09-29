@@ -35,12 +35,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $validToken) {
     } elseif ($password !== $confirm) {
         $error = 'Passwords do not match.';
     } else {
-        update("UPDATE users SET password=? WHERE id=?",
-               [hashPassword($password), $validToken['user_id']]);
-        update("UPDATE password_resets SET used=1 WHERE token_hash=?", [$tokenHash]);
+        // Claim the token first and atomically: a double-submit (or a second
+        // tab) finds used=1 and changes nothing.
+        $claimed = update("UPDATE password_resets SET used=1 WHERE token_hash=? AND used=0 AND expires_at > NOW()", [$tokenHash]);
+        if ($claimed !== 1) {
+            $error = 'This reset link has already been used. Please request a new one.';
+        } else {
+            update("UPDATE users SET password=? WHERE id=?",
+                   [hashPassword($password), $validToken['user_id']]);
+            // Anyone holding a "remember me" cookie for this account is signed out.
+            delete("DELETE FROM remember_tokens WHERE user_id=?", [$validToken['user_id']]);
 
-        flash('success', 'Password reset! Please sign in with your new password.');
-        redirect(APP_BASE . '/pages/login.php');
+            flash('success', 'Password reset! Please sign in with your new password.');
+            redirect(APP_BASE . '/pages/login.php');
+        }
     }
 }
 ?>

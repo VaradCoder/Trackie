@@ -16,7 +16,8 @@ $filter = in_array($_GET['filter'] ?? '', ['all','pending','completed','overdue'
         ? $_GET['filter'] : 'all';
 $search = sanitizeInput($_GET['search'] ?? '');
 
-$sql    = "SELECT * FROM todos WHERE user_id=? AND deleted_at IS NULL";
+// Top-level todos only: subtasks (parent_id set) live in their parent's panel.
+$sql    = "SELECT * FROM todos WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL";
 $params = [$uid];
 
 if ($filter === 'completed') $sql .= " AND completed=1";
@@ -37,7 +38,7 @@ $stats = fetchOne(
             SUM(completed=1) done,
             SUM(completed=0) pending,
             SUM(completed=0 AND due_date < CURDATE()) overdue
-     FROM todos WHERE user_id=? AND deleted_at IS NULL",
+     FROM todos WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL",
     [$uid]
 );
 
@@ -49,7 +50,7 @@ $view = ($_GET['view'] ?? '') === 'timeline' ? 'timeline' : 'list';
 $timelineGroups = [];
 if ($view === 'timeline') {
     $allTodos = fetchAll(
-        "SELECT * FROM todos WHERE user_id=? AND deleted_at IS NULL
+        "SELECT * FROM todos WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL
          ORDER BY completed ASC, FIELD(priority,'high','medium','low'), due_date ASC, created_at DESC",
         [$uid]
     );
@@ -73,7 +74,7 @@ if (($stats['overdue'] ?? 0) > 0) {
 } elseif ($pendingTotal > 0) {
     $prio = fetchOne(
         "SELECT priority, COUNT(*) c FROM todos
-         WHERE user_id=? AND deleted_at IS NULL AND completed=0
+         WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL AND completed=0
          GROUP BY priority ORDER BY c DESC LIMIT 1",
         [$uid]
     );

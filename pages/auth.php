@@ -87,8 +87,16 @@ require_once '../includes/head.php';
         </div>
         <div class="form-hint" id="pwMatchHint" aria-live="polite" style="margin-top:.25rem"></div>
         <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:.25rem">Create account &amp; continue</button>
+        <p class="form-hint" style="text-align:center;margin:.75rem 0 0">
+          By creating an account you agree to the <a href="<?= APP_BASE ?>/pages/terms.php" data-no-spa>Terms</a>
+          and <a href="<?= APP_BASE ?>/pages/privacy.php" data-no-spa>Privacy Policy</a>.
+        </p>
       </form>
     </div>
+    <p class="legal-links">
+      <a href="<?= APP_BASE ?>/pages/privacy.php" data-no-spa>Privacy</a> ·
+      <a href="<?= APP_BASE ?>/pages/terms.php" data-no-spa>Terms</a>
+    </p>
   </div>
 </div>
 

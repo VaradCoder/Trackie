@@ -167,9 +167,11 @@ async function toggleTodayItem(id, source, completed) {
 
 async function toggleTodayHabit(id, completed) {
   const base = document.querySelector('meta[name="app-base"]')?.content || '';
-  const res = await Trackie.API.post(base + '/api/habits.php', {
-    action: 'log', habit_id: id, date: '<?= $today ?>', status: completed ? 'done' : 'skip',
-  });
+  // Unticking undoes the log. It used to record 'skip', and skipped days are
+  // neutral for streaks — so a mis-tap silently protected the streak.
+  const res = await Trackie.API.post(base + '/api/habits.php', completed
+    ? { action: 'log', habit_id: id, date: '<?= $today ?>', status: 'done' }
+    : { action: 'unlog', habit_id: id, date: '<?= $today ?>' });
   if (res && res.success) {
     if (res.achievements?.length) Trackie.showAchievementToasts(res.achievements);
     Trackie.refreshFragments(['todayHabits', 'todayStatsWrap']);
