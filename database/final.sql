@@ -856,3 +856,9 @@ CREATE TABLE IF NOT EXISTS activity_log (
     INDEX idx_user_module_day (user_id, module, occurred_on),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Life V2 ──
+ALTER TABLE sports_sessions ADD COLUMN result VARCHAR(5) DEFAULT NULL AFTER session_type,
+    ADD COLUMN score VARCHAR(40) DEFAULT NULL AFTER result, ADD COLUMN intensity TINYINT DEFAULT NULL AFTER score;
+ALTER TABLE meditation_sessions ADD COLUMN technique VARCHAR(40) DEFAULT NULL AFTER duration_min;
+ALTER TABLE goals ADD COLUMN kind VARCHAR(20) NOT NULL DEFAULT 'general' AFTER goal_name;

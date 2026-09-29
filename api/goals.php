@@ -22,10 +22,11 @@ switch ($action) {
 
         if (!$name) json_out(['success' => false, 'error' => 'Goal name is required.'], 422);
 
+        $kind = ($_POST['kind'] ?? '') === 'savings' ? 'savings' : 'general';
         $id = insert(
-            "INSERT INTO goals (user_id,goal_name,description,progress,target_value,deadline)
-             VALUES (?,?,?,?,?,?)",
-            [$uid, $name, $desc, $prog, $target, $dead]
+            "INSERT INTO goals (user_id,goal_name,kind,description,progress,target_value,deadline)
+             VALUES (?,?,?,?,?,?,?)",
+            [$uid, $name, $kind, $desc, $prog, $target, $dead]
         );
         json_out(['success' => true, 'id' => $id]);
 
@@ -48,7 +49,7 @@ switch ($action) {
         json_out(['success' => true, 'progress' => $prog, 'xp' => $xp]);
 
     case 'get':
-        $g = fetchOne("SELECT id, goal_name, description, progress, target_value, deadline FROM goals WHERE id=? AND user_id=?", [(int)($_POST['goal_id'] ?? 0), $uid]);
+        $g = fetchOne("SELECT id, goal_name, kind, description, progress, target_value, deadline FROM goals WHERE id=? AND user_id=?", [(int)($_POST['goal_id'] ?? 0), $uid]);
         if (!$g) json_out(['success' => false, 'error' => 'Goal not found.'], 404);
         json_out(['success' => true, 'goal' => $g]);
 
@@ -61,8 +62,9 @@ switch ($action) {
         $dead   = sanitizeInput($_POST['deadline']    ?? '') ?: null;
         if (!$name) json_out(['success' => false, 'error' => 'Goal name is required.'], 422);
         if (!fetchOne("SELECT id FROM goals WHERE id=? AND user_id=?", [$id, $uid])) json_out(['success' => false, 'error' => 'Goal not found.'], 404);
-        update("UPDATE goals SET goal_name=?, description=?, progress=?, target_value=?, deadline=? WHERE id=? AND user_id=?",
-               [$name, $desc, $prog, $target, $dead, $id, $uid]);
+        $kind = ($_POST['kind'] ?? '') === 'savings' ? 'savings' : 'general';
+        update("UPDATE goals SET goal_name=?, kind=?, description=?, progress=?, target_value=?, deadline=? WHERE id=? AND user_id=?",
+               [$name, $kind, $desc, $prog, $target, $dead, $id, $uid]);
         $xp = null;
         if ($prog >= $target) { require_once '../includes/activity.php'; $xp = recordActivity($uid, 'goal', 'goal', $id); }
         json_out(['success' => true, 'xp' => $xp]);

@@ -47,6 +47,9 @@ switch ($action) {
              VALUES (?,?,?,?,?,?,?,?)",
             [$uid, $in['type'], $in['title'], $in['amount'], $in['cat'], $in['class'], $in['date'], $in['notes']]
         );
+        // Keeping your books counts toward the Trackie streak (no XP).
+        require_once '../includes/activity.php';
+        recordActivity($uid, 'finance_log', 'finance_day', (int)date('Ymd', strtotime($in['date'])), ['date' => $in['date']]);
         json_out(['success' => true, 'id' => $id]);
 
     case 'edit_tx':

@@ -693,6 +693,14 @@ $migrations = [
 
     'habits.schedule_days' => "ALTER TABLE habits ADD COLUMN IF NOT EXISTS schedule_days VARCHAR(13) DEFAULT NULL AFTER frequency",
 
+    // ── Life V2 ──
+    'sports v2 columns' => "ALTER TABLE sports_sessions
+        ADD COLUMN IF NOT EXISTS result VARCHAR(5) DEFAULT NULL AFTER session_type,
+        ADD COLUMN IF NOT EXISTS score VARCHAR(40) DEFAULT NULL AFTER result,
+        ADD COLUMN IF NOT EXISTS intensity TINYINT DEFAULT NULL AFTER score",
+    'meditation.technique' => "ALTER TABLE meditation_sessions ADD COLUMN IF NOT EXISTS technique VARCHAR(40) DEFAULT NULL AFTER duration_min",
+    'goals.kind' => "ALTER TABLE goals ADD COLUMN IF NOT EXISTS kind VARCHAR(20) NOT NULL DEFAULT 'general' AFTER goal_name",
+
     // Gardening — plant collection
     'plants table' => "CREATE TABLE IF NOT EXISTS plants (
         id                INT AUTO_INCREMENT PRIMARY KEY,

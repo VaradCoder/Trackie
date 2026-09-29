@@ -35,6 +35,7 @@ const ACTIVITY_TYPES = [
     'fitness_goal'       => ['fitness',     50],   // per fitness goal reached
     'meditation_session' => ['meditation',  10],
     'sports_session'     => ['sports',      15],
+    'finance_log'        => ['finance',      0],   // once per day with a logged transaction (streak only — no XP to farm)
     // Hobbies
     'reading_session'    => ['reading',     10],   // once per day with reading
     'book_finished'      => ['reading',     30],
@@ -46,7 +47,7 @@ const ACTIVITY_TYPES = [
 /** Human labels for modules (streak cards, analytics). */
 const ACTIVITY_MODULES = [
     'todos' => 'Todos', 'habits' => 'Habits', 'goals' => 'Goals', 'routines' => 'Routines', 'study' => 'Study',
-    'focus' => 'Focus', 'fitness' => 'Fitness', 'meditation' => 'Meditation', 'sports' => 'Sports',
+    'focus' => 'Focus', 'fitness' => 'Fitness', 'meditation' => 'Meditation', 'sports' => 'Sports', 'finance' => 'Finance',
     'reading' => 'Reading', 'gaming' => 'Gaming', 'photography' => 'Photography',
 ];
 

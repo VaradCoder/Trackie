@@ -2943,6 +2943,26 @@ function renderPrList(records) {
 }
 
 /* ── Body stats (optional) ───────────────────────────────────────── */
+/** Weight trend: real entries only, oldest → newest, with 30-day and total change. */
+function bodyTrendSvg(entries) {
+  const pts = entries.filter(e => e.weight_kg !== null && e.weight_kg !== '').map(e => ({ d: e.log_date, w: +e.weight_kg })).reverse();
+  if (pts.length < 2) return '';
+  const W = 320, H = 90, pad = 6;
+  const ws = pts.map(p => p.w), min = Math.min(...ws), max = Math.max(...ws), span = (max - min) || 1;
+  const t0 = new Date(pts[0].d).getTime(), t1 = new Date(pts[pts.length - 1].d).getTime(), ts = (t1 - t0) || 1;
+  const xy = pts.map(p => [pad + (new Date(p.d).getTime() - t0) / ts * (W - 2 * pad), H - pad - (p.w - min) / span * (H - 2 * pad)]);
+  const last = pts[pts.length - 1], cutoff = new Date(last.d); cutoff.setDate(cutoff.getDate() - 30);
+  const base30 = pts.find(p => new Date(p.d) >= cutoff) || pts[0];
+  const fmt = v => (v > 0 ? '+' : '') + v.toFixed(1) + ' kg';
+  return `<div class="body-trend">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Weight trend from ${pts[0].w} to ${last.w} kg">
+      <polyline fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" points="${xy.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}"/>
+      ${xy.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" fill="var(--accent)"/>`).join('')}
+    </svg>
+    <div class="body-trend-meta"><span>Now <b>${last.w} kg</b></span><span>30 days <b>${fmt(last.w - base30.w)}</b></span>
+      <span>Since ${escHtml(pts[0].d)} <b>${fmt(last.w - pts[0].w)}</b></span><span>Range ${min}–${max} kg</span></div>
+  </div>`;
+}
 async function loadBodyStats() {
   const wrap = document.getElementById('bodyStatsList');
   try {
@@ -2951,7 +2971,7 @@ async function loadBodyStats() {
       wrap.innerHTML = '<p class="form-hint">No entries yet — log your weight above to start a trend.</p>';
       return;
     }
-    wrap.innerHTML = res.entries.map(e => `
+    wrap.innerHTML = bodyTrendSvg(res.entries) + res.entries.map(e => `
       <div class="qstat-item" id="bodystat-${e.id}">
         <span class="qstat-label">${e.log_date}${e.body_fat_pct ? ` · ${e.body_fat_pct}% BF` : ''}</span>
         <span style="display:flex;align-items:center;gap:.625rem">

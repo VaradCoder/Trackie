@@ -111,9 +111,10 @@ $upcoming = array_filter($subs, fn($s) =>
     $s['active'] && strtotime($s['next_renewal']) <= strtotime('+30 days'));
 
 // ── Savings goals (link Finance ↔ Goals) ───────────────────────
+// Only goals marked "Savings" (Goals → Savings goal) — not every goal.
 $savingGoals = fetchAll(
-    "SELECT * FROM goals WHERE user_id=? AND progress < target_value
-     ORDER BY deadline IS NULL, deadline ASC LIMIT 3", [$uid]
+    "SELECT * FROM goals WHERE user_id=? AND kind='savings'
+     ORDER BY progress >= target_value, deadline IS NULL, deadline ASC LIMIT 5", [$uid]
 );
 
 // ── Smart insights ─────────────────────────────────────────────
@@ -173,9 +174,14 @@ if ($saved > 0 && $income > 0) {
 
 // ── Transactions list (selected month) ─────────────────────────
 $txFilter = in_array($_GET['t'] ?? '', ['income', 'expense']) ? $_GET['t'] : 'all';
+$txQuery  = mb_substr(trim((string)($_GET['q'] ?? '')), 0, 60);
+$txCat    = mb_substr(trim((string)($_GET['cat'] ?? '')), 0, 40);
 $txSql    = "SELECT * FROM transactions WHERE user_id=? AND tx_date BETWEEN ? AND ?";
 $txParams = [$uid, $monthStart, $monthEnd];
 if ($txFilter !== 'all') { $txSql .= " AND type=?"; $txParams[] = $txFilter; }
+if ($txQuery !== '')    { $txSql .= " AND (title LIKE ? OR notes LIKE ?)"; $like = '%' . addcslashes($txQuery, '%_\\') . '%'; $txParams[] = $like; $txParams[] = $like; }
+if ($txCat !== '')      { $txSql .= " AND category=?"; $txParams[] = $txCat; }
+$txCats = array_column(fetchAll("SELECT DISTINCT category FROM transactions WHERE user_id=? AND tx_date BETWEEN ? AND ? ORDER BY category", [$uid, $monthStart, $monthEnd]), 'category');
 $txSql .= " ORDER BY tx_date DESC, id DESC";
 $transactions = fetchAll($txSql, $txParams);
 
@@ -331,7 +337,7 @@ require_once '../includes/head.php';
       </div>
       <?php if (empty($savingGoals)): ?>
         <p style="font-size:.875rem;color:var(--muted);margin:0">
-          Create a goal (e.g. "Buy laptop — 70000") and track your saving progress here.
+          Create a goal and tick <strong>Savings goal</strong> (e.g. "Buy laptop — 70000") to track it here.
         </p>
       <?php else: foreach ($savingGoals as $g):
         $pct = $g['target_value'] > 0 ? min(100, (int)round($g['progress'] / $g['target_value'] * 100)) : 0; ?>
@@ -426,6 +432,17 @@ require_once '../includes/head.php';
     <?php endforeach; ?>
   </div>
 </div>
+<form method="GET" class="fin-filter">
+  <input type="hidden" name="m" value="<?= h($m) ?>"><input type="hidden" name="t" value="<?= h($txFilter) ?>">
+  <input name="q" class="form-input" value="<?= h($txQuery) ?>" placeholder="Search title or notes…" aria-label="Search transactions">
+  <select name="cat" class="form-input" aria-label="Category" onchange="this.form.submit()">
+    <option value="">All categories</option>
+    <?php foreach ($txCats as $c): ?><option value="<?= h($c) ?>" <?= $txCat === $c ? 'selected' : '' ?>><?= h($c) ?></option><?php endforeach; ?>
+  </select>
+  <button class="btn btn-secondary btn-sm" type="submit"><i class="fas fa-search"></i> Filter</button>
+  <?php if ($txQuery !== '' || $txCat !== ''): ?><a class="btn btn-ghost btn-sm" href="?m=<?= h($m) ?>&t=<?= h($txFilter) ?>">Clear</a><?php endif; ?>
+  <a class="btn btn-ghost btn-sm" href="<?= APP_BASE ?>/api/finance_export.php?m=<?= h($m) ?>" data-no-spa download><i class="fas fa-file-csv"></i> Export CSV</a>
+</form>
 
 <div class="card" id="txListWrap">
   <?php if (empty($transactions)): ?>

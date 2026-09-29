@@ -206,6 +206,9 @@ require_once '../includes/head.php';
         <label for="goalDeadline" class="form-label">Deadline</label>
         <input id="goalDeadline" class="form-input" type="date">
       </div>
+      <div class="form-group">
+        <label class="goal-kind"><input type="checkbox" id="goalSavings"> <span>Savings goal <small>— track it in Finance (amounts in your currency)</small></span></label>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" data-close-modal="goalModal">Cancel</button>
@@ -225,6 +228,7 @@ const API_BASE = '<?= APP_BASE ?>/api';
 function openNewGoal() {
   ['goalId', 'goalName', 'goalDesc', 'goalDeadline'].forEach(i => document.getElementById(i).value = '');
   document.getElementById('goalTarget').value = 100;
+  document.getElementById('goalSavings').checked = false;
   document.getElementById('goalProgress').value = 0;
   const t = document.querySelector('#goalModal .modal-title'); if (t) t.textContent = 'New Goal';
   Trackie.openModal('goalModal');
@@ -240,6 +244,7 @@ async function openEditGoal(id) {
     document.getElementById('goalTarget').value = g.target_value;
     document.getElementById('goalProgress').value = g.progress;
     document.getElementById('goalDeadline').value = g.deadline || '';
+    document.getElementById('goalSavings').checked = g.kind === 'savings';
     const t = document.querySelector('#goalModal .modal-title'); if (t) t.textContent = 'Edit Goal';
     Trackie.openModal('goalModal');
   } catch { Trackie.Toast.error('Network error.'); }
@@ -250,7 +255,7 @@ async function saveGoal() {
   try {
     const editId = document.getElementById('goalId').value;
     const res = await Trackie.API.post(`${API_BASE}/goals.php`, {
-      action: editId ? 'edit' : 'add', goal_id: editId, goal_name: name,
+      action: editId ? 'edit' : 'add', goal_id: editId, goal_name: name, kind: document.getElementById('goalSavings').checked ? 'savings' : 'general',
       description:  document.getElementById('goalDesc').value,
       target_value: document.getElementById('goalTarget').value,
       progress:     document.getElementById('goalProgress').value,

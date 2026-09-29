@@ -4443,3 +4443,30 @@ html { overflow-x: clip; }
 .habit-day span { display: inline-flex; align-items: center; justify-content: center; min-width: 2.75rem; height: 2.25rem; padding: 0 .5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .8125rem; font-weight: 600; color: var(--muted); cursor: pointer; }
 .habit-day input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
 .habit-day input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Meditation V2 ───────────────────────────────────────────────── */
+.md-timer { display: flex; align-items: center; gap: 2rem; flex-wrap: wrap; }
+.md-ring { --p: 0; width: 180px; height: 180px; border-radius: 50%; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(closest-side, var(--surface) 86%, transparent 87% 100%), conic-gradient(#a855f7 calc(var(--p) * 100%), var(--surface2) 0); }
+.md-time { font-size: 2.25rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.md-phase { font-size: .8125rem; color: var(--muted); }
+.md-controls { flex: 1; min-width: 260px; }
+.md-mood { display: flex; align-items: flex-end; gap: .5rem; height: 110px; }
+.md-mood-col { flex: 1; height: 100%; display: flex; align-items: flex-end; gap: 2px; }
+.md-bar { flex: 1; border-radius: 3px 3px 0 0; min-height: 2px; }
+.md-before, .md-key.md-before { background: var(--border); }
+.md-after, .md-key.md-after { background: #a855f7; }
+.md-key { display: inline-block; width: .75rem; height: .75rem; border-radius: 2px; vertical-align: middle; }
+@media (max-width: 640px) { .md-timer { justify-content: center; } }
+
+/* Finance filters, goal kind */
+.fin-filter { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-bottom: .75rem; }
+.fin-filter .form-input { width: auto; flex: 1; min-width: 160px; max-width: 260px; font-size: .875rem; }
+.goal-kind { display: flex; align-items: flex-start; gap: .5rem; font-size: .875rem; color: var(--text); cursor: pointer; }
+.goal-kind small { color: var(--muted); }
+
+/* Fitness body-weight trend */
+.body-trend { margin-bottom: .75rem; }
+.body-trend svg { width: 100%; height: 90px; display: block; background: var(--surface2); border-radius: var(--radius-sm); }
+.body-trend-meta { display: flex; flex-wrap: wrap; gap: .25rem 1rem; font-size: .75rem; color: var(--muted); margin-top: .375rem; }
+.body-trend-meta b { color: var(--text); }
