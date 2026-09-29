@@ -4395,3 +4395,33 @@ html { overflow-x: clip; }
 .legal-links a { color: var(--muted); }
 .legal-links a:hover { color: var(--accent); }
 @media (max-width: 640px) { .legal-card { padding: 1.25rem 1.125rem; } .legal-wrap { padding: 1rem .5rem 2rem; } }
+
+/* ── Settings → Preferences ──────────────────────────────────────── */
+.settings-h3 { font-size: 1rem; font-weight: 600; margin: .5rem 0 1rem; color: var(--text); }
+.settings-prefs { padding: .25rem 1.25rem; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; padding: .875rem 0; border-bottom: 1px solid var(--border); }
+.settings-row:last-of-type { border-bottom: 0; }
+.settings-label { font-weight: 600; font-size: .9375rem; color: var(--text); cursor: pointer; }
+.settings-help { font-size: .8125rem; color: var(--muted); margin: .125rem 0 0; }
+.settings-control { width: 240px; max-width: 100%; flex-shrink: 0; }
+.settings-switch { position: relative; display: inline-block; width: 44px; height: 26px; flex-shrink: 0; cursor: pointer; }
+.settings-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.settings-switch span { position: absolute; inset: 0; background: var(--border); border-radius: 999px; transition: background var(--ease); }
+.settings-switch span::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm); transition: transform var(--ease); }
+.settings-switch input:checked + span { background: var(--accent); }
+.settings-switch input:checked + span::after { transform: translateX(18px); }
+.settings-switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 640px) { .settings-row { flex-wrap: wrap; } .settings-control { width: 100%; } }
+
+/* ── Streaks (activity engine) ───────────────────────────────────── */
+.streak-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .75rem; }
+.streak-tile { border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; text-align: center; background: var(--surface); }
+.streak-tile.is-on { border-color: #f59e0b; }
+.streak-tile-main { background: linear-gradient(135deg, rgba(245,158,11,.15), rgba(239,68,68,.12)); border-color: #f59e0b; }
+.streak-num { font-size: 1.75rem; font-weight: 800; color: var(--text); line-height: 1.1; }
+.streak-label { font-size: .8125rem; font-weight: 600; color: var(--text); margin-top: .125rem; }
+.streak-best { font-size: .6875rem; color: var(--muted); margin-top: .125rem; }
+.hb-streak { font-size: .75rem; color: var(--muted); margin-bottom: .75rem; }
+.hb-streak i { color: var(--subtle); }
+.hb-streak-on { color: var(--text); font-weight: 600; }
+.hb-streak-on i { color: #f59e0b; }

@@ -91,8 +91,9 @@ foreach ($due as $r) {
     // In-app notification (bell) — deduped per day by createNotification().
     createNotification($uid, 'reminder', $title, $body, APP_BASE . '/pages/reminders.php');
 
-    // Web Push to the user's devices.
-    $pushed += sendPushToUser($uid, [
+    // Web Push to the user's devices — unless they turned reminder notifications off.
+    require_once __DIR__ . '/../includes/settings.php';
+    if (userSetting($uid, 'notify_reminders')) $pushed += sendPushToUser($uid, [
         'title' => $title,
         'body'  => $body,
         'url'   => APP_BASE . '/pages/reminders.php',

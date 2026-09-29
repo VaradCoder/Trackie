@@ -6,7 +6,10 @@
 $calMonthName  = date('F, Y', mktime(0,0,0,$calMonth,1,$calYear));
 $firstDay      = mktime(0,0,0,$calMonth,1,$calYear);
 $daysInMonth   = (int)date('t', $firstDay);
-$startWeekday  = (int)date('w', $firstDay);  // 0=Sun
+require_once __DIR__ . '/../settings.php';
+$calWeekStart  = userSetting(currentUserId(), 'week_start');   // 0 = Sunday, 1 = Monday
+$startWeekday  = ((int)date('w', $firstDay) - $calWeekStart + 7) % 7;
+$calDayNames   = $calWeekStart === 1 ? ['M','T','W','T','F','S','S'] : ['S','M','T','W','T','F','S'];
 $todayNum      = (date('n') == $calMonth && date('Y') == $calYear) ? (int)date('j') : -1;
 
 $prevMonth = $calMonth === 1  ? 12 : $calMonth - 1;
@@ -35,7 +38,7 @@ $taskDateSet = array_flip($calTaskDates);  // O(1) lookup
 
     <!-- Day-of-week headers -->
     <div class="mini-cal-grid" role="grid" aria-label="Calendar grid">
-      <?php foreach (['S','M','T','W','T','F','S'] as $d): ?>
+      <?php foreach ($calDayNames as $d): ?>
         <div class="mini-cal-dow" role="columnheader"><?= $d ?></div>
       <?php endforeach; ?>
 

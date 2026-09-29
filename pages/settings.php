@@ -5,6 +5,7 @@ require_once '../includes/functions.php';
 require_once '../includes/auth.php';
 require_once '../includes/providers.php';
 require_once '../includes/integrations.php';
+require_once '../includes/settings.php';
 
 requireAuth();
 
@@ -12,6 +13,7 @@ $uid         = currentUserId();
 $pageTitle   = 'Settings';
 $currentPage = 'settings';
 
+$prefs    = userSettings($uid);
 $registry = integrationsRegistry();
 $summary  = integrationsSummary();
 
@@ -49,8 +51,42 @@ require_once '../includes/head.php';
 
 <?= renderPageHeader('Settings', [
   'icon' => 'fa-gear',
-  'sub'  => 'Manage integrations and how Trackie connects to your world.',
+  'sub'  => 'Your preferences, and how Trackie connects to your world.',
 ]) ?>
+
+<h3 class="settings-h3">Preferences</h3>
+<div class="card card-body settings-prefs" id="prefsCard">
+  <div class="settings-row">
+    <div><label for="prefCurrency" class="settings-label">Currency</label>
+      <p class="settings-help">Used for every amount in Finance.</p></div>
+    <select id="prefCurrency" class="form-input settings-control">
+      <?php foreach (CURRENCIES as $code => [$sym, $label]): ?>
+        <option value="<?= h($code) ?>" <?= $prefs['currency'] === $code ? 'selected' : '' ?>><?= h(trim($sym)) ?> · <?= h($label) ?> (<?= h($code) ?>)</option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <div class="settings-row">
+    <div><label for="prefWeekStart" class="settings-label">Week starts on</label>
+      <p class="settings-help">Calendar grids and "this week" groupings.</p></div>
+    <select id="prefWeekStart" class="form-input settings-control">
+      <option value="0" <?= $prefs['week_start'] === 0 ? 'selected' : '' ?>>Sunday</option>
+      <option value="1" <?= $prefs['week_start'] === 1 ? 'selected' : '' ?>>Monday</option>
+    </select>
+  </div>
+  <div class="settings-row">
+    <div><label for="prefNotifyReminders" class="settings-label">Reminder notifications</label>
+      <p class="settings-help">Pop-ups and push notifications when a reminder is due. Reminders still appear in the bell list.</p></div>
+    <label class="settings-switch"><input type="checkbox" id="prefNotifyReminders" <?= $prefs['notify_reminders'] ? 'checked' : '' ?>><span></span></label>
+  </div>
+  <div class="settings-row">
+    <div><label for="prefNotifyAchievements" class="settings-label">Achievement notifications</label>
+      <p class="settings-help">Level-ups, unlocked achievements and streak milestones in the bell list.</p></div>
+    <label class="settings-switch"><input type="checkbox" id="prefNotifyAchievements" <?= $prefs['notify_achievements'] ? 'checked' : '' ?>><span></span></label>
+  </div>
+  <p class="settings-help" id="prefsStatus" aria-live="polite" style="margin:.25rem 0 0"></p>
+</div>
+
+<h3 class="settings-h3" style="margin-top:2rem">Integrations</h3>
 
 <div class="grid-stats" style="margin-bottom:1.5rem">
   <?= renderStatCard($summary['active'], 'Active integrations', 'fa-plug', 'var(--ok)') ?>
@@ -65,7 +101,6 @@ require_once '../includes/head.php';
   'fa-plug'
 ) ?>
 
-<h3 style="font-size:1rem;font-weight:600;margin:.5rem 0 1rem;color:var(--text)">Integrations</h3>
 
 <div id="integrationsGrid">
 <?php foreach ($byCategory as $category => $providers): ?>
@@ -155,6 +190,24 @@ require_once '../includes/head.php';
 
 <script>
 const API_BASE = '<?= APP_BASE ?>/api';
+
+/* Preferences save as soon as they change — no Save button to forget. */
+async function savePrefs() {
+  const status = document.getElementById('prefsStatus');
+  status.textContent = 'Saving…';
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/settings.php`, {
+      action: 'save',
+      currency: document.getElementById('prefCurrency').value,
+      week_start: document.getElementById('prefWeekStart').value,
+      notify_reminders: document.getElementById('prefNotifyReminders').checked ? 1 : 0,
+      notify_achievements: document.getElementById('prefNotifyAchievements').checked ? 1 : 0,
+    });
+    status.textContent = res.success ? 'Saved.' : '';
+    if (!res.success) Trackie.Toast.error(res.error || 'Could not save.');
+  } catch { status.textContent = ''; Trackie.Toast.error('Network error.'); }
+}
+document.getElementById('prefsCard').addEventListener('change', savePrefs);
 
 async function syncProvider(key, btn) {
   const original = btn.innerHTML;

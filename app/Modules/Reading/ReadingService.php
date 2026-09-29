@@ -120,6 +120,7 @@ final class ReadingService
                [$status, $started, $finished, $current, $id, $this->uid]);
 
         $xp = $status === 'finished' ? awardHobbyXp($this->uid, 'book_finished', 'book', $id) : null;
+        if ($status !== 'finished') undoHobbyActivity($this->uid, 'book_finished', 'book', $id);
         return ['xp' => $xp];
     }
 
@@ -208,7 +209,12 @@ final class ReadingService
 
     public function deleteSession(int $id): void
     {
+        $s = fetchOne("SELECT session_date FROM reading_sessions WHERE id=? AND user_id=?", [$id, $this->uid]);
         delete("DELETE FROM reading_sessions WHERE id=? AND user_id=?", [$id, $this->uid]);
+        // No sessions left that day → the day no longer counts toward the streak.
+        if ($s && !fetchOne("SELECT id FROM reading_sessions WHERE user_id=? AND session_date=? LIMIT 1", [$this->uid, $s['session_date']])) {
+            undoHobbyActivity($this->uid, 'reading_session', 'reading_day', hobbyDayRef($s['session_date']));
+        }
     }
 
     public function recentSessions(int $limit = 40): array

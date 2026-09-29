@@ -13,9 +13,12 @@ $currentPage = 'finance';
 // Tables may not exist yet on an un-migrated database — degrade gracefully.
 if (!tableExists('transactions')) renderSetupNeeded('Finance');
 
-/** ₹ formatter */
+require_once '../includes/settings.php';
+$curSym = CURRENCIES[userSetting($uid, 'currency')][0] ?? '₹';
+
+/** Amount in the user's currency (Settings → Preferences). Name kept for the many call sites. */
 function rupee(float $n): string {
-    return '₹' . number_format($n, ((int)$n == $n) ? 0 : 2);
+    return money($n, currentUserId());
 }
 
 // ── Month selection (?m=YYYY-MM) ───────────────────────────────
@@ -493,7 +496,7 @@ require_once '../includes/head.php';
           <input id="txTitle" class="form-input" placeholder="e.g. Swiggy, Pocket money" maxlength="150">
         </div>
         <div class="form-group">
-          <label for="txAmount" class="form-label">Amount (₹) <span style="color:var(--accent)">*</span></label>
+          <label for="txAmount" class="form-label">Amount (<?= h(trim($curSym)) ?>) <span style="color:var(--accent)">*</span></label>
           <input id="txAmount" class="form-input" type="number" min="1" step="0.01" placeholder="0">
         </div>
       </div>
@@ -544,7 +547,7 @@ require_once '../includes/head.php';
           <input id="subName" class="form-input" placeholder="e.g. Spotify" maxlength="100">
         </div>
         <div class="form-group">
-          <label for="subAmount" class="form-label">Amount (₹) <span style="color:var(--accent)">*</span></label>
+          <label for="subAmount" class="form-label">Amount (<?= h(trim($curSym)) ?>) <span style="color:var(--accent)">*</span></label>
           <input id="subAmount" class="form-input" type="number" min="1" step="0.01" placeholder="119">
         </div>
       </div>
@@ -586,7 +589,7 @@ require_once '../includes/head.php';
         </select>
       </div>
       <div class="form-group">
-        <label for="budgetLimit" class="form-label">Monthly limit (₹)</label>
+        <label for="budgetLimit" class="form-label">Monthly limit (<?= h(trim($curSym)) ?>)</label>
         <input id="budgetLimit" class="form-input" type="number" min="1" placeholder="3000">
       </div>
     </div>

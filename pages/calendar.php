@@ -16,7 +16,12 @@ $year  = max(2000, min(2100, (int)($_GET['year'] ?? date('Y'))));
 
 $firstDay     = mktime(0, 0, 0, $month, 1, $year);
 $daysInMonth  = (int)date('t', $firstDay);
-$startWeekday = (int)date('w', $firstDay);   // 0=Sun
+require_once '../includes/settings.php';
+$weekStart    = userSetting($uid, 'week_start');            // 0 = Sunday, 1 = Monday
+// Blank cells before the 1st, counted from the user's first weekday.
+$startWeekday = ((int)date('w', $firstDay) - $weekStart + 7) % 7;
+$dayNames     = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+if ($weekStart === 1) $dayNames = array_merge(array_slice($dayNames, 1), ['Sun']);
 $startDate    = date('Y-m-01', $firstDay);
 $endDate      = date('Y-m-t',  $firstDay);
 $todayStr     = date('Y-m-d');
@@ -60,7 +65,8 @@ $monthPct       = $monthTotal > 0 ? (int)round($monthCompleted / $monthTotal * 1
 // Board view buckets — Planner-style grouping, read/act rather than drag
 // (there's no meaningful custom bucket order for todos+study tasks to
 // persist, so this groups by real due-date urgency instead).
-$weekEndStr = date('Y-m-d', strtotime('sunday this week'));
+// End of the user's week: Saturday when weeks start on Sunday, else Sunday.
+$weekEndStr = date('Y-m-d', strtotime($weekStart === 1 ? 'sunday this week' : (date('w') == 6 ? 'today' : 'next saturday')));
 $buckets = ['overdue' => [], 'today' => [], 'this_week' => [], 'later' => [], 'done' => []];
 foreach ($allTasks as $t) {
     if ($t['completed'])                                  { $buckets['done'][] = $t; continue; }
@@ -122,7 +128,7 @@ require_once '../includes/head.php';
 <div id="calScheduleView">
   <div class="card card-body">
     <div class="cal-grid">
-      <?php foreach (['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] as $d): ?>
+      <?php foreach ($dayNames as $d): ?>
         <div class="cal-day-name"><?= $d ?></div>
       <?php endforeach; ?>
 

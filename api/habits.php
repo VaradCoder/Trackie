@@ -48,15 +48,18 @@ switch ($action) {
                 "INSERT INTO logs (user_id,habit_id,date_completed) VALUES (?,?,?)",
                 [$uid, $id, $date]
             );
-            require_once '../includes/gamification.php';
+            require_once '../includes/activity.php';
             // Once per habit per day; ref_type carries the date so each day counts.
-            $xp = awardXpOnce($uid, 'habit', 15, 'log:' . $date, $id);
+            $xp = recordActivity($uid, 'habit', 'log:' . $date, $id, ['date' => $date]);
             awardStreakMilestones($uid);
             checkAchievements($uid);
             json_out(['success' => true, 'status' => 'done', 'xp' => $xp]);
         }
 
-        // fail / skip — no XP, just recorded so the day shows a clear state
+        // fail / skip — no XP, just recorded so the day shows a clear state.
+        // A day can only carry one status, so a previous 'done' is no longer an activity.
+        require_once '../includes/activity.php';
+        undoActivity($uid, 'habit', 'log:' . $date, $id);
         insert(
             "INSERT INTO habit_status_log (user_id,habit_id,log_date,status) VALUES (?,?,?,?)",
             [$uid, $id, $date, $status]
@@ -76,6 +79,8 @@ switch ($action) {
             "DELETE FROM habit_status_log WHERE habit_id=? AND log_date=? AND user_id=?",
             [$id, $date, $uid]
         );
+        require_once '../includes/activity.php';
+        undoActivity($uid, 'habit', 'log:' . $date, $id);
         json_out(['success' => true]);
 
     case 'delete':

@@ -171,8 +171,8 @@ switch ($action) {
             [$uid, $planId, $exercise, $sets, $reps, $weight, $date, $notes ?: null]
         );
 
-        require_once '../includes/gamification.php';
-        $xp = function_exists('awardXpOnce') ? awardXpOnce($uid, 'workout', 15, 'log:' . $date, $id) : null;
+        require_once '../includes/activity.php';
+        $xp = recordActivity($uid, 'workout', 'log:' . $date, (int)$id, ['date' => $date]);
         $newAch = function_exists('checkAchievements') ? checkAchievements($uid) : [];
 
         json_out(['success' => true, 'id' => $id, 'xp' => $xp, 'newAchievements' => $newAch]);
@@ -418,13 +418,11 @@ switch ($action) {
 
         $exerciseCount = (int)fetchOne("SELECT COUNT(*) c FROM workout_logs WHERE session_id=?", [$sessionId])['c'];
 
-        require_once '../includes/gamification.php';
+        require_once '../includes/activity.php';
         // Session-level XP (once per session) — distinct from the standalone
         // quick-log modal's per-exercise 'workout' XP, so a guided session
         // isn't worth dramatically more than logging the same work by hand.
-        $xp = ($exerciseCount > 0 && function_exists('awardXpOnce'))
-            ? awardXpOnce($uid, 'workout_session', 20, 'session', $sessionId)
-            : null;
+        $xp = $exerciseCount > 0 ? recordActivity($uid, 'workout_session', 'session', (int)$sessionId) : null;
         $newAch = function_exists('checkAchievements') ? checkAchievements($uid) : [];
 
         // Recompute the streak fresh — today's session may have just extended

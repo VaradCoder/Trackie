@@ -41,8 +41,8 @@ switch ($action) {
         update("UPDATE goals SET progress=? WHERE id=? AND user_id=?", [$prog, $id, $uid]);
         $xp = null;
         if ($prog >= (int)$goal['target_value']) {
-            require_once '../includes/gamification.php';
-            $xp = awardXpOnce($uid, 'goal', 250, 'goal', $id);   // once per goal completion
+            require_once '../includes/activity.php';
+            $xp = recordActivity($uid, 'goal', 'goal', $id);   // once per goal completion
             checkAchievements($uid);
         }
         json_out(['success' => true, 'progress' => $prog, 'xp' => $xp]);

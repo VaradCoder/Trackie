@@ -18,6 +18,9 @@ $xp        = xpSummary($uid);
 $defs      = achievementDefs();
 $unlocked  = unlockedAchievements($uid);
 $events    = recentXpEvents($uid, 20);
+require_once '../includes/activity.php';
+$overallStreak = activityReady() ? activityStreak($uid) : ['current' => 0, 'best' => 0];
+$modStreaks    = activityReady() ? moduleStreaks($uid) : [];
 
 // Friendly labels for xp_event actions
 $actionLabel = [
@@ -29,6 +32,18 @@ $actionLabel = [
     'streak_7'    => '🔥 7-day streak bonus',
     'streak_30'   => '🔥 30-day streak bonus',
     'achievement' => '🏆 Achievement unlocked',
+    'routine'            => '🕒 Completed a routine',
+    'workout'            => '🏋️ Logged an exercise',
+    'workout_session'    => '🏋️ Finished a workout',
+    'fitness_goal'       => '🎯 Reached a fitness goal',
+    'meditation_session' => '🧘 Meditated',
+    'sports_session'     => '⚽ Sports session',
+    'reading_session'    => '📖 Read today',
+    'book_finished'      => '📚 Finished a book',
+    'game_completed'     => '🎮 Completed a game',
+    'photo_shoot'        => '📷 Logged a shoot',
+    'photo_upload_day'   => '🖼️ Added photos',
+    'xp'                 => '⚡ XP',
 ];
 
 require_once '../includes/head.php';
@@ -43,6 +58,27 @@ require_once '../includes/head.php';
   'icon' => 'fa-trophy',
   'sub'  => 'Your XP, levels, streaks, and unlocked badges.',
 ]) ?>
+
+<!-- Streaks (activity engine) -->
+<div class="card card-body" style="margin-bottom:1.25rem" id="streakBoard">
+  <div class="fit-section-head"><h2 class="hb-h2"><i class="fas fa-fire" style="color:#f59e0b"></i> Streaks</h2>
+    <span class="rd-author">A day counts when you complete at least one real activity.</span></div>
+  <div class="streak-board">
+    <div class="streak-tile streak-tile-main">
+      <div class="streak-num"><?= (int)$overallStreak['current'] ?></div>
+      <div class="streak-label">Trackie streak</div>
+      <div class="streak-best">Best <?= (int)$overallStreak['best'] ?> days</div>
+    </div>
+    <?php foreach ($modStreaks as $st): ?>
+      <div class="streak-tile<?= $st['current'] > 0 ? ' is-on' : '' ?>">
+        <div class="streak-num"><?= (int)$st['current'] ?></div>
+        <div class="streak-label"><?= h($st['label']) ?></div>
+        <div class="streak-best">Best <?= (int)$st['best'] ?> · last <?= h(formatDate($st['last'], 'M j')) ?></div>
+      </div>
+    <?php endforeach; ?>
+  </div>
+  <?php if (!$modStreaks): ?><p class="hb-empty-line">Complete a habit, todo, workout or reading session to start your first streak.</p><?php endif; ?>
+</div>
 
 <!-- Level card -->
 <div class="card card-body" style="margin-bottom:1.25rem">

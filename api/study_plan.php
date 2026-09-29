@@ -40,16 +40,23 @@ switch ($action) {
         $completed = (int)($_POST['completed'] ?? 0);
         if (!$id) json_out(['success' => false, 'error' => 'Invalid ID.'], 422);
 
+        // Ownership first: XP used to be awarded for ANY id, even one that
+        // belongs to someone else (the UPDATE below is scoped, the XP wasn't).
+        if (!fetchOne("SELECT id FROM study_plan WHERE id=? AND user_id=?", [$id, $uid])) {
+            json_out(['success' => false, 'error' => 'Task not found.'], 404);
+        }
         $completedAt = $completed ? date('Y-m-d H:i:s') : null;
         update(
             "UPDATE study_plan SET completed=?,completed_at=? WHERE id=? AND user_id=?",
             [$completed, $completedAt, $id, $uid]
         );
         $xp = null;
+        require_once '../includes/activity.php';
         if ($completed) {
-            require_once '../includes/gamification.php';
-            $xp = awardXpOnce($uid, 'study', 25, 'study', $id);   // once per study task
+            $xp = recordActivity($uid, 'study', 'study', $id);   // once per study task
             checkAchievements($uid);
+        } else {
+            undoActivity($uid, 'study', 'study', $id);
         }
         json_out(['success' => true, 'xp' => $xp]);
 

@@ -50,10 +50,14 @@ switch ($action) {
         $newAch = [];
         $xp = null;
         if ($status === 'completed' && fetchOne("SELECT id FROM games WHERE id=? AND user_id=?", [$id, $uid])) {
-            require_once '../includes/hobbies.php';
+            require_once '../includes/activity.php';
             // Once per game, however often it's toggled back and forth.
-            $xp = awardHobbyXp($uid, 'game_completed', 'game', $id);
+            $xp = recordActivity($uid, 'game_completed', 'game', $id);
             $newAch = function_exists('checkAchievements') ? checkAchievements($uid) : [];
+        }
+        if ($status !== 'completed') {
+            require_once '../includes/activity.php';
+            undoActivity($uid, 'game_completed', 'game', $id);
         }
         json_out(['success' => true, 'xp' => $xp, 'newAchievements' => $newAch]);
 

@@ -9,19 +9,11 @@
  * sessions earns the same as one — the reward is for showing up that day.
  */
 
-require_once __DIR__ . '/gamification.php';
+require_once __DIR__ . '/activity.php';
 
-/** XP per hobby action. Change values here only. */
-const HOBBY_XP = [
-    'reading_session' => 10,   // once per day with a logged reading session
-    'book_finished'   => 30,   // once per book
-    'game_completed'  => 30,   // once per game
-    'photo_shoot'     => 15,   // once per logged shoot
-    'photo_upload_day'=> 5,    // once per day with uploaded photos
-];
-
+/** XP values live in ACTIVITY_TYPES (includes/activity.php). */
 function hobbyXp(string $action): int {
-    return HOBBY_XP[$action] ?? 0;
+    return activityXp($action);
 }
 
 /**
@@ -29,9 +21,15 @@ function hobbyXp(string $action): int {
  * (null when already awarded or gamification tables are missing).
  */
 function awardHobbyXp(int $uid, string $action, string $refType, int $refId): ?array {
-    $xp = hobbyXp($action);
-    if ($xp <= 0 || !function_exists('awardXpOnce')) return null;
-    return awardXpOnce($uid, $action, $xp, $refType, $refId);
+    // Day refs (20260929) carry the activity date.
+    $date = str_ends_with($refType, '_day') && preg_match('/^(\d{4})(\d{2})(\d{2})$/', (string)$refId, $m)
+          ? "{$m[1]}-{$m[2]}-{$m[3]}" : null;
+    return recordActivity($uid, $action, $refType, $refId, $date ? ['date' => $date] : []);
+}
+
+/** Undo a hobby completion (e.g. a book moved back off "Finished"). */
+function undoHobbyActivity(int $uid, string $action, string $refType, int $refId): void {
+    undoActivity($uid, $action, $refType, $refId);
 }
 
 /** Ref id for "once per day" awards: 20260925. */

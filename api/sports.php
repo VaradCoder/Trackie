@@ -21,8 +21,10 @@ switch ($action) {
              $_POST['duration_min'] !== '' ? (int)$_POST['duration_min'] : null,
              sanitizeInput($_POST['notes'] ?? '') ?: null, sanitizeInput($_POST['session_date'] ?? date('Y-m-d'))]
         );
-        require_once '../includes/gamification.php';
-        $xp = function_exists('awardXpOnce') ? awardXpOnce($uid, 'sports_session', 15, 'log:' . date('Y-m-d'), $id) : null;
+        require_once '../includes/activity.php';
+        $sessDate = sanitizeInput($_POST['session_date'] ?? '') ?: date('Y-m-d');
+        $xp = recordActivity($uid, 'sports_session', 'log:' . date('Y-m-d'), (int)$id,
+                             ['date' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $sessDate) ? $sessDate : date('Y-m-d')]);
         json_out(['success' => true, 'id' => $id, 'xp' => $xp]);
 
     case 'delete':

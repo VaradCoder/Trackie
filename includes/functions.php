@@ -781,6 +781,11 @@ function createNotification(
     int $userId, string $type, string $title,
     string $message = '', string $link = ''
 ): void {
+    // Settings → Preferences: achievement / level / streak notifications can be turned off.
+    if (in_array($type, ['xp', 'achievement', 'streak'], true)) {
+        require_once __DIR__ . '/settings.php';
+        if (!userSetting($userId, 'notify_achievements')) return;
+    }
     // Deduplicate: don't re-insert same type+title combo today
     $exists = fetchOne(
         "SELECT id FROM notifications

@@ -27,7 +27,7 @@ switch ($action) {
         $mode     = sanitizeInput($_POST['mode'] ?? '');  // Study/Work/Coding/Reading
         $started  = date('Y-m-d H:i:s', time() - $duration * 60);
 
-        insert(
+        $sessionId = insert(
             "INSERT INTO focus_sessions (user_id, duration_min, type, mode, started_at, completed_at, completed)
              VALUES (?,?,?,?,?,NOW(),1)",
             [$uid, $duration, $type, $mode !== '' ? $mode : null, $started]
@@ -35,7 +35,8 @@ switch ($action) {
 
         $xp = null;
         if ($type === 'focus') {
-            $xp = awardXp($uid, 'focus', 20, 'focus', null);   // +20 XP per focus session
+            require_once '../includes/activity.php';
+            $xp = recordActivity($uid, 'focus', 'focus_session', (int)$sessionId);   // +20 XP per focus session
             checkAchievements($uid);                            // unlocks Focus Warrior at 10
         }
         $stats = focusStats($uid);

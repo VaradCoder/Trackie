@@ -79,8 +79,8 @@ switch ($action) {
         insert("INSERT IGNORE INTO routine_logs (user_id,routine_id,log_date) VALUES (?,?,?)",
                [$uid, $id, $date]);
 
-        require_once '../includes/gamification.php';
-        $xp = awardXpOnce($uid, 'routine', 12, 'routine:' . $date, $id);
+        require_once '../includes/activity.php';
+        $xp = recordActivity($uid, 'routine', 'routine:' . $date, $id, ['date' => $date]);
         checkAchievements($uid);
 
         json_out(['success' => true, 'completed' => true, 'date' => $date, 'xp' => $xp]);
@@ -95,7 +95,10 @@ switch ($action) {
                [$id, $date, $uid]);
         // XP is deliberately NOT clawed back — awardXpOnce keys on the date,
         // so re-completing the same day grants nothing further. Removing XP
-        // here would let a toggle drain a user's total.
+        // here would let a toggle drain a user's total. The ACTIVITY is
+        // removed, so streaks and analytics reflect what's really done.
+        require_once '../includes/activity.php';
+        undoActivity($uid, 'routine', 'routine:' . $date, $id);
         json_out(['success' => true, 'completed' => false, 'date' => $date]);
 
     default:

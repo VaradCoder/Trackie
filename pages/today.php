@@ -75,6 +75,9 @@ $logDates  = array_column(
     'date_completed'
 );
 $streakData = calculateStreaks($logDates, function_exists('userNeutralDates') ? userNeutralDates($uid) : []);
+// Trackie streak: any meaningful activity counts (habit, todo, workout, reading…), not just habits.
+require_once '../includes/activity.php';
+if (activityReady()) $streakData = activityStreak($uid);
 
 require_once '../includes/head.php';
 ?>
@@ -92,7 +95,7 @@ require_once '../includes/head.php';
 <div class="grid-stats" id="todayStatsWrap" style="margin-bottom:var(--sp-4)">
   <?= renderStatCard($priDone . '/' . $priTotal, 'Priorities done', 'fa-list-check', 'var(--accent)') ?>
   <?= renderStatCard($habitsDone . '/' . count($habits), 'Habits done', 'fa-heart', 'var(--ok)') ?>
-  <?= renderStatCard($streakData['current'] . 'd', 'Streak', 'fa-fire', '#f59e0b') ?>
+  <?= renderStatCard($streakData['current'] . 'd', 'Trackie streak', 'fa-fire', '#f59e0b') ?>
   <?= renderStatCard($scoreData['has_data'] ? (string)$scoreData['score'] : '—', 'Trackie Score', 'fa-gauge-high', 'var(--info)') ?>
 </div>
 

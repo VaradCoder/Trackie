@@ -14,6 +14,14 @@ $userHobbiesRaw = fetchOne("SELECT hobbies FROM users WHERE id=?", [$uid])['hobb
 $userHobbyList  = array_filter(array_map('trim', explode(',', $userHobbiesRaw)));
 $meta = allHobbiesMeta();
 
+// Per-hobby streaks from the activity engine. Hobbies without activity
+// tracking yet (Coding, Cooking, Art, Writing, Gardening) show none rather
+// than a misleading zero.
+require_once '../includes/activity.php';
+$hobbyModule = ['Fitness' => 'fitness', 'Reading' => 'reading', 'Gaming' => 'gaming', 'Photography' => 'photography',
+                'Sports' => 'sports', 'Meditation' => 'meditation'];
+$streaks = activityReady() ? moduleStreaks($uid) : [];
+
 require_once '../includes/head.php';
 ?>
 <div class="app-shell">
@@ -56,7 +64,16 @@ require_once '../includes/head.php';
             <?php if (!$hasModule): ?><span class="badge badge-gray" style="margin-top:.125rem">Coming soon</span><?php endif; ?>
           </div>
         </div>
-        <p style="font-size:.8125rem;color:var(--muted);margin-bottom:1rem;min-height:2.25em"><?= h($m['desc'] ?? '') ?></p>
+        <p style="font-size:.8125rem;color:var(--muted);margin-bottom:.75rem;min-height:2.25em"><?= h($m['desc'] ?? '') ?></p>
+        <?php if (isset($hobbyModule[$hobby])): $st = $streaks[$hobbyModule[$hobby]] ?? null; ?>
+          <div class="hb-streak<?= $st && $st['current'] > 0 ? ' hb-streak-on' : '' ?>">
+            <?php if (!$st): ?>
+              <i class="fas fa-fire"></i> No activity logged yet
+            <?php else: ?>
+              <i class="fas fa-fire"></i> <?= (int)$st['current'] ?>-day streak<?= $st['best'] > $st['current'] ? ' · best ' . (int)$st['best'] : '' ?>
+            <?php endif; ?>
+          </div>
+        <?php endif; ?>
         <?php if ($hasModule): ?>
           <a href="<?= APP_BASE ?>/pages/<?= $m['module'] ?>" class="btn btn-primary btn-sm" style="width:100%">
             <i class="fas fa-arrow-right"></i> Open <?= h($m['moduleLabel']) ?>

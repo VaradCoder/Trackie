@@ -195,7 +195,11 @@ switch ($action) {
                     "INSERT INTO notifications (user_id,type,title,message,link) VALUES (?,?,?,?,?)",
                     [$uid, 'reminder', '⏰ ' . $r['title'], $message, APP_BASE . '/pages/reminders.php']
                 );
-                $fired[] = ['id' => (int)$r['id'], 'title' => $r['title'], 'message' => $message];
+                // Settings → Preferences: pop-ups can be switched off; the bell entry above stays.
+                require_once '../includes/settings.php';
+                if (userSetting($uid, 'notify_reminders')) {
+                    $fired[] = ['id' => (int)$r['id'], 'title' => $r['title'], 'message' => $message];
+                }
             }
         }
 

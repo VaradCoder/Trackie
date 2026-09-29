@@ -22,8 +22,8 @@ switch ($action) {
              $_POST['mood_after']  !== '' ? (int)$_POST['mood_after']  : null,
              sanitizeInput($_POST['notes'] ?? '') ?: null, date('Y-m-d')]
         );
-        require_once '../includes/gamification.php';
-        $xp = function_exists('awardXpOnce') ? awardXpOnce($uid, 'meditation_session', 10, 'log:' . date('Y-m-d'), $id) : null;
+        require_once '../includes/activity.php';
+        $xp = recordActivity($uid, 'meditation_session', 'log:' . date('Y-m-d'), (int)$id);
         json_out(['success' => true, 'id' => $id, 'xp' => $xp]);
 
     case 'delete':

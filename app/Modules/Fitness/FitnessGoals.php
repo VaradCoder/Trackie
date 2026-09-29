@@ -118,7 +118,8 @@ final class FitnessGoals
     {
         update("UPDATE fitness_goals SET completed_at=NOW() WHERE id=? AND user_id=? AND completed_at IS NULL", [$g['id'], $this->uid]);
         if (function_exists('awardXpOnce')) {
-            awardXpOnce($this->uid, 'fitness_goal', self::XP_ON_COMPLETE, 'fitness_goal', (int)$g['id']);
+            require_once __DIR__ . '/../../../includes/activity.php';
+            recordActivity($this->uid, 'fitness_goal', 'fitness_goal', (int)$g['id'], ['xp' => self::XP_ON_COMPLETE]);
         }
         if (function_exists('createNotification')) {
             createNotification($this->uid, 'goal', '🎯 Fitness goal reached', self::title($g) . ' (+' . self::XP_ON_COMPLETE . ' XP)',
