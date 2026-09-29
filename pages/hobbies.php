@@ -14,12 +14,11 @@ $userHobbiesRaw = fetchOne("SELECT hobbies FROM users WHERE id=?", [$uid])['hobb
 $userHobbyList  = array_filter(array_map('trim', explode(',', $userHobbiesRaw)));
 $meta = allHobbiesMeta();
 
-// Per-hobby streaks from the activity engine. Hobbies without activity
-// tracking yet (Coding, Cooking, Art, Writing, Gardening) show none rather
-// than a misleading zero.
+// Per-hobby streaks from the activity engine.
 require_once '../includes/activity.php';
 $hobbyModule = ['Fitness' => 'fitness', 'Reading' => 'reading', 'Gaming' => 'gaming', 'Photography' => 'photography',
-                'Sports' => 'sports', 'Meditation' => 'meditation'];
+                'Sports' => 'sports', 'Meditation' => 'meditation', 'Coding' => 'coding', 'Cooking' => 'cooking',
+                'Writing' => 'writing', 'Art' => 'art', 'Gardening' => 'gardening'];
 $streaks = activityReady() ? moduleStreaks($uid) : [];
 
 require_once '../includes/head.php';

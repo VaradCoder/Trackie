@@ -3,24 +3,27 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/activity.php';
 
 requireAuth();
 
 $uid         = currentUserId();
 $pageTitle   = 'Art';
 $currentPage = 'art';
+$today       = date('Y-m-d');
 
 if (!tableExists('artworks')) renderSetupNeeded('Art');
+if (!tableExists('art_sessions')) renderSetupNeeded('Art');
 
-$shelf = in_array($_GET['shelf'] ?? '', ['in_progress','completed']) ? $_GET['shelf'] : 'all';
-$sql = "SELECT * FROM artworks WHERE user_id=?";
-$params = [$uid];
-if ($shelf !== 'all') { $sql .= " AND status=?"; $params[] = $shelf; }
-$sql .= " ORDER BY created_at DESC";
-$artworks = fetchAll($sql, $params);
-
-$counts = fetchOne("SELECT COUNT(*) total, SUM(status='in_progress') in_progress, SUM(status='completed') completed FROM artworks WHERE user_id=?", [$uid]);
-$statusMeta = ['in_progress' => ['label' => 'In progress', 'icon' => 'fa-pen'], 'completed' => ['label' => 'Completed', 'icon' => 'fa-check']];
+$artworks = fetchAll(
+    "SELECT a.*, (SELECT COALESCE(SUM(minutes),0) FROM art_sessions s WHERE s.artwork_id=a.id) minutes
+     FROM artworks a WHERE a.user_id=? ORDER BY a.status='in_progress' DESC, a.created_at DESC", [$uid]
+);
+$sessions = fetchAll("SELECT s.*, a.title FROM art_sessions s LEFT JOIN artworks a ON a.id=s.artwork_id WHERE s.user_id=? ORDER BY s.session_date DESC, s.id DESC LIMIT 40", [$uid]);
+$weekMin = (int)fetchOne("SELECT COALESCE(SUM(minutes),0) m FROM art_sessions WHERE user_id=? AND session_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)", [$uid])['m'];
+$streak = activityReady() ? activityStreak($uid, 'art') : ['current' => 0, 'best' => 0];
+$fmtMin = static fn(int $m) => $m >= 60 ? intdiv($m, 60) . 'h' . ($m % 60 ? ' ' . ($m % 60) . 'm' : '') : $m . 'm';
+$file = APP_BASE . '/api/art_file.php';
 
 require_once '../includes/head.php';
 ?>
@@ -30,144 +33,158 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
-  <h1 style="font-size:1.125rem;font-weight:600;margin:0"><i class="fas fa-palette" style="color:var(--accent)"></i> Art</h1>
-  <button class="btn btn-primary btn-sm" onclick="openAddArt()"><i class="fas fa-plus"></i> Add Piece</button>
-</div>
-
-<div class="grid-stats" style="margin-bottom:1.5rem" id="artStatsWrap">
-  <div class="stat-card"><div class="stat-val"><?= (int)$counts['total'] ?></div><div class="stat-label">Total pieces</div></div>
-  <div class="stat-card"><div class="stat-val"><?= (int)$counts['in_progress'] ?></div><div class="stat-label">In progress</div></div>
-  <div class="stat-card"><div class="stat-val"><?= (int)$counts['completed'] ?></div><div class="stat-label">Completed</div></div>
-</div>
-
-<div class="filter-tabs" style="margin-bottom:1.25rem" id="artTabs">
-  <button class="filter-tab active" data-tab="gallery">Gallery</button>
-  <button class="filter-tab" data-tab="learn">Learn</button>
-</div>
-
-<div id="atab-gallery" class="gym-tab-panel">
-  <div class="filter-tabs" style="margin-bottom:1.25rem">
-    <a class="filter-tab <?= $shelf==='all'?'active':'' ?>" href="?shelf=all">All</a>
-    <?php foreach ($statusMeta as $k => $m): ?><a class="filter-tab <?= $shelf===$k?'active':'' ?>" href="?shelf=<?= $k ?>"><?= $m['label'] ?></a><?php endforeach; ?>
+<div class="rd-head">
+  <h1><i class="fas fa-palette" style="color:var(--accent)"></i> Art</h1>
+  <div class="rd-head-actions">
+    <button class="btn btn-secondary btn-sm" onclick="openPractice()"><i class="fas fa-stopwatch"></i> Log practice</button>
+    <button class="btn btn-primary btn-sm" onclick="openArt()"><i class="fas fa-plus"></i> Add piece</button>
   </div>
-  <div id="artListWrap">
-  <?php if (empty($artworks)): ?>
-    <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-palette"></i></div><div class="empty-state-title">Your sketchbook is empty</div><p>Log pieces as you make them — sketches, studies, finished work.</p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openAddArt()"><i class="fas fa-plus"></i> Add your first piece</button>
-    </div></div>
+</div>
+
+<div class="grid-stats" style="margin-bottom:1.25rem">
+  <div class="stat-card"><div class="stat-val">🔥 <?= (int)$streak['current'] ?></div><div class="stat-label">Practice streak<?= $streak['best'] > $streak['current'] ? ' · best ' . (int)$streak['best'] : '' ?></div></div>
+  <div class="stat-card"><div class="stat-val"><?= $fmtMin($weekMin) ?></div><div class="stat-label">Practised this week</div></div>
+  <div class="stat-card"><div class="stat-val"><?= count(array_filter($artworks, fn($a) => $a['status'] === 'in_progress')) ?></div><div class="stat-label">In progress</div></div>
+  <div class="stat-card"><div class="stat-val"><?= count(array_filter($artworks, fn($a) => $a['status'] === 'completed')) ?></div><div class="stat-label">Completed</div></div>
+</div>
+
+<div class="filter-tabs" style="margin-bottom:1.25rem" id="artTabs" role="tablist">
+  <button class="filter-tab active" data-tab="gallery" role="tab" aria-selected="true">Gallery</button>
+  <button class="filter-tab" data-tab="practice" role="tab" aria-selected="false" tabindex="-1">Practice log</button>
+</div>
+
+<div id="attab-gallery">
+  <?php if (!$artworks): ?>
+    <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-palette"></i></div>
+      <div class="empty-state-title">Your gallery is empty</div><p>Add a piece with a photo of your work, and log practice time to build a streak.</p>
+      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openArt()"><i class="fas fa-plus"></i> Add your first piece</button></div></div>
   <?php else: ?>
-    <div class="grid-cards">
-      <?php foreach ($artworks as $a): $sm = $statusMeta[$a['status']]; ?>
-        <div class="habit-card" id="art-<?= $a['id'] ?>">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.5rem">
-            <div style="min-width:0">
-              <div style="font-weight:600;font-size:.9375rem;color:var(--text)"><?= h($a['title']) ?></div>
-              <?php if ($a['medium']): ?><div style="font-size:.8125rem;color:var(--muted)"><?= h($a['medium']) ?></div><?php endif; ?>
-            </div>
-            <button aria-label="Delete artwork" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent);flex-shrink:0" onclick="deleteArt(<?= $a['id'] ?>)"><i class="fas fa-trash"></i></button>
+    <div class="ph-masonry">
+      <?php foreach ($artworks as $a): ?>
+        <div class="art-card" id="art-<?= (int)$a['id'] ?>">
+          <button class="art-img" onclick="openArt(<?= (int)$a['id'] ?>)" aria-label="Edit <?= h($a['title']) ?>">
+            <?php if ($a['image_file']): ?><img src="<?= h($file) ?>?id=<?= (int)$a['id'] ?>&amp;s=t" alt="<?= h($a['title']) ?>" loading="lazy">
+            <?php else: ?><span class="art-noimg"><i class="fas fa-image"></i></span><?php endif; ?>
+          </button>
+          <div class="art-body">
+            <div class="rd-title"><?= h($a['title']) ?></div>
+            <div class="rd-author"><?= h(implode(' · ', array_filter([$a['medium'], (int)$a['minutes'] ? $fmtMin((int)$a['minutes']) . ' practised' : null]))) ?></div>
+            <span class="rd-badge<?= $a['status'] === 'completed' ? ' rd-badge-done' : '' ?>"><?= $a['status'] === 'completed' ? 'Completed' : 'In progress' ?></span>
           </div>
-          <?php if ($a['notes']): ?><p style="font-size:.8125rem;color:var(--muted);margin:0 0 .75rem"><?= h($a['notes']) ?></p><?php endif; ?>
-          <select class="form-input" style="width:100%;font-size:.8125rem;padding:.375rem .5rem" onchange="setArtStatus(<?= $a['id'] ?>, this.value)">
-            <?php foreach ($statusMeta as $k => $m): ?><option value="<?= $k ?>" <?= $a['status']===$k?'selected':'' ?>><?= $m['label'] ?></option><?php endforeach; ?>
-          </select>
         </div>
       <?php endforeach; ?>
     </div>
   <?php endif; ?>
-  </div>
 </div>
 
-<div id="atab-learn" class="gym-tab-panel hidden">
-  <div class="grid-cards">
-    <?php foreach ([
-      ['title' => 'Drawabox', 'desc' => 'Free structured lessons on perspective and constructive drawing — the standard beginner starting point', 'icon' => 'fa-cube', 'url' => 'https://drawabox.com'],
-      ['title' => 'Proko', 'desc' => 'The best free resource for human anatomy, with clear, engaging video lessons', 'icon' => 'fa-person', 'url' => 'https://www.proko.com'],
-      ['title' => 'Line of Action', 'desc' => 'Free timed figure-drawing practice sessions with reference images', 'icon' => 'fa-stopwatch', 'url' => 'https://line-of-action.com'],
-      ['title' => 'Andrew Loomis books', 'desc' => 'Classic drawing fundamentals texts — decades old but still the reference many artists learn from', 'icon' => 'fa-book'],
-    ] as $r): ?>
-      <?php if (!empty($r['url'])): ?><a href="<?= h($r['url']) ?>" target="_blank" rel="noopener" class="habit-card" style="text-decoration:none;opacity:.9">
-      <?php else: ?><div class="habit-card" style="opacity:.9"><?php endif; ?>
-        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
-          <i class="fas <?= $r['icon'] ?>" style="color:var(--accent);font-size:1.125rem"></i>
-          <div style="font-weight:600;font-size:.9375rem;color:var(--text)"><?= h($r['title']) ?></div>
+<div id="attab-practice" class="hidden">
+  <?php if (!$sessions): ?><div class="card card-body hb-empty-line">No practice logged yet.</div>
+  <?php else: ?>
+    <div class="card">
+      <?php foreach ($sessions as $s): ?>
+        <div class="todo-row" id="asess-<?= (int)$s['id'] ?>">
+          <div style="flex:1;min-width:0"><span class="todo-title"><?= $fmtMin((int)$s['minutes']) ?></span><?php if ($s['title']): ?> <span class="category-badge"><?= h($s['title']) ?></span><?php endif; ?>
+            <div class="todo-meta"><span><?= h(formatDate($s['session_date'])) ?></span><?php if ($s['notes']): ?><span><?= h($s['notes']) ?></span><?php endif; ?></div></div>
+          <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="deletePractice(<?= (int)$s['id'] ?>)" aria-label="Delete practice"><i class="fas fa-trash"></i></button>
         </div>
-        <p style="font-size:.8125rem;color:var(--muted);margin:0"><?= h($r['desc']) ?></p>
-      <?= !empty($r['url']) ? '</a>' : '</div>' ?>
-    <?php endforeach; ?>
-  </div>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
 </div>
 
-<!-- Add art modal -->
-<div id="addArtModal" class="modal-backdrop hidden">
+<!-- Piece add/edit -->
+<div id="artModal" class="modal-backdrop hidden">
   <div class="modal-box">
-    <div class="modal-header"><span class="modal-title">Add Piece</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="addArtModal" aria-label="Close dialog">&times;</button></div>
+    <div class="modal-header"><span class="modal-title" id="artModalTitle">Add piece</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="artModal" aria-label="Close dialog">&times;</button></div>
     <div class="modal-body">
-      <div class="form-group"><label for="artTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label><input id="artTitle" class="form-input" placeholder="e.g. Portrait study"></div>
-      <div class="form-group"><label for="artMedium" class="form-label">Medium</label><input id="artMedium" class="form-input" placeholder="e.g. Pencil, Digital"></div>
-      <div class="form-group"><label for="artNotes" class="form-label">Notes</label><input id="artNotes" class="form-input" placeholder="Optional"></div>
-      <div class="form-group">
-        <label for="artStatus" class="form-label">Status</label>
-        <select id="artStatus" class="form-input"><?php foreach ($statusMeta as $k => $m): ?><option value="<?= $k ?>"><?= $m['label'] ?></option><?php endforeach; ?></select>
+      <input type="hidden" id="arId">
+      <div id="arPreview" class="art-preview hidden"></div>
+      <div class="form-group"><label for="arImage" class="form-label">Photo of the piece</label><input id="arImage" type="file" accept="image/jpeg,image/png,image/webp" class="form-input">
+        <p class="form-hint">Stored privately; resized and location data removed before upload.</p></div>
+      <div class="form-group"><label for="arTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label><input id="arTitle" class="form-input" maxlength="150"></div>
+      <div class="rd-form-row">
+        <div class="form-group"><label for="arMedium" class="form-label">Medium</label><input id="arMedium" class="form-input" maxlength="60" placeholder="e.g. Watercolor, Procreate"></div>
+        <div class="form-group"><label for="arStatus" class="form-label">Status</label><select id="arStatus" class="form-input"><option value="in_progress">In progress</option><option value="completed">Completed</option></select></div>
       </div>
+      <div class="form-group"><label for="arNotes" class="form-label">Notes</label><textarea id="arNotes" class="form-input" rows="2" maxlength="500"></textarea></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-secondary btn-sm" data-close-modal="addArtModal">Cancel</button>
-      <button class="btn btn-primary btn-sm" onclick="saveArt()"><i class="fas fa-save"></i> Add</button>
+      <button class="btn btn-ghost btn-sm hidden" id="arDelete" style="color:var(--accent);margin-right:auto" onclick="deleteArt()"><i class="fas fa-trash"></i> Delete</button>
+      <button class="btn btn-secondary btn-sm" data-close-modal="artModal">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="arSave" onclick="saveArt()"><i class="fas fa-save"></i> Save</button>
     </div>
+  </div>
+</div>
+
+<!-- Practice -->
+<div id="practiceModal" class="modal-backdrop hidden">
+  <div class="modal-box">
+    <div class="modal-header"><span class="modal-title">Log practice</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="practiceModal" aria-label="Close dialog">&times;</button></div>
+    <div class="modal-body">
+      <div class="rd-form-row">
+        <div class="form-group"><label for="apMin" class="form-label">Minutes <span style="color:var(--accent)">*</span></label><input id="apMin" type="number" min="1" max="1440" class="form-input" value="30"></div>
+        <div class="form-group"><label for="apDate" class="form-label">Date</label><input id="apDate" type="date" class="form-input" max="<?= $today ?>"></div>
+      </div>
+      <div class="form-group"><label for="apArt" class="form-label">Piece</label><select id="apArt" class="form-input"><option value="">General practice / studies</option><?php foreach ($artworks as $a): ?><option value="<?= (int)$a['id'] ?>"><?= h($a['title']) ?></option><?php endforeach; ?></select></div>
+      <div class="form-group"><label for="apNotes" class="form-label">What did you practise?</label><input id="apNotes" class="form-input" maxlength="500" placeholder="e.g. hands, perspective boxes"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary btn-sm" data-close-modal="practiceModal">Cancel</button><button class="btn btn-primary btn-sm" onclick="savePractice()">Save</button></div>
   </div>
 </div>
 
 </div>
 <?php include '../includes/footer.php'; ?>
-
+<script src="<?= assetUrl('assets/js/photo-exif.js') ?>"></script>
 <script>
 const API_BASE = '<?= APP_BASE ?>/api';
-
-function switchArtTab(tab) {
-  document.querySelectorAll('#artTabs .filter-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.querySelectorAll('#atab-gallery, #atab-learn').forEach(p => p.classList.toggle('hidden', p.id !== `atab-${tab}`));
-}
+const ART_FILE = '<?= h($file) ?>';
 document.getElementById('artTabs').addEventListener('click', e => {
-  const btn = e.target.closest('[data-tab]');
-  if (btn) switchArtTab(btn.dataset.tab);
+  const b = e.target.closest('[data-tab]'); if (!b) return;
+  document.querySelectorAll('#artTabs [data-tab]').forEach(x => { const on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-selected', on); });
+  ['gallery', 'practice'].forEach(t => document.getElementById(`attab-${t}`).classList.toggle('hidden', t !== b.dataset.tab));
 });
-
-function openAddArt() {
-  document.getElementById('artTitle').value = '';
-  document.getElementById('artMedium').value = '';
-  document.getElementById('artNotes').value = '';
-  document.getElementById('artStatus').value = 'in_progress';
-  Trackie.openModal('addArtModal');
+async function openArt(id) {
+  document.getElementById('arId').value = id || '';
+  ['arTitle', 'arMedium', 'arNotes', 'arImage'].forEach(i => document.getElementById(i).value = '');
+  document.getElementById('arStatus').value = 'in_progress';
+  document.getElementById('arPreview').classList.add('hidden');
+  document.getElementById('arDelete').classList.toggle('hidden', !id);
+  document.getElementById('artModalTitle').textContent = id ? 'Edit piece' : 'Add piece';
+  if (id) {
+    const res = await Trackie.API.post(`${API_BASE}/art.php`, { action: 'get', item_id: id });
+    if (!res.success) { Trackie.Toast.error(res.error || 'Not found.'); return; }
+    const a = res.artwork;
+    document.getElementById('arTitle').value = a.title; document.getElementById('arMedium').value = a.medium || '';
+    document.getElementById('arNotes').value = a.notes || ''; document.getElementById('arStatus').value = a.status;
+    if (a.image_file) { const p = document.getElementById('arPreview'); p.innerHTML = `<img src="${ART_FILE}?id=${+a.id}" alt="">`; p.classList.remove('hidden'); }
+  }
+  Trackie.openModal('artModal');
 }
 async function saveArt() {
-  const title = document.getElementById('artTitle').value.trim();
+  const title = document.getElementById('arTitle').value.trim();
   if (!title) { Trackie.Toast.warning('Title is required.'); return; }
+  const id = document.getElementById('arId').value, btn = document.getElementById('arSave'); btn.disabled = true;
+  const fd = new FormData();
+  fd.append('action', id ? 'edit' : 'add'); fd.append('item_id', id); fd.append('title', title);
+  fd.append('medium', document.getElementById('arMedium').value); fd.append('notes', document.getElementById('arNotes').value);
+  fd.append('status', document.getElementById('arStatus').value);
+  const f = document.getElementById('arImage').files[0];
   try {
-    const res = await Trackie.API.post(`${API_BASE}/art.php`, {
-      action: 'add', title,
-      medium: document.getElementById('artMedium').value.trim(),
-      notes: document.getElementById('artNotes').value.trim(),
-      status: document.getElementById('artStatus').value,
-    });
-    if (res.success) { Trackie.Toast.success('Piece added!'); Trackie.closeModal('addArtModal'); await Trackie.refreshFragments(['artStatsWrap', 'artListWrap']); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    if (f) { const blob = window.PhotoExif ? await PhotoExif.prepare(f) : f; fd.append('image', blob, 'art.jpg'); }
+    const res = await Trackie.API.post(`${API_BASE}/art.php`, fd);
+    if (res.success) { Trackie.Toast.success('Saved.'); location.reload(); } else Trackie.Toast.error(res.error || 'Failed.');
+  } catch { Trackie.Toast.error('Upload failed.'); } finally { btn.disabled = false; }
 }
-async function setArtStatus(id, status) {
-  try {
-    const res = await Trackie.API.post(`${API_BASE}/art.php`, {action:'update_status', item_id:id, status});
-    if (res.success) { Trackie.Toast.success('Status updated.'); await Trackie.refreshFragments(['artStatsWrap', 'artListWrap']); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+async function deleteArt() {
+  if (!await Trackie.confirmDialog('Delete this piece and its image?', { confirmText: 'Delete', danger: true })) return;
+  const r = await Trackie.API.post(`${API_BASE}/art.php`, { action: 'delete', item_id: document.getElementById('arId').value });
+  if (r.success) location.reload();
 }
-async function deleteArt(id) {
-  const ok = await Trackie.confirmDialog('Delete this piece?', {confirmText:'Delete', danger:true});
-  if (!ok) return;
-  try {
-    const res = await Trackie.API.post(`${API_BASE}/art.php`, {action:'delete', item_id:id});
-    if (res.success) { document.getElementById(`art-${id}`)?.remove(); Trackie.Toast.success('Deleted.'); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+function openPractice() { document.getElementById('apDate').value = '<?= $today ?>'; document.getElementById('apNotes').value = ''; Trackie.openModal('practiceModal'); }
+async function savePractice() {
+  const res = await Trackie.API.post(`${API_BASE}/art.php`, { action: 'session_log', minutes: document.getElementById('apMin').value,
+    session_date: document.getElementById('apDate').value, artwork_id: document.getElementById('apArt').value, notes: document.getElementById('apNotes').value });
+  if (res.success) { Trackie.Toast.success('Practice logged' + (res.xp?.ok ? ` · +${res.xp.gained} XP` : '')); location.reload(); } else Trackie.Toast.error(res.error || 'Failed.');
 }
+async function deletePractice(id) { const r = await Trackie.API.post(`${API_BASE}/art.php`, { action: 'session_delete', session_id: id }); if (r.success) document.getElementById(`asess-${id}`)?.remove(); }
 </script>

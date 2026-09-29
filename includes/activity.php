@@ -42,6 +42,12 @@ const ACTIVITY_TYPES = [
     'game_completed'     => ['gaming',      30],
     'photo_shoot'        => ['photography', 15],
     'photo_upload_day'   => ['photography',  5],   // once per day with uploads
+    'coding_session'     => ['coding',      10],   // once per day with a coding session
+    'project_done'       => ['coding',      50],   // per project moved to Done
+    'recipe_cooked'      => ['cooking',     10],   // per recipe per day
+    'writing_day'        => ['writing',     10],   // once per day with words added
+    'art_session'        => ['art',         10],   // once per day with practice
+    'garden_care'        => ['gardening',    5],   // once per day with plant care
 ];
 
 /** Human labels for modules (streak cards, analytics). */
@@ -49,6 +55,7 @@ const ACTIVITY_MODULES = [
     'todos' => 'Todos', 'habits' => 'Habits', 'goals' => 'Goals', 'routines' => 'Routines', 'study' => 'Study',
     'focus' => 'Focus', 'fitness' => 'Fitness', 'meditation' => 'Meditation', 'sports' => 'Sports', 'finance' => 'Finance',
     'reading' => 'Reading', 'gaming' => 'Gaming', 'photography' => 'Photography',
+    'coding' => 'Coding', 'cooking' => 'Cooking', 'writing' => 'Writing', 'art' => 'Art', 'gardening' => 'Gardening',
 ];
 
 function activityXp(string $action): int {
