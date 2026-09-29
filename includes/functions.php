@@ -642,6 +642,7 @@ function navTree(): array {
     $tree[] = ['key' => 'progress', 'heading' => 'Progress', 'items' => [
         ['page' => 'analytics', 'href' => 'analytics.php', 'icon' => 'fa-chart-bar', 'label' => 'Analytics'],
         ['page' => 'progress',  'href' => 'progress.php',  'icon' => 'fa-trophy',    'label' => 'Progress'],
+        ['page' => 'review',    'href' => 'review.php',    'icon' => 'fa-calendar-week', 'label' => 'Weekly Review'],
     ]];
 
     // Settings used to be hardcoded markup AFTER the render loop, so any

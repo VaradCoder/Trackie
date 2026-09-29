@@ -87,20 +87,32 @@ function recordActivity(int $uid, string $action, string $refType, ?int $refId, 
     try {
         if (activityReady()) {
             ensureActivityBackfill($uid);
-            update(
+            $new = update(
                 "INSERT IGNORE INTO activity_log (user_id, module, action, ref_type, ref_id, occurred_on, xp)
                  VALUES (?,?,?,?,?,?,?)",
                 [$uid, activityModule($action), $action, $refType, $refId, $date, $xp]
             );
+            if ($new > 0) $checkAfter = true;
         }
     } catch (Throwable $e) {
         error_log('recordActivity: ' . $e->getMessage());
     }
 
-    if ($xp <= 0 || !function_exists('awardXpOnce')) return null;
-    // Same dedupe keys as before the engine existed → nobody is paid twice.
-    return $refId !== null ? awardXpOnce($uid, $action, $xp, $refType, $refId)
-                           : awardXp($uid, $action, $xp, $refType, null);
+    $res = null;
+    if ($xp > 0 && function_exists('awardXpOnce')) {
+        // Same dedupe keys as before the engine existed → nobody is paid twice.
+        $res = $refId !== null ? awardXpOnce($uid, $action, $xp, $refType, $refId)
+                               : awardXp($uid, $action, $xp, $refType, null);
+    }
+    if (!empty($checkAfter)) {
+        try {
+            awardStreakMilestones($uid);
+            achievementBuffer(checkAchievements($uid));
+        } catch (Throwable $e) {
+            error_log('recordActivity checks: ' . $e->getMessage());
+        }
+    }
+    return $res;
 }
 
 /** Remove a completion that was undone. XP already earned is kept. */

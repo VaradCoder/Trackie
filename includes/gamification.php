@@ -107,16 +107,36 @@ function awardXpOnce(int $uid, string $action, int $xp, string $refType, int $re
 }
 
 
-/** Award streak-milestone XP (7 / 30 days) once each. Call after a habit is logged. */
+/**
+ * Award streak-milestone XP (7 / 30 days) once each, on the Trackie streak
+ * (any logged activity) — falls back to the habit streak before the activity
+ * engine exists. Same XP keys as always, so nobody is paid twice.
+ */
 function awardStreakMilestones(int $uid): void {
-    if (!function_exists('habitStreaks')) return;
-    $cur = (int)(habitStreaks($uid)['current'] ?? 0);
+    if (function_exists('activityStreak') && function_exists('activityReady') && activityReady()) {
+        $cur = (int)(activityStreak($uid)['current'] ?? 0);
+    } elseif (function_exists('habitStreaks')) {
+        $cur = (int)(habitStreaks($uid)['current'] ?? 0);
+    } else {
+        return;
+    }
     if ($cur >= 7 && awardXpOnce($uid, 'streak_7', 100, 'streak', 7) && function_exists('createNotification')) {
         createNotification($uid, 'streak', '🔥 7-day streak!', 'A week strong — keep it alive.');
     }
     if ($cur >= 30 && awardXpOnce($uid, 'streak_30', 500, 'streak', 30) && function_exists('createNotification')) {
         createNotification($uid, 'streak', '🔥 30-day streak!', 'Incredible consistency. +500 XP.');
     }
+}
+
+/**
+ * Achievements unlocked inside recordActivity() are held here so the API
+ * call that follows (checkAchievements() → toast payload) still reports them.
+ */
+function achievementBuffer(?array $add = null): array {
+    static $buf = [];
+    if ($add === null) { $out = $buf; $buf = []; return $out; }
+    $buf = array_values(array_unique(array_merge($buf, $add)));
+    return $buf;
 }
 
 /* ── Achievements ─────────────────────────────────────────────── */
@@ -139,6 +159,21 @@ function achievementDefs(): array {
         'gym_first_pr'  => ['emoji' => '📈', 'name' => 'New Record',            'desc' => 'Set your first personal record'],
         'project_ship'  => ['emoji' => '🚀', 'name' => 'Shipped It',           'desc' => 'Mark your first project as Done'],
         'bookworm_5'    => ['emoji' => '📖', 'name' => 'Bookworm',              'desc' => 'Finish 5 books'],
+        // Across Trackie (activity log)
+        'trackie_7'     => ['emoji' => '🔥', 'name' => 'On a Roll',             'desc' => 'Log something 7 days in a row'],
+        'trackie_30'    => ['emoji' => '🌟', 'name' => 'Unstoppable',           'desc' => 'Log something 30 days in a row'],
+        'all_rounder'   => ['emoji' => '🧭', 'name' => 'All-Rounder',           'desc' => 'Be active in 5 different areas'],
+        'chef_10'       => ['emoji' => '🍳', 'name' => 'Home Chef',             'desc' => 'Cook 10 recipes'],
+        'writer_5k'     => ['emoji' => '✍️', 'name' => 'Wordsmith',             'desc' => 'Write 5,000 words'],
+        'green_thumb'   => ['emoji' => '🌱', 'name' => 'Green Thumb',           'desc' => 'Care for plants on 14 days'],
+        'coder_10'      => ['emoji' => '💻', 'name' => 'Code Habit',            'desc' => 'Code on 10 days'],
+        'zen_7'         => ['emoji' => '🧘', 'name' => 'Inner Calm',            'desc' => 'Meditate 7 days in a row'],
+        'gamer_first'   => ['emoji' => '🎮', 'name' => 'Credits Roll',          'desc' => 'Complete your first game'],
+        'shutterbug'    => ['emoji' => '📷', 'name' => 'Shutterbug',            'desc' => 'Upload photos on 10 days'],
+        'reader_30'     => ['emoji' => '📚', 'name' => 'Daily Reader',          'desc' => 'Read on 30 days'],
+        'athlete_10'    => ['emoji' => '🏅', 'name' => 'Athlete',               'desc' => 'Log 10 sports sessions'],
+        'artist_10'     => ['emoji' => '🎨', 'name' => 'Sketchbook',            'desc' => 'Practise art on 10 days'],
+        'saver'         => ['emoji' => '💰', 'name' => 'Saver',                 'desc' => 'Reach a savings goal'],
     ];
 }
 
@@ -163,7 +198,7 @@ function unlockAchievement(int $uid, string $key): bool {
 /** Evaluate every achievement condition against real data; unlock any newly met. */
 function checkAchievements(int $uid): array {
     if (!tableExists('achievements')) return [];
-    $newly = [];
+    $newly = achievementBuffer();
     $count = fn($sql) => (int)(fetchOne($sql, [$uid])['c'] ?? 0);
 
     $todosDone   = $count("SELECT COUNT(*) c FROM todos WHERE user_id=? AND completed=1 AND deleted_at IS NULL");
@@ -199,6 +234,32 @@ function checkAchievements(int $uid): array {
         'project_ship'  => $projectsDone >= 1,
         'bookworm_5'    => $booksFinished >= 5,
     ];
+
+    // Activity-log based (only when the engine is installed).
+    if (tableExists('activity_log') && function_exists('activityStreak')) {
+        $act = [];
+        foreach (fetchAll("SELECT action, COUNT(*) n FROM activity_log WHERE user_id=? GROUP BY action", [$uid]) as $r) $act[$r['action']] = (int)$r['n'];
+        $a = fn(string $k) => $act[$k] ?? 0;
+        $modules  = $count("SELECT COUNT(DISTINCT module) c FROM activity_log WHERE user_id=?");
+        $words    = tableExists('writing_log') ? $count("SELECT COALESCE(SUM(words_added),0) c FROM writing_log WHERE user_id=?") : 0;
+        $savedOk  = $count("SELECT COUNT(*) c FROM goals WHERE user_id=? AND kind='savings' AND target_value > 0 AND progress >= target_value");
+        $met += [
+            'trackie_7'   => (int)activityStreak($uid)['best'] >= 7,
+            'trackie_30'  => (int)activityStreak($uid)['best'] >= 30,
+            'all_rounder' => $modules >= 5,
+            'chef_10'     => $a('recipe_cooked') >= 10,
+            'writer_5k'   => $words >= 5000,
+            'green_thumb' => $a('garden_care') >= 14,
+            'coder_10'    => $a('coding_session') >= 10,
+            'zen_7'       => (int)activityStreak($uid, 'meditation')['best'] >= 7,
+            'gamer_first' => $a('game_completed') >= 1,
+            'shutterbug'  => $a('photo_upload_day') >= 10,
+            'reader_30'   => $a('reading_session') >= 30,
+            'athlete_10'  => $a('sports_session') >= 10,
+            'artist_10'   => $a('art_session') >= 10,
+            'saver'       => $savedOk >= 1,
+        ];
+    }
     foreach ($met as $key => $ok) {
         if ($ok && unlockAchievement($uid, $key)) $newly[] = $key;
     }

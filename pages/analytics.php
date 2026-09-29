@@ -4,6 +4,7 @@ require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
 if (is_file(__DIR__ . '/../includes/gamification.php')) require_once __DIR__ . '/../includes/gamification.php';
+require_once '../includes/insights.php';
 
 requireAuth();
 
@@ -11,6 +12,10 @@ $uid         = currentUserId();
 $pageTitle   = 'Analytics';
 $currentPage = 'analytics';
 $score       = function_exists('trackieScore') ? trackieScore($uid) : ['score'=>0,'band'=>'','has_data'=>false];
+$range       = in_array((int)($_GET['range'] ?? 30), [7, 30, 90], true) ? (int)($_GET['range'] ?? 30) : 30;
+$ov          = progressOverview($uid, $range);
+$insights    = crossInsights($uid);
+$tStreak     = activityReady() ? activityStreak($uid) : ['current' => 0, 'best' => 0];
 
 // ── Habits ────────────────────────────────────────────────────
 $habitStats = fetchOne(
@@ -169,6 +174,56 @@ $scCol = $score['score'] >= 75 ? 'var(--ok)' : ($score['score'] >= 50 ? '#f59e0b
   </div>
 </div>
 
+<!-- Across Trackie (activity log) -->
+<div class="card card-body an-across" style="margin-bottom:1.5rem">
+  <div class="an-head">
+    <div style="font-size:.9375rem;font-weight:600">Across Trackie</div>
+    <div class="an-range" role="tablist" aria-label="Range">
+      <?php foreach ([7, 30, 90] as $r): ?>
+        <a href="?range=<?= $r ?>" class="an-range-btn<?= $r === $range ? ' active' : '' ?>" <?= $r === $range ? 'aria-current="true"' : '' ?>><?= $r ?>d</a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php if ($ov['activities'] === 0): ?>
+    <p class="text-muted" style="font-size:.875rem;margin:.75rem 0 0">Nothing logged in the last <?= $range ?> days yet. Tick a habit, finish a todo or log any hobby and it shows up here.</p>
+  <?php else: ?>
+  <div class="an-kpis">
+    <div><span class="an-kpi"><?= $ov['active_days'] ?><small>/<?= $range ?></small></span><span class="an-kpi-l">active days</span></div>
+    <div><span class="an-kpi"><?= number_format($ov['activities']) ?></span><span class="an-kpi-l">things logged</span></div>
+    <div><span class="an-kpi"><?= number_format($ov['xp']) ?></span><span class="an-kpi-l">XP earned</span></div>
+    <div><span class="an-kpi"><?= (int)$tStreak['current'] ?><small> d</small></span><span class="an-kpi-l">Trackie streak (best <?= (int)$tStreak['best'] ?>)</span></div>
+  </div>
+  <?php $maxDay = max(1, max(array_column($ov['per_day'], 'count'))); ?>
+  <div class="an-bars" aria-label="Activities per day">
+    <?php foreach ($ov['per_day'] as $d): ?>
+      <div class="an-bar" style="height:<?= max(2, round($d['count'] / $maxDay * 100)) ?>%" data-zero="<?= $d['count'] ? 0 : 1 ?>"
+           title="<?= h(date('D j M', strtotime($d['date']))) ?>: <?= $d['count'] ?>"></div>
+    <?php endforeach; ?>
+  </div>
+  <div class="an-bars-axis"><span><?= h(date('j M', strtotime($ov['from']))) ?></span><span>Today</span></div>
+
+  <div class="an-modules">
+    <?php $maxMod = max(1, $ov['modules'][0]['count'] ?? 1);
+    foreach ($ov['modules'] as $m): ?>
+      <div class="an-mod">
+        <span class="an-mod-l"><?= h($m['label']) ?></span>
+        <div class="progress-track" style="flex:1"><div class="progress-fill" style="width:<?= round($m['count'] / $maxMod * 100) ?>%"></div></div>
+        <span class="an-mod-v" title="<?= $m['days'] ?> active day<?= $m['days'] === 1 ? '' : 's' ?>"><?= $m['count'] ?></span>
+      </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($insights): ?>
+  <ul class="an-insights">
+    <?php foreach ($insights as $in): ?>
+      <li><i class="fas <?= h($in['icon']) ?>"></i><?= h($in['text']) ?></li>
+    <?php endforeach; ?>
+  </ul>
+  <?php endif; ?>
+  <a href="<?= APP_BASE ?>/pages/review.php" class="an-review-link">Open weekly review <i class="fas fa-arrow-right"></i></a>
+</div>
+
 <!-- Overview cards -->
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem">
   <?php
@@ -255,17 +310,23 @@ $scCol = $score['score'] >= 75 ? 'var(--ok)' : ($score['score'] >= 50 ? '#f59e0b
   <?php endforeach; ?>
 </div>
 
-<!-- 12-week habit heatmap -->
+<!-- 26-week activity heatmap (everything logged, not just habits) -->
+<?php
+$useActivity = activityReady();
+if ($useActivity) $heatmap = $ov['heatmap'];
+$weeks = $useActivity ? 26 : 12;
+?>
 <div class="card card-body" style="margin-bottom:1.5rem">
-  <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">12-week habit heatmap</div>
+  <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem"><?= $useActivity ? '26-week activity heatmap' : '12-week habit heatmap' ?></div>
   <?php
-  // Start from the Sunday 83 days ago
-  $start = strtotime('last sunday', strtotime('-82 days'));
-  if (date('N', strtotime('-82 days')) == 7) $start = strtotime('-82 days');
+  // Start from the Sunday (7*weeks - 1) days ago
+  $back  = $weeks * 7 - 2;
+  $start = strtotime('last sunday', strtotime("-{$back} days"));
+  if (date('N', strtotime("-{$back} days")) == 7) $start = strtotime("-{$back} days");
   ?>
   <div class="heatmap-scroll">
-  <div style="display:grid;grid-template-columns:repeat(12,18px);gap:3px;width:max-content">
-    <?php for ($w = 0; $w < 12; $w++): ?>
+  <div style="display:grid;grid-template-columns:repeat(<?= $weeks ?>,18px);gap:3px;width:max-content">
+    <?php for ($w = 0; $w < $weeks; $w++): ?>
       <div style="display:flex;flex-direction:column;gap:3px">
         <?php for ($d = 0; $d < 7; $d++):
           $ts   = strtotime("+{$d} days", $start + $w * 7 * 86400);
@@ -273,7 +334,7 @@ $scCol = $score['score'] >= 75 ? 'var(--ok)' : ($score['score'] >= 50 ? '#f59e0b
           if ($ts > time()) { echo '<div style="width:18px;height:18px"></div>'; continue; }
           $cnt   = $heatmap[$date] ?? 0;
           $level = $cnt === 0 ? 0 : ($cnt <= 1 ? 1 : ($cnt <= 3 ? 2 : ($cnt <= 5 ? 3 : 4)));
-          $title = $date . ($cnt ? ": {$cnt} log" . ($cnt > 1 ? 's' : '') : ': no logs');
+          $title = $date . ($cnt ? ": {$cnt} " . ($useActivity ? 'activit' . ($cnt > 1 ? 'ies' : 'y') : 'log' . ($cnt > 1 ? 's' : '')) : ': nothing logged');
         ?>
           <div class="heatmap-cell" data-level="<?= $level ?>" title="<?= $title ?>"></div>
         <?php endfor; ?>

@@ -13,6 +13,8 @@ if (is_file(__DIR__ . '/../includes/gamification.php')) {
 requireAuth();
 
 $uid         = currentUserId();
+require_once __DIR__ . '/../includes/insights.php';
+try { maybeNotifyWeeklyReview($uid); } catch (Throwable $e) { error_log('weekly review notify: ' . $e->getMessage()); }
 resetRecurringTodos($uid); // keep recurring todos in sync before we compute today's stats
 $pageTitle   = 'Dashboard';
 $currentPage = 'dashboard';
