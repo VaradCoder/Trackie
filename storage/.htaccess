@@ -1,0 +1,3 @@
+# User uploads are private: served only through api/photo_file.php
+# (owner-checked). Never reachable by direct URL.
+Require all denied

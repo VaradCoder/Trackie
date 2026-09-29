@@ -26,6 +26,7 @@ $statusMeta = [
     'connected'   => ['label' => 'Connected',        'badge' => 'badge-green'],
     'connect'     => ['label' => 'Ready to connect', 'badge' => 'badge-blue'],
     'coming_soon' => ['label' => 'Coming soon',      'badge' => 'badge-gray'],
+    'unavailable' => ['label' => 'Unavailable',      'badge' => 'badge-red'],
 ];
 
 /** "3 minutes ago" for the last-sync line. */
@@ -98,17 +99,22 @@ require_once '../includes/head.php';
             <p class="integration-error"><?= h($p['lastError']) ?></p>
           <?php endif; ?>
           <div style="display:flex;gap:.5rem">
-            <button class="btn btn-secondary btn-sm" style="flex:1" onclick="syncProvider('<?= h($key) ?>', this)">
+            <button class="btn btn-secondary btn-sm" style="flex:1" onclick="syncProvider('<?= h($p['impl']) ?>', this)">
               <i class="fas fa-rotate"></i> Sync now
             </button>
             <button class="btn btn-ghost btn-sm" style="color:var(--accent)"
-                    onclick="disconnectProvider('<?= h($key) ?>')" aria-label="Disconnect <?= h($p['name']) ?>">
+                    onclick="disconnectProvider('<?= h($p['impl']) ?>')" aria-label="Disconnect <?= h($p['name']) ?>">
               <i class="fas fa-link-slash"></i>
             </button>
           </div>
         <?php elseif ($p['status'] === 'active'): ?>
           <button class="btn btn-secondary btn-sm" style="width:100%" disabled>
             <i class="fas fa-circle-check" style="color:var(--ok)"></i> Active
+          </button>
+        <?php elseif ($p['status'] === 'unavailable'): ?>
+          <p class="integration-error"><?= h($p['lastError'] ?? '') ?></p>
+          <button class="btn btn-secondary btn-sm" style="width:100%" disabled>
+            <i class="fas fa-triangle-exclamation" style="color:var(--warn)"></i> Unavailable
           </button>
         <?php elseif ($p['status'] === 'connect'): ?>
           <a href="<?= APP_BASE . h($p['connect']) ?>" class="btn btn-primary btn-sm" style="width:100%">
@@ -141,6 +147,10 @@ require_once '../includes/head.php';
 </div>
 
 </div>
+<p class="legal-links" style="margin-top:2rem">
+  <a href="<?= APP_BASE ?>/pages/privacy.php" data-no-spa>Privacy Policy</a> ·
+  <a href="<?= APP_BASE ?>/pages/terms.php" data-no-spa>Terms of Service</a>
+</p>
 <?php include '../includes/footer.php'; ?>
 
 <script>

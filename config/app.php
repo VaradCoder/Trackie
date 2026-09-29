@@ -17,6 +17,12 @@ $_envFile = __DIR__ . '/env.php';
 if (file_exists($_envFile)) require_once $_envFile;
 unset($_envFile);
 
+// ── Application settings ──────────────────────────────────────
+// Defaults reproduce the pre-existing behavior when env.php omits them.
+if (!defined('APP_ENV'))   define('APP_ENV',   getenv('APP_ENV') ?: 'production');
+if (!defined('APP_DEBUG')) define('APP_DEBUG', filter_var(getenv('APP_DEBUG'), FILTER_VALIDATE_BOOLEAN));
+if (!defined('APP_URL'))   define('APP_URL',   (string)getenv('APP_URL'));
+
 // Derive APP_BASE from the request URL (not the filesystem), so links work
 // whether the app is in the docroot, a subfolder, or served via an Apache
 // Alias / VirtualHost — and still resolve to '' at a domain root (InfinityFree).
@@ -64,5 +70,8 @@ if (session_status() === PHP_SESSION_NONE) {
 // ── Timezone ──────────────────────────────────────────────────
 // Must match the MySQL server's timezone — date('Y-m-d') in PHP and
 // CURDATE()/NOW() in SQL are compared all over the app (todos due
-// today, habit logs, reminder scheduling). Override via APP_TIMEZONE.
-date_default_timezone_set(getenv('APP_TIMEZONE') ?: 'Asia/Kolkata');
+// today, habit logs, reminder scheduling). Override via APP_TIMEZONE,
+// as a constant in env.php (preferred) or an environment variable.
+date_default_timezone_set(
+    defined('APP_TIMEZONE') ? APP_TIMEZONE : (getenv('APP_TIMEZONE') ?: 'Asia/Kolkata')
+);

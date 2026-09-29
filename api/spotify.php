@@ -17,45 +17,18 @@ if (!$clientId || !$clientSecret) {
     json_out(['connected' => false, 'reason' => 'not_configured']);
 }
 
-$accessToken  = $_SESSION['spotify_access_token']  ?? '';
-$refreshToken = $_SESSION['spotify_refresh_token'] ?? '';
-$expires      = (int)($_SESSION['spotify_token_expires'] ?? 0);
-
-if (!$accessToken) {
+// Tokens live encrypted in user_integrations (provider 'spotify') and are
+// refreshed automatically when the 1-hour access token expires.
+require_once '../includes/providers.php';
+$sp = provider('spotify');
+$uid = currentUserId();
+if (!$sp || !$sp->isConnected($uid)) {
     json_out(['connected' => false, 'reason' => 'not_connected']);
 }
-
-// Refresh token if expired (with 60-second buffer)
-if (time() >= $expires - 60 && $refreshToken) {
-    $ch = curl_init('https://accounts.spotify.com/api/token');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => http_build_query([
-            'grant_type'    => 'refresh_token',
-            'refresh_token' => $refreshToken,
-        ]),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Basic ' . base64_encode("{$clientId}:{$clientSecret}"),
-            'Content-Type: application/x-www-form-urlencoded',
-        ],
-        CURLOPT_TIMEOUT => 5,
-    ]);
-    $resp = json_decode(curl_exec($ch), true);
-    curl_close($ch);
-
-    if (!empty($resp['access_token'])) {
-        $accessToken = $resp['access_token'];
-        $_SESSION['spotify_access_token']  = $accessToken;
-        $_SESSION['spotify_token_expires'] = time() + (int)($resp['expires_in'] ?? 3600);
-        if (!empty($resp['refresh_token'])) {
-            $_SESSION['spotify_refresh_token'] = $resp['refresh_token'];
-        }
-    } else {
-        // Refresh failed — disconnect
-        unset($_SESSION['spotify_access_token'], $_SESSION['spotify_refresh_token'], $_SESSION['spotify_token_expires']);
-        json_out(['connected' => false, 'reason' => 'refresh_failed']);
-    }
+$accessToken = $sp->validAccessToken($uid);
+if (!$accessToken) {
+    json_out(['connected' => false, 'reason' => 'refresh_failed',
+              'error' => 'Spotify access expired — reconnect it in Settings.']);
 }
 
 /** Thin wrapper around the Spotify Web API using the session's access token. */
@@ -69,6 +42,13 @@ function spotifyGet(string $path, string $token): array {
     $raw  = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    if ($code === 401 || $code === 403) {
+        // 403 on these endpoints = a scope from before the scope fix is missing,
+        // or the account isn't on the app's allow-list (Development mode).
+        json_out(['success' => false, 'connected' => true, 'needsReconnect' => true,
+                  'error' => $code === 401 ? 'Spotify rejected the token — reconnect it in Settings.'
+                                           : 'Spotify denied this request. Reconnect Spotify in Settings to grant the new permissions.'], 200);
+    }
     return ['code' => $code, 'body' => $raw ? json_decode($raw, true) : null];
 }
 function spotifyPut(string $path, string $token, array $body = []): int {

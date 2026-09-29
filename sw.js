@@ -8,7 +8,7 @@
  * Scope is derived from the SW's own location, so it works whether the app
  * is served from "/" (live) or "/Trackie/" (local) without edits.
  */
-const VERSION = 'trackie-v3';   // bumped: precache list now targets the .min builds and the corrected logo filename
+const VERSION = 'trackie-v4';   // bumped: purge exercise videos that v3 wrongly cached; skip media + non-http requests
 const STATIC  = `static-${VERSION}`;
 const RUNTIME = `runtime-${VERSION}`;
 const PAGES   = `pages-${VERSION}`;   // last-seen HTML pages for offline viewing
@@ -61,6 +61,14 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET') return;            // never cache POST/PUT/DELETE
 
   const url = new URL(req.url);
+
+  // Browser extensions (chrome-extension:// …) also pass through here, and
+  // the Cache API rejects any non-http(s) scheme.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+  // Video/audio stream as 206 range responses, which the Cache API refuses;
+  // caching whole clips would also bloat storage. Let the browser handle them.
+  if (req.headers.has('range') || req.destination === 'video' || req.destination === 'audio') return;
 
   // Never cache dynamic API calls — always hit the network.
   if (url.pathname.includes('/api/')) return;

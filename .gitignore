@@ -24,3 +24,13 @@ database/trackie_v1.sql
 database/trackie_v1_additions.sql
 database/trackie_v2_schema.sql
 database/migration_hobbies_update.sql
+
+# Server-side cache of exercise demo GIFs (fetched from ExerciseDB)
+assets/cache/exercise-gifs/
+
+# Private user uploads (photos). Served only via api/photo_file.php.
+storage/photos/*
+!storage/photos/.gitkeep
+
+# Deploy bundles built by scripts/deploy_bundle.php
+dist/

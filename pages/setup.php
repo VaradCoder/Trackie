@@ -407,6 +407,54 @@ $migrations = [
         INDEX idx_user_status (user_id, status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
+    // ── Reading V2 (app/Modules/Reading): progress, sessions, notes, goals ──
+    'books.status paused' => "ALTER TABLE books MODIFY COLUMN status ENUM('want','reading','finished','paused') DEFAULT 'want'",
+    'books v2 columns' => "ALTER TABLE books
+        ADD COLUMN IF NOT EXISTS pages_total  INT          DEFAULT NULL AFTER author,
+        ADD COLUMN IF NOT EXISTS current_page INT          NOT NULL DEFAULT 0 AFTER pages_total,
+        ADD COLUMN IF NOT EXISTS cover_url    VARCHAR(255) DEFAULT NULL AFTER current_page,
+        ADD COLUMN IF NOT EXISTS isbn         VARCHAR(20)  DEFAULT NULL AFTER cover_url,
+        ADD COLUMN IF NOT EXISTS ol_key       VARCHAR(40)  DEFAULT NULL AFTER isbn,
+        ADD COLUMN IF NOT EXISTS publish_year SMALLINT     DEFAULT NULL AFTER ol_key,
+        ADD COLUMN IF NOT EXISTS subjects     VARCHAR(255) DEFAULT NULL AFTER publish_year",
+    'reading_sessions table' => "CREATE TABLE IF NOT EXISTS reading_sessions (
+        id           INT AUTO_INCREMENT PRIMARY KEY,
+        user_id      INT  NOT NULL,
+        book_id      INT  NOT NULL,
+        session_date DATE NOT NULL,
+        minutes      INT  NOT NULL,
+        start_page   INT  DEFAULT NULL,
+        end_page     INT  DEFAULT NULL,
+        pages        INT  NOT NULL DEFAULT 0,
+        note         VARCHAR(500) DEFAULT NULL,
+        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        INDEX idx_user_date (user_id, session_date),
+        INDEX idx_book (book_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'book_notes table' => "CREATE TABLE IF NOT EXISTS book_notes (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        user_id    INT NOT NULL,
+        book_id    INT NOT NULL,
+        kind       ENUM('note','quote') NOT NULL DEFAULT 'note',
+        body       TEXT NOT NULL,
+        page       INT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        INDEX idx_user_kind (user_id, kind)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'reading_goals table' => "CREATE TABLE IF NOT EXISTS reading_goals (
+        user_id      INT NOT NULL,
+        year         SMALLINT NOT NULL,
+        books_target INT DEFAULT NULL,
+        pages_target INT DEFAULT NULL,
+        updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, year),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
     // Gaming — game library
     'games table' => "CREATE TABLE IF NOT EXISTS games (
         id           INT AUTO_INCREMENT PRIMARY KEY,
@@ -434,6 +482,42 @@ $migrations = [
         ADD COLUMN IF NOT EXISTS last_played DATETIME DEFAULT NULL AFTER hours_played",
     'games.uniq_user_steamapp' => "ALTER TABLE games
         ADD UNIQUE INDEX IF NOT EXISTS uniq_user_steamapp (user_id, steam_appid)",
+
+    // ── Gaming V2: Next Up / Wrapped / Co-op (app/Modules/Gaming) ──
+    // Raw Steam values (minutes, achievement counts) + Trackie completion date.
+    'games v2 columns' => "ALTER TABLE games
+        ADD COLUMN IF NOT EXISTS playtime_2weeks INT      DEFAULT NULL AFTER last_played,
+        ADD COLUMN IF NOT EXISTS ach_done        SMALLINT DEFAULT NULL AFTER playtime_2weeks,
+        ADD COLUMN IF NOT EXISTS ach_total       SMALLINT DEFAULT NULL AFTER ach_done,
+        ADD COLUMN IF NOT EXISTS ach_synced_at   DATETIME DEFAULT NULL AFTER ach_total,
+        ADD COLUMN IF NOT EXISTS completed_at    DATETIME DEFAULT NULL AFTER ach_synced_at",
+    // Cumulative playtime per sync day; appid 0 = "synced that day" marker.
+    'steam_playtime_snapshots table' => "CREATE TABLE IF NOT EXISTS steam_playtime_snapshots (
+        user_id      INT  NOT NULL,
+        steam_appid  INT  NOT NULL,
+        snap_date    DATE NOT NULL,
+        playtime_min INT  NOT NULL,
+        PRIMARY KEY (user_id, steam_appid, snap_date),
+        INDEX idx_user_date (user_id, snap_date),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'steam_app_meta table' => "CREATE TABLE IF NOT EXISTS steam_app_meta (
+        appid        INT          NOT NULL PRIMARY KEY,
+        status       VARCHAR(8)   NOT NULL,
+        genres       VARCHAR(255) DEFAULT NULL,
+        categories   VARCHAR(600) DEFAULT NULL,
+        multiplayer  TINYINT(1)   NOT NULL DEFAULT 0,
+        coop         TINYINT(1)   NOT NULL DEFAULT 0,
+        online_coop  TINYINT(1)   NOT NULL DEFAULT 0,
+        crossplay    TINYINT(1)   NOT NULL DEFAULT 0,
+        fetched_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'provider_cache table' => "CREATE TABLE IF NOT EXISTS provider_cache (
+        cache_key  VARCHAR(191) NOT NULL PRIMARY KEY,
+        status     VARCHAR(8)   NOT NULL,
+        payload    MEDIUMTEXT   DEFAULT NULL,
+        fetched_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
     // Cooking — recipe box
     'recipes table' => "CREATE TABLE IF NOT EXISTS recipes (
@@ -516,6 +600,68 @@ $migrations = [
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         INDEX idx_user_status (user_id, status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+    // ── Photography V2 (app/Modules/Photography): uploads, EXIF, shoots, gear ──
+    'photo_projects table' => "CREATE TABLE IF NOT EXISTS photo_projects (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        user_id     INT NOT NULL,
+        name        VARCHAR(120) NOT NULL,
+        description VARCHAR(500) DEFAULT NULL,
+        status      ENUM('active','done') NOT NULL DEFAULT 'active',
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'photos v2 columns' => "ALTER TABLE photos
+        ADD COLUMN IF NOT EXISTS duration_min INT          DEFAULT NULL AFTER taken_date,
+        ADD COLUMN IF NOT EXISTS notes        VARCHAR(1000) DEFAULT NULL AFTER duration_min,
+        ADD COLUMN IF NOT EXISTS project_id   INT          DEFAULT NULL AFTER notes",
+    'photo_images table' => "CREATE TABLE IF NOT EXISTS photo_images (
+        id           INT AUTO_INCREMENT PRIMARY KEY,
+        user_id      INT NOT NULL,
+        shoot_id     INT DEFAULT NULL,
+        project_id   INT DEFAULT NULL,
+        file         VARCHAR(120) NOT NULL,
+        thumb        VARCHAR(120) NOT NULL,
+        width        INT DEFAULT NULL,
+        height       INT DEFAULT NULL,
+        bytes        INT DEFAULT NULL,
+        title        VARCHAR(150) DEFAULT NULL,
+        caption      VARCHAR(1000) DEFAULT NULL,
+        taken_at     DATETIME     DEFAULT NULL,
+        camera       VARCHAR(100) DEFAULT NULL,
+        lens         VARCHAR(100) DEFAULT NULL,
+        iso          INT          DEFAULT NULL,
+        shutter      VARCHAR(20)  DEFAULT NULL,
+        aperture     DECIMAL(4,1) DEFAULT NULL,
+        focal_mm     DECIMAL(6,1) DEFAULT NULL,
+        exif_source  VARCHAR(8)   DEFAULT NULL,
+        favorite     TINYINT(1)   NOT NULL DEFAULT 0,
+        edit_status  ENUM('raw','editing','edited') NOT NULL DEFAULT 'raw',
+        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id)    REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (shoot_id)   REFERENCES photos(id) ON DELETE SET NULL,
+        FOREIGN KEY (project_id) REFERENCES photo_projects(id) ON DELETE SET NULL,
+        INDEX idx_user_created (user_id, created_at),
+        INDEX idx_user_taken (user_id, taken_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'photo_gear table' => "CREATE TABLE IF NOT EXISTS photo_gear (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        user_id    INT NOT NULL,
+        kind       ENUM('camera','lens','accessory') NOT NULL,
+        name       VARCHAR(100) NOT NULL,
+        notes      VARCHAR(255) DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_kind (user_id, kind)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'photo_goals table' => "CREATE TABLE IF NOT EXISTS photo_goals (
+        user_id          INT PRIMARY KEY,
+        photos_per_month INT DEFAULT NULL,
+        shoots_per_month INT DEFAULT NULL,
+        updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
     // Gardening — plant collection
@@ -834,6 +980,96 @@ $migrations = [
         WHEN 44 THEN 'assets/vids/Cable Rope Overhead Tricep Extension.mp4'
         ELSE video_path END
         WHERE id IN (9, 10, 43, 44)",
+
+    // Second batch, keyed by NAME (ids can differ between databases) and
+    // only filling empty built-in rows — never overrides a video a user has
+    // assigned through the Library tab. Ambiguous files are left for that UI.
+    'exercise_library.video_path seed 2' => "UPDATE exercise_library SET video_path = CASE name
+        WHEN 'Chest Press Machine' THEN 'assets/vids/Chest press or fly.mp4'
+        WHEN 'Leg Press'           THEN 'assets/vids/leg press.mp4'
+        ELSE video_path END
+        WHERE user_id IS NULL AND video_path IS NULL
+          AND name IN ('Chest Press Machine', 'Leg Press')",
+
+    // ── Fitness V2 ──────────────────────────────────────────────────────
+    // Exercise metadata for the provider layer (app/Modules/Fitness). All
+    // nullable/defaulted, so existing rows and code are unaffected. video_path
+    // stays the local file; video_url/thumbnail_url hold a provider's remote
+    // media when an API exercise is saved to the library.
+    'exercise_library fitness v2 columns' => "ALTER TABLE exercise_library
+        ADD COLUMN IF NOT EXISTS target_muscle     VARCHAR(60)  DEFAULT NULL AFTER muscle_group,
+        ADD COLUMN IF NOT EXISTS secondary_muscles VARCHAR(255) DEFAULT NULL AFTER target_muscle,
+        ADD COLUMN IF NOT EXISTS difficulty        VARCHAR(20)  DEFAULT NULL AFTER category,
+        ADD COLUMN IF NOT EXISTS instructions      TEXT         DEFAULT NULL AFTER difficulty,
+        ADD COLUMN IF NOT EXISTS video_url         VARCHAR(500) DEFAULT NULL AFTER video_path,
+        ADD COLUMN IF NOT EXISTS thumbnail_url     VARCHAR(500) DEFAULT NULL AFTER video_url,
+        ADD COLUMN IF NOT EXISTS source            VARCHAR(20)  NOT NULL DEFAULT 'library' AFTER thumbnail_url,
+        ADD COLUMN IF NOT EXISTS external_id       VARCHAR(100) DEFAULT NULL AFTER source",
+
+    // Fitness goals. Progress is never stored — it is computed from logged
+    // data (workout days, best sets, streak, body_stats) on every read.
+    'fitness_goals table' => "CREATE TABLE IF NOT EXISTS fitness_goals (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        user_id       INT NOT NULL,
+        goal_type     VARCHAR(20)  NOT NULL,
+        target_value  DECIMAL(8,2) NOT NULL,
+        exercise_name VARCHAR(100) DEFAULT NULL,
+        start_date    DATE NOT NULL,
+        deadline      DATE DEFAULT NULL,
+        completed_at  DATETIME DEFAULT NULL,
+        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+    // Nutrition: what the user logged eating/drinking. Calories here are
+    // calories EATEN as entered — Trackie never estimates calories burned.
+    'nutrition_entries table' => "CREATE TABLE IF NOT EXISTS nutrition_entries (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        user_id    INT NOT NULL,
+        entry_date DATE NOT NULL,
+        meal       VARCHAR(12)  NOT NULL DEFAULT 'snack',
+        name       VARCHAR(120) DEFAULT NULL,
+        calories   INT          DEFAULT NULL,
+        protein_g  DECIMAL(6,1) DEFAULT NULL,
+        water_ml   INT          DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_date (user_id, entry_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+    'nutrition_targets table' => "CREATE TABLE IF NOT EXISTS nutrition_targets (
+        user_id    INT PRIMARY KEY,
+        calories   INT          DEFAULT NULL,
+        protein_g  DECIMAL(6,1) DEFAULT NULL,
+        water_ml   INT          DEFAULT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+    // Recovery check-ins: raw, user-entered inputs only (no derived score).
+    'recovery_logs table' => "CREATE TABLE IF NOT EXISTS recovery_logs (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        user_id     INT NOT NULL,
+        log_date    DATE NOT NULL,
+        sleep_hours DECIMAL(3,1) DEFAULT NULL,
+        energy      TINYINT      DEFAULT NULL,
+        soreness    TINYINT      DEFAULT NULL,
+        notes       VARCHAR(255) DEFAULT NULL,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY uniq_user_date (user_id, log_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+    // WorkoutDB lookups (includes/workoutdb.php). Global catalogue cache, not
+    // user data — keyed by normalized exercise name; status 'hit' | 'miss' |
+    // 'error' decides the TTL, payload is the trimmed demo JSON for hits.
+    'workoutdb_cache table' => "CREATE TABLE IF NOT EXISTS workoutdb_cache (
+        query_key  VARCHAR(191) NOT NULL PRIMARY KEY,
+        status     VARCHAR(8)   NOT NULL,
+        payload    TEXT         DEFAULT NULL,
+        fetched_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
     // Optional body/fitness stats — one entry per user per day.
     'body_stats table' => "CREATE TABLE IF NOT EXISTS body_stats (

@@ -10,6 +10,62 @@ verify_csrf();
 $uid    = currentUserId();
 $action = sanitizeInput($_POST['action'] ?? '');
 
+/**
+ * Demo-video URL for an exercise name, or null. Plan items store free-text
+ * names ("chest press") while the library has canonical ones ("Chest Press
+ * Machine"), so an exact match wins, then a whole-word prefix match either
+ * way. Among equals: the user's own entry, then the closest name length.
+ */
+function exerciseVideoUrl(int $uid, string $name): ?string {
+    $norm = fn(string $s): string => trim(preg_replace('/[^a-z0-9]+/', ' ', strtolower($s)));
+    $want = $norm($name);
+    if ($want === '') return null;
+
+    $rows = fetchAll(
+        "SELECT name, user_id, video_path FROM exercise_library
+          WHERE video_path IS NOT NULL AND (user_id IS NULL OR user_id=?)",
+        [$uid]
+    );
+    $bestPath = null;
+    $bestScore = 0.0;
+    foreach ($rows as $r) {
+        $have = $norm($r['name']);
+        if ($have === $want) {
+            $score = 3.0;
+        } elseif ((str_starts_with($have, $want . ' ') || str_starts_with($want, $have . ' '))
+                  // A lone word ("chest") is too vague to pick a clip for.
+                  && str_contains(strlen($have) < strlen($want) ? $have : $want, ' ')) {
+            $score = 2.0;
+        } else {
+            continue;
+        }
+        $score += $r['user_id'] !== null ? 0.5 : 0.0;
+        $score -= abs(strlen($have) - strlen($want)) / 1000;
+        if ($score > $bestScore && is_file(ROOT_PATH . '/' . $r['video_path'])) {
+            $bestPath = $r['video_path'];
+            $bestScore = $score;
+        }
+    }
+    if ($bestPath === null) return null;
+    return APP_BASE . '/' . implode('/', array_map('rawurlencode', explode('/', $bestPath)));
+}
+
+/**
+ * Keep a workout_logs row's summary columns in step with its sets: `sets` =
+ * how many are logged, reps/weight = the last set by number (the top-line
+ * figure the older history views show).
+ */
+function fitnessRefreshLogAggregate(int $logId): void {
+    update(
+        "UPDATE workout_logs wl
+            LEFT JOIN (SELECT reps, weight_kg FROM workout_sets WHERE log_id=? ORDER BY set_number DESC, id DESC LIMIT 1) last ON 1=1
+            SET wl.sets = (SELECT COUNT(*) FROM workout_sets WHERE log_id=?),
+                wl.reps = last.reps, wl.weight_kg = last.weight_kg
+          WHERE wl.id=?",
+        [$logId, $logId, $logId]
+    );
+}
+
 switch ($action) {
 
     case 'add_plan':
@@ -161,61 +217,67 @@ switch ($action) {
         json_out(['success' => true, 'session_id' => $sid]);
 
     case 'session_log_set':
+        // Upsert: (session, exercise, set_number) identifies a set, so a
+        // retry, an offline replay or an edit to a completed set UPDATES that
+        // row instead of creating a duplicate. No unique index is relied on —
+        // older databases may already hold duplicates from before this fix.
         $sessionId = (int)($_POST['session_id'] ?? 0);
         $exercise  = sanitizeInput($_POST['exercise_name'] ?? '');
-        $setNum    = max(1, (int)($_POST['set_number'] ?? 1));
-        $reps      = $_POST['reps']   !== '' ? (int)$_POST['reps']     : null;
-        $weight    = $_POST['weight'] !== '' ? (float)$_POST['weight'] : null;
+        $setNum    = max(1, min(99, (int)($_POST['set_number'] ?? 1)));
+        $reps      = ($_POST['reps']   ?? '') !== '' ? max(0, min(999, (int)$_POST['reps']))          : null;
+        $weight    = ($_POST['weight'] ?? '') !== '' ? max(0, min(9999, round((float)$_POST['weight'], 2))) : null;
         $planId    = (int)($_POST['plan_id'] ?? 0) ?: null;
 
         if (!$exercise) json_out(['success' => false, 'error' => 'Exercise name is required.'], 422);
+        if ($reps === null && $weight === null) json_out(['success' => false, 'error' => 'Enter reps or weight for this set.'], 422);
         $session = fetchOne("SELECT id FROM workout_sessions WHERE id=? AND user_id=?", [$sessionId, $uid]);
         if (!$session) json_out(['success' => false, 'error' => 'Session not found.'], 404);
-
-        // Best weight ever lifted for this exercise BEFORE this set — checked
-        // before inserting, so the very set that sets a new PR is correctly
-        // flagged. Combines granular workout_sets with legacy workout_logs
-        // rows that predate this table (no child sets, aggregate weight only).
-        $prevBest = fetchOne(
-            "SELECT MAX(w) AS best FROM (
-                SELECT ws.weight_kg AS w FROM workout_sets ws
-                  JOIN workout_logs wl ON wl.id = ws.log_id
-                 WHERE wl.user_id=? AND wl.exercise_name=?
-                UNION ALL
-                SELECT wl.weight_kg AS w FROM workout_logs wl
-                 WHERE wl.user_id=? AND wl.exercise_name=?
-                   AND wl.id NOT IN (SELECT DISTINCT log_id FROM workout_sets)
-             ) x",
-            [$uid, $exercise, $uid, $exercise]
-        )['best'] ?? null;
-        $isPr = $weight !== null && ($prevBest === null || $weight > (float)$prevBest);
 
         // One workout_logs row per (session, exercise) — reused across sets.
         $log = fetchOne(
             "SELECT id FROM workout_logs WHERE session_id=? AND user_id=? AND exercise_name=?",
             [$sessionId, $uid, $exercise]
         );
-        if ($log) {
-            $logId = $log['id'];
-        } else {
-            $logId = insert(
+        $logId = $log ? (int)$log['id'] : 0;
+        $existing = $logId
+            ? fetchOne("SELECT id FROM workout_sets WHERE log_id=? AND set_number=? ORDER BY id LIMIT 1", [$logId, $setNum])
+            : null;
+        $existingId = $existing ? (int)$existing['id'] : 0;
+
+        // Best weight for this exercise across every OTHER set (so editing
+        // this very set can't hide or fake a record). Combines granular
+        // workout_sets with legacy aggregate-only workout_logs rows.
+        $prevBest = fetchOne(
+            "SELECT MAX(w) AS best FROM (
+                SELECT ws.weight_kg AS w FROM workout_sets ws
+                  JOIN workout_logs wl ON wl.id = ws.log_id
+                 WHERE wl.user_id=? AND wl.exercise_name=? AND ws.id <> ?
+                UNION ALL
+                SELECT wl.weight_kg AS w FROM workout_logs wl
+                 WHERE wl.user_id=? AND wl.exercise_name=?
+                   AND wl.id NOT IN (SELECT DISTINCT log_id FROM workout_sets)
+             ) x",
+            [$uid, $exercise, $existingId, $uid, $exercise]
+        )['best'] ?? null;
+        $isPr = $weight !== null && $weight > 0 && ($prevBest === null || $weight > (float)$prevBest);
+
+        if (!$logId) {
+            $logId = (int)insert(
                 "INSERT INTO workout_logs (user_id,plan_id,session_id,exercise_name,sets,reps,weight_kg,log_date)
                  VALUES (?,?,?,?,0,?,?,CURDATE())",
                 [$uid, $planId, $sessionId, $exercise, $reps, $weight]
             );
         }
-
-        insert(
-            "INSERT INTO workout_sets (log_id,set_number,reps,weight_kg) VALUES (?,?,?,?)",
-            [$logId, $setNum, $reps, $weight]
-        );
-
-        // Aggregate refresh: sets = how many logged so far, reps/weight_kg =
-        // this (most recent) set — top-line summary shown outside the session.
-        update(
-            "UPDATE workout_logs SET sets=(SELECT COUNT(*) FROM workout_sets WHERE log_id=?), reps=?, weight_kg=? WHERE id=?",
-            [$logId, $reps, $weight, $logId]
-        );
+        if ($existingId) {
+            update("UPDATE workout_sets SET reps=?, weight_kg=? WHERE id=?", [$reps, $weight, $existingId]);
+            $setId = $existingId;
+        } else {
+            $setId = (int)insert(
+                "INSERT INTO workout_sets (log_id,set_number,reps,weight_kg) VALUES (?,?,?,?)",
+                [$logId, $setNum, $reps, $weight]
+            );
+        }
+        fitnessRefreshLogAggregate($logId);
 
         // Only unlock on a genuine improvement over a real prior number —
         // $prevBest === null means this is the exercise's first-ever set,
@@ -227,9 +289,120 @@ switch ($action) {
         }
 
         json_out([
-            'success' => true, 'log_id' => $logId, 'is_pr' => $isPr, 'previous_best' => $prevBest,
+            'success' => true, 'log_id' => $logId, 'set_id' => $setId, 'updated' => (bool)$existingId,
+            'is_pr' => $isPr, 'previous_best' => $prevBest,
             'newAchievements' => $prNewlyUnlocked ? ['gym_first_pr'] : [],
         ]);
+
+    case 'session_delete_set':
+        // Un-completing / removing a set during a workout.
+        $sessionId = (int)($_POST['session_id'] ?? 0);
+        $exercise  = sanitizeInput($_POST['exercise_name'] ?? '');
+        $setNum    = (int)($_POST['set_number'] ?? 0);
+        $log = fetchOne(
+            "SELECT wl.id FROM workout_logs wl JOIN workout_sessions s ON s.id = wl.session_id
+              WHERE wl.session_id=? AND wl.user_id=? AND s.user_id=? AND wl.exercise_name=?",
+            [$sessionId, $uid, $uid, $exercise]
+        );
+        if (!$log) json_out(['success' => true, 'deleted' => 0]); // already gone — idempotent
+        $n = delete("DELETE FROM workout_sets WHERE log_id=? AND set_number=?", [$log['id'], $setNum]);
+        // An exercise whose last set was removed no longer counts as logged.
+        $left = (int)fetchOne("SELECT COUNT(*) c FROM workout_sets WHERE log_id=?", [$log['id']])['c'];
+        if ($left === 0) delete("DELETE FROM workout_logs WHERE id=? AND user_id=?", [$log['id'], $uid]);
+        else fitnessRefreshLogAggregate((int)$log['id']);
+        json_out(['success' => true, 'deleted' => $n]);
+
+    case 'history':
+        // Workout history with every set. One entry per guided session, or per
+        // day for quick-logged exercises. Fixed 4 queries regardless of page
+        // size. Volume = Σ weight × reps over logged sets; legacy rows without
+        // per-set data use sets × reps × weight (same rule as the dashboard).
+        $limit  = max(1, min(30, (int)($_POST['limit'] ?? 10)));
+        $offset = max(0, (int)($_POST['offset'] ?? 0));
+        $groups = fetchAll(
+            "SELECT IF(session_id IS NULL, CONCAT('d', log_date), CONCAT('s', session_id)) AS g,
+                    MAX(session_id) AS session_id, MAX(log_date) AS d, MAX(created_at) AS c
+               FROM workout_logs WHERE user_id=?
+              GROUP BY g ORDER BY d DESC, c DESC
+              LIMIT " . ($limit + 1) . " OFFSET " . $offset,
+            [$uid]
+        );
+        $hasMore = count($groups) > $limit;
+        $groups  = array_slice($groups, 0, $limit);
+        if (!$groups) json_out(['success' => true, 'entries' => [], 'has_more' => false]);
+
+        $sessionIds = array_values(array_filter(array_map(fn($g) => (int)$g['session_id'], $groups)));
+        $quickDates = array_values(array_map(fn($g) => $g['d'], array_filter($groups, fn($g) => $g['g'][0] === 'd')));
+        $where = []; $p = [$uid];
+        if ($sessionIds) { $where[] = 'session_id IN (' . implode(',', array_fill(0, count($sessionIds), '?')) . ')'; array_push($p, ...$sessionIds); }
+        if ($quickDates) { $where[] = '(session_id IS NULL AND log_date IN (' . implode(',', array_fill(0, count($quickDates), '?')) . '))'; array_push($p, ...$quickDates); }
+        $logs = fetchAll(
+            "SELECT id, session_id, exercise_name, sets, reps, weight_kg, log_date, notes
+               FROM workout_logs WHERE user_id=? AND (" . implode(' OR ', $where) . ") ORDER BY id",
+            $p
+        );
+        $logIds = array_column($logs, 'id');
+        $sets = $logIds ? fetchAll(
+            "SELECT log_id, set_number, reps, weight_kg FROM workout_sets
+              WHERE log_id IN (" . implode(',', array_fill(0, count($logIds), '?')) . ") ORDER BY log_id, set_number, id",
+            $logIds
+        ) : [];
+        $sessions = $sessionIds ? fetchAll(
+            "SELECT id, plan_name, started_at, ended_at, duration_sec FROM workout_sessions
+              WHERE user_id=? AND id IN (" . implode(',', array_fill(0, count($sessionIds), '?')) . ")",
+            array_merge([$uid], $sessionIds)
+        ) : [];
+        $sessionById = array_column($sessions, null, 'id');
+        $setsByLog = [];
+        foreach ($sets as $s) $setsByLog[$s['log_id']][] = $s;
+
+        $entries = [];
+        foreach ($groups as $g) $entries[$g['g']] = null;
+        foreach ($logs as $l) {
+            $key = $l['session_id'] ? 's' . $l['session_id'] : 'd' . $l['log_date'];
+            if (!array_key_exists($key, $entries)) continue;
+            if ($entries[$key] === null) {
+                $sess = $l['session_id'] ? ($sessionById[$l['session_id']] ?? null) : null;
+                $entries[$key] = [
+                    'key'          => $key,
+                    'date'         => $l['log_date'],
+                    'title'        => $sess ? ($sess['plan_name'] ?: 'Workout') : 'Quick log',
+                    'guided'       => (bool)$sess,
+                    'finished'     => $sess ? $sess['ended_at'] !== null : null,
+                    'duration_sec' => $sess && $sess['duration_sec'] !== null ? (int)$sess['duration_sec'] : null,
+                    'exercises'    => [], 'set_count' => 0, 'volume' => 0.0,
+                ];
+            }
+            $rows = $setsByLog[$l['id']] ?? [];
+            $legacy = !$rows;
+            if ($legacy) {
+                $vol = (float)$l['sets'] * (float)$l['reps'] * (float)$l['weight_kg'];
+                $setCount = (int)$l['sets'];
+                $setList = [];
+            } else {
+                $vol = 0.0;
+                $setList = array_map(function ($s) use (&$vol) {
+                    $vol += (float)$s['reps'] * (float)$s['weight_kg'];
+                    return ['n' => (int)$s['set_number'], 'reps' => $s['reps'] !== null ? (int)$s['reps'] : null,
+                            'weight' => $s['weight_kg'] !== null ? (float)$s['weight_kg'] : null];
+                }, $rows);
+                $setCount = count($rows);
+            }
+            $entries[$key]['exercises'][] = [
+                'log_id' => (int)$l['id'], 'name' => $l['exercise_name'], 'legacy' => $legacy,
+                'sets' => $setList,
+                'summary' => $legacy ? ['sets' => $l['sets'] !== null ? (int)$l['sets'] : null,
+                                        'reps' => $l['reps'] !== null ? (int)$l['reps'] : null,
+                                        'weight' => $l['weight_kg'] !== null ? (float)$l['weight_kg'] : null] : null,
+                'volume' => round($vol, 1), 'notes' => $l['notes'],
+            ];
+            $entries[$key]['set_count'] += $setCount;
+            $entries[$key]['volume']    += $vol;
+        }
+        $entries = array_values(array_filter($entries));
+        foreach ($entries as &$e) $e['volume'] = round($e['volume'], 1);
+        unset($e);
+        json_out(['success' => true, 'entries' => $entries, 'has_more' => $hasMore]);
 
     case 'session_complete':
         $sessionId = (int)($_POST['session_id'] ?? 0);
@@ -294,23 +467,35 @@ switch ($action) {
         $exercise = sanitizeInput($_POST['exercise_name'] ?? '');
         if (!$exercise) json_out(['success' => false, 'error' => 'Exercise name is required.'], 422);
 
-        // Video lookup is independent of log history — an exercise never
-        // logged before can still have a demo clip. Case-insensitive match
-        // against the library (built-in or the user's own custom entry).
-        $video = fetchOne(
-            "SELECT video_path FROM exercise_library
-              WHERE LOWER(name)=LOWER(?) AND (user_id IS NULL OR user_id=?) AND video_path IS NOT NULL
-              LIMIT 1",
-            [$exercise, $uid]
-        );
-        $videoUrl = $video ? APP_BASE . '/' . $video['video_path'] : null;
+        // Demo media is independent of log history — an exercise never logged
+        // before can still have a clip. Your own library video wins; WorkoutDB
+        // (cached, see includes/workoutdb.php) fills gaps and adds how-to steps.
+        // Order: your own library video → ExerciseDB GIF / free-exercise-db
+        // photos (app/Modules/Fitness/ExerciseMedia.php, cached) → WorkoutDB.
+        require_once '../includes/workoutdb.php';
+        require_once '../app/Modules/Fitness/ExerciseMedia.php';
+        $localVideo = exerciseVideoUrl($uid, $exercise);
+        $media = $localVideo ? null : ExerciseMedia::forName($exercise);
+        $wdb   = (!$localVideo && !$media) ? workoutdbDemo($exercise) : null;
+        $demo = [
+            'video_url'    => $localVideo ?? ($wdb['video'] ?? null),
+            'video_poster' => $localVideo ? null : ($wdb['poster'] ?? null),
+            'gif_url'      => $media['gif_url'] ?? (($localVideo || !empty($wdb['video'])) ? null : ($wdb['gif'] ?? null)),
+            'frames'       => $media['frames'] ?? [],
+            'instructions' => $media['instructions'] ?? ($wdb['instructions'] ?? []),
+            'demo_source'  => $localVideo ? 'library'
+                : ($media['source'] ?? (($wdb && ($wdb['video'] || $wdb['gif'])) ? 'workoutdb' : null)),
+            // Credit (and the exact exercise shown) only for third-party media.
+            'demo_credit'  => $localVideo ? null : ($media['credit'] ?? ($wdb ? 'WorkoutDB' : null)),
+            'demo_name'    => $media['name'] ?? null,
+        ];
 
         $lastLog = fetchOne(
             "SELECT id, log_date, sets, reps, weight_kg FROM workout_logs
               WHERE user_id=? AND exercise_name=? ORDER BY created_at DESC LIMIT 1",
             [$uid, $exercise]
         );
-        if (!$lastLog) json_out(['success' => true, 'found' => false, 'video_url' => $videoUrl]);
+        if (!$lastLog) json_out(['success' => true, 'found' => false] + $demo);
 
         $sets = fetchAll(
             "SELECT set_number, reps, weight_kg FROM workout_sets WHERE log_id=? ORDER BY set_number",
@@ -323,8 +508,7 @@ switch ($action) {
             // Granular sets when available (guided sessions); otherwise fall
             // back to the single aggregate row (quick-logged / legacy entry).
             'sets'     => $sets ?: [['set_number' => 1, 'reps' => $lastLog['reps'], 'weight_kg' => $lastLog['weight_kg']]],
-            'video_url' => $videoUrl,
-        ]);
+        ] + $demo);
 
     case 'personal_records':
         // Combines granular workout_sets with legacy aggregate-only
@@ -368,6 +552,63 @@ switch ($action) {
         if ($equ !== '') { $sql .= " AND equipment = ?"; $p[] = $equ; }
         $sql .= " ORDER BY name LIMIT 100";
         json_out(['success' => true, 'exercises' => fetchAll($sql, $p)]);
+
+    /* ── Exercise catalogue (Fitness V2 — provider layer) ──────────
+       app/Modules/Fitness: the library plus any remote provider, one
+       normalized shape. exercise_search above stays for older callers. */
+
+    case 'exercise_catalog':
+        require_once '../app/Modules/Fitness/ExerciseCatalog.php';
+        $q = trim(sanitizeInput($_POST['q'] ?? ''));
+        $filters = [
+            'body_part' => sanitizeInput($_POST['body_part'] ?? ''),
+            'equipment' => sanitizeInput($_POST['equipment'] ?? ''),
+        ];
+        $res = (new ExerciseCatalog($uid))->search(substr($q, 0, 80), $filters);
+        json_out(['success' => true] + $res);
+
+    case 'exercise_detail':
+        require_once '../app/Modules/Fitness/ExerciseCatalog.php';
+        $source = sanitizeInput($_POST['source'] ?? '');
+        $id     = sanitizeInput($_POST['id'] ?? '');
+        $ex = ($source !== '' && $id !== '') ? (new ExerciseCatalog($uid))->find($source, $id) : null;
+        if (!$ex) json_out(['success' => false, 'error' => 'Exercise not found.'], 404);
+        // No video/GIF of its own → the same cached demo the workout screen uses.
+        if (!$ex['video_url'] && !$ex['gif_url']) {
+            require_once '../app/Modules/Fitness/ExerciseMedia.php';
+            $m = ExerciseMedia::forName($ex['name']);
+            if ($m) {
+                $ex['gif_url'] = $m['gif_url'] ?? null;
+                $ex['frames']  = $m['frames'] ?? [];
+                $ex['demo_credit'] = $m['credit'];
+                $ex['demo_name']   = $m['name'];
+                if (!$ex['instructions']) $ex['instructions'] = $m['instructions'];
+            }
+        }
+        json_out(['success' => true, 'exercise' => $ex]);
+
+    case 'exercise_save':
+        require_once '../app/Modules/Fitness/ExerciseCatalog.php';
+        $libId = (new ExerciseCatalog($uid))->saveToLibrary(
+            sanitizeInput($_POST['source'] ?? ''),
+            sanitizeInput($_POST['id'] ?? '')
+        );
+        if (!$libId) json_out(['success' => false, 'error' => "Couldn't save that exercise right now."], 422);
+        json_out(['success' => true, 'library_id' => $libId]);
+
+    case 'plan_add_exercise':
+        $planId = (int)($_POST['plan_id'] ?? 0);
+        $name   = sanitizeInput($_POST['exercise_name'] ?? '');
+        if (!$name) json_out(['success' => false, 'error' => 'Exercise name is required.'], 422);
+        if (!fetchOne("SELECT id FROM workout_plans WHERE id=? AND user_id=?", [$planId, $uid])) {
+            json_out(['success' => false, 'error' => 'Plan not found.'], 404);
+        }
+        $next = (int)(fetchOne("SELECT COALESCE(MAX(sort_order),-1)+1 n FROM workout_plan_items WHERE plan_id=?", [$planId])['n'] ?? 0);
+        insert(
+            "INSERT INTO workout_plan_items (plan_id,exercise_name,target_sets,target_reps,sort_order) VALUES (?,?,?,?,?)",
+            [$planId, $name, max(1, min(50, (int)($_POST['sets'] ?? 3))), max(1, min(100, (int)($_POST['reps'] ?? 10))), $next]
+        );
+        json_out(['success' => true]);
 
     case 'exercise_add_custom':
         $name = sanitizeInput($_POST['name'] ?? '');
@@ -413,7 +654,7 @@ switch ($action) {
 
         $exerciseId = (int)($_POST['exercise_id'] ?? 0);
         if ($exerciseId) {
-            $ex = fetchOne("SELECT id FROM exercise_library WHERE id=?", [$exerciseId]);
+            $ex = fetchOne("SELECT id FROM exercise_library WHERE id=? AND (user_id=? OR user_id IS NULL)", [$exerciseId, $uid]);
             if (!$ex) json_out(['success' => false, 'error' => 'Exercise not found.'], 404);
         } else {
             $newName = sanitizeInput($_POST['new_name'] ?? '');
@@ -431,7 +672,7 @@ switch ($action) {
             json_out(['success' => true, 'exercise_id' => $exerciseId]);
         }
 
-        update("UPDATE exercise_library SET video_path=? WHERE id=?", ['assets/vids/' . $filename, $exerciseId]);
+        update("UPDATE exercise_library SET video_path=? WHERE id=? AND (user_id=? OR user_id IS NULL)", ['assets/vids/' . $filename, $exerciseId, $uid]);
         json_out(['success' => true, 'exercise_id' => $exerciseId]);
 
     /* ── Progress / analytics ────────────────────────────────────── */
@@ -495,6 +736,83 @@ switch ($action) {
             'training_time_sec' => $trainingTimeSec,
             'muscle_distribution' => $muscleDist,
         ]);
+
+    /* ── Fitness goals (progress computed from logs) ─────────────── */
+
+    case 'goals_list':
+        require_once '../includes/gamification.php';
+        require_once '../app/Modules/Fitness/FitnessGoals.php';
+        json_out(['success' => true, 'goals' => (new FitnessGoals($uid))->all()]);
+
+    case 'goal_add':
+        require_once '../includes/gamification.php';
+        require_once '../app/Modules/Fitness/FitnessGoals.php';
+        [$id, $err] = (new FitnessGoals($uid))->create(
+            sanitizeInput($_POST['goal_type'] ?? ''),
+            $_POST['target'] ?? '',
+            sanitizeInput($_POST['exercise_name'] ?? ''),
+            sanitizeInput($_POST['deadline'] ?? '')
+        );
+        if ($err) json_out(['success' => false, 'error' => $err], 422);
+        json_out(['success' => true, 'id' => $id]);
+
+    case 'goal_delete':
+        require_once '../app/Modules/Fitness/FitnessGoals.php';
+        (new FitnessGoals($uid))->delete((int)($_POST['id'] ?? 0));
+        json_out(['success' => true]);
+
+    /* ── Nutrition (what the user ate/drank, as entered) ──────────── */
+
+    case 'nutrition_day':
+        require_once '../app/Modules/Fitness/Nutrition.php';
+        $date = sanitizeInput($_POST['date'] ?? date('Y-m-d'));
+        if (!Nutrition::validDate($date)) json_out(['success' => false, 'error' => 'Invalid date.'], 422);
+        $n = new Nutrition($uid);
+        json_out(['success' => true, 'recent' => $n->recent(7)] + $n->day($date));
+
+    case 'nutrition_add':
+        require_once '../app/Modules/Fitness/Nutrition.php';
+        $err = (new Nutrition($uid))->add(
+            sanitizeInput($_POST['date'] ?? date('Y-m-d')),
+            sanitizeInput($_POST['meal'] ?? ''),
+            sanitizeInput($_POST['name'] ?? ''),
+            $_POST['calories'] ?? '', $_POST['protein_g'] ?? '', $_POST['water_ml'] ?? ''
+        );
+        if ($err) json_out(['success' => false, 'error' => $err], 422);
+        json_out(['success' => true]);
+
+    case 'nutrition_delete':
+        require_once '../app/Modules/Fitness/Nutrition.php';
+        (new Nutrition($uid))->delete((int)($_POST['id'] ?? 0));
+        json_out(['success' => true]);
+
+    case 'nutrition_targets_save':
+        require_once '../app/Modules/Fitness/Nutrition.php';
+        $err = (new Nutrition($uid))->saveTargets($_POST['calories'] ?? '', $_POST['protein_g'] ?? '', $_POST['water_ml'] ?? '');
+        if ($err) json_out(['success' => false, 'error' => $err], 422);
+        json_out(['success' => true]);
+
+    /* ── Recovery check-ins (raw inputs; no derived score) ────────── */
+
+    case 'recovery_list':
+        require_once '../app/Modules/Fitness/Recovery.php';
+        $r = new Recovery($uid);
+        json_out(['success' => true, 'days' => $r->recent(14), 'week' => $r->weekSummary()]);
+
+    case 'recovery_save':
+        require_once '../app/Modules/Fitness/Recovery.php';
+        $err = (new Recovery($uid))->save(
+            sanitizeInput($_POST['date'] ?? date('Y-m-d')),
+            $_POST['sleep_hours'] ?? '', $_POST['energy'] ?? '', $_POST['soreness'] ?? '',
+            sanitizeInput($_POST['notes'] ?? '')
+        );
+        if ($err) json_out(['success' => false, 'error' => $err], 422);
+        json_out(['success' => true]);
+
+    case 'recovery_delete':
+        require_once '../app/Modules/Fitness/Recovery.php';
+        (new Recovery($uid))->delete(sanitizeInput($_POST['date'] ?? ''));
+        json_out(['success' => true]);
 
     /* ── Optional body stats ─────────────────────────────────────── */
 

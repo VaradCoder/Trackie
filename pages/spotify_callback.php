@@ -1,82 +1,81 @@
 <?php
 /**
- * Spotify OAuth callback — receives code from Spotify, exchanges for tokens.
- * Requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET env vars.
+ * Spotify OAuth callback — receives code from Spotify, exchanges it for
+ * tokens and stores them ENCRYPTED via the Spotify provider (so the
+ * connection survives logout; it used to live only in the PHP session).
+ * Register this exact redirect URI in the Spotify developer dashboard:
+ *   https://trackie.free.nf/pages/spotify_callback.php
+ * (Spotify rejects "localhost" — for local testing register
+ *  http://127.0.0.1/Trackie/pages/spotify_callback.php and open Trackie
+ *  via 127.0.0.1.)
  */
 require_once '../config/app.php';
+require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/providers.php';
+require_once '../includes/oauth.php';
 
 requireAuth();
 
-$clientId     = env('SPOTIFY_CLIENT_ID');
-$clientSecret = env('SPOTIFY_CLIENT_SECRET');
-$redirectUri  = (isset($_SERVER['HTTPS']) ? 'https' : 'http')
-              . '://' . $_SERVER['HTTP_HOST']
-              . APP_BASE . '/pages/spotify_callback.php';
+$back        = APP_BASE . '/pages/settings.php';
+$clientId    = env('SPOTIFY_CLIENT_ID');
+$secret      = env('SPOTIFY_CLIENT_SECRET');
+$redirectUri = oauthRedirectUri('spotify_callback.php');
+$sp          = provider('spotify');
 
-if (!$clientId || !$clientSecret) {
+if (!$clientId || !$secret || !$sp) {
     flash('error', 'Spotify integration is not configured on this server.');
-    redirect(APP_BASE . '/pages/dashboard.php');
+    redirect($back);
 }
 
 // Step 1: redirect to Spotify authorization
 if (!isset($_GET['code']) && !isset($_GET['error'])) {
     $state = generateToken(8);
     $_SESSION['spotify_state'] = $state;
-
-    $authUrl = 'https://accounts.spotify.com/authorize?' . http_build_query([
+    redirect('https://accounts.spotify.com/authorize?' . http_build_query([
         'response_type' => 'code',
         'client_id'     => $clientId,
-        'scope'         => 'user-read-private user-read-email user-read-currently-playing user-top-read',
+        'scope'         => implode(' ', $sp->scopes()),
         'redirect_uri'  => $redirectUri,
         'state'         => $state,
-    ]);
-    redirect($authUrl);
+        'show_dialog'   => 'false',
+    ]));
 }
 
-// Spotify returned an error
 if (isset($_GET['error'])) {
-    flash('error', 'Spotify authorization was denied.');
-    redirect(APP_BASE . '/pages/dashboard.php');
+    flash('error', oauthErrorMessage('Spotify', (string)$_GET['error'], (string)($_GET['error_description'] ?? ''), $redirectUri));
+    redirect($back);
 }
 
-// State validation
-if (($_GET['state'] ?? '') !== ($_SESSION['spotify_state'] ?? '')) {
-    flash('error', 'Invalid Spotify state. Please try again.');
-    redirect(APP_BASE . '/pages/dashboard.php');
+if (($_GET['state'] ?? '') === '' || ($_GET['state'] ?? '') !== ($_SESSION['spotify_state'] ?? '')) {
+    flash('error', 'Spotify sign-in expired or was opened in another tab. Please connect again.');
+    redirect($back);
 }
 unset($_SESSION['spotify_state']);
 
-// Step 2: exchange authorization code for tokens
-$ch = curl_init('https://accounts.spotify.com/api/token');
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST           => true,
-    CURLOPT_POSTFIELDS     => http_build_query([
-        'grant_type'   => 'authorization_code',
-        'code'         => $_GET['code'],
-        'redirect_uri' => $redirectUri,
-    ]),
-    CURLOPT_HTTPHEADER => [
-        'Authorization: Basic ' . base64_encode("{$clientId}:{$clientSecret}"),
-        'Content-Type: application/x-www-form-urlencoded',
-    ],
-    CURLOPT_TIMEOUT => 10,
-]);
-$resp = curl_exec($ch);
-curl_close($ch);
-
-$data = json_decode($resp, true);
+// Step 2: exchange the authorization code for tokens
+[$code, $data] = oauthPost('https://accounts.spotify.com/api/token', [
+    'grant_type' => 'authorization_code', 'code' => (string)$_GET['code'], 'redirect_uri' => $redirectUri,
+], ['Authorization: Basic ' . base64_encode("{$clientId}:{$secret}")]);
 
 if (empty($data['access_token'])) {
-    flash('error', 'Failed to connect to Spotify. Please try again.');
-    redirect(APP_BASE . '/pages/dashboard.php');
+    flash('error', oauthErrorMessage('Spotify', (string)($data['error'] ?? "http_{$code}"), (string)($data['error_description'] ?? ''), $redirectUri));
+    redirect($back);
 }
 
-$_SESSION['spotify_access_token']  = $data['access_token'];
-$_SESSION['spotify_refresh_token'] = $data['refresh_token'] ?? '';
-$_SESSION['spotify_token_expires'] = time() + (int)($data['expires_in'] ?? 3600);
+try {
+    $sp->storeTokens(currentUserId(), $data['access_token'], $data['refresh_token'] ?? '',
+                     (int)($data['expires_in'] ?? 3600), '', array_filter(explode(' ', $data['scope'] ?? '')));
+} catch (Throwable $e) {
+    flash('error', 'Could not securely store the Spotify token. Check the server encryption key.');
+    redirect($back);
+}
+// Drop any tokens left over from the old session-only storage.
+unset($_SESSION['spotify_access_token'], $_SESSION['spotify_refresh_token'], $_SESSION['spotify_token_expires']);
 
-flash('success', 'Spotify connected! Your currently playing track will appear on the dashboard.');
-redirect(APP_BASE . '/pages/dashboard.php');
+$res = runSync($sp, currentUserId());
+flash($res['ok'] ? 'success' : 'error', $res['ok']
+    ? 'Spotify connected — it stays connected across logins now.'
+    : 'Spotify connected, but a test request failed: ' . $res['error']);
+redirect($back);

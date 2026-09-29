@@ -1,0 +1,6 @@
+# Server-written cache of exercise demo images. Only images are ever written
+# here; never allow anything in this folder to execute.
+<FilesMatch "\.(php|phtml|phar|pl|py|cgi|sh)$">
+    Require all denied
+</FilesMatch>
+Options -ExecCGI -Indexes

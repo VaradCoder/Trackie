@@ -104,6 +104,33 @@ abstract class TrackieProvider
         );
     }
 
+    /**
+     * Replace the access token after a refresh, keeping the rest of the
+     * connection (scopes, external id, sync state). Spotify and Google only
+     * sometimes rotate the refresh token — keep the old one when they don't.
+     */
+    final protected function updateTokens(int $uid, string $accessToken, ?string $refreshToken, ?int $expiresIn): void {
+        update(
+            "UPDATE user_integrations SET access_token=?, expires_at=?"
+            . ($refreshToken ? ", refresh_token=?" : "") . " WHERE user_id=? AND provider=?",
+            array_merge(
+                [tk_encrypt($accessToken), $expiresIn ? date('Y-m-d H:i:s', time() + $expiresIn) : null],
+                $refreshToken ? [tk_encrypt($refreshToken)] : [],
+                [$uid, $this->key()]
+            )
+        );
+    }
+
+    /**
+     * A usable access token: refreshed first when expired. Null when the
+     * user isn't connected or the refresh failed (→ they must reconnect).
+     */
+    final public function validAccessToken(int $uid): ?string {
+        if (!$this->isConnected($uid)) return null;
+        if ($this->isExpired($uid) && !$this->refresh($uid)) return null;
+        return $this->accessToken($uid);
+    }
+
     /** Decrypted access token, or null if absent/undecryptable/expired. */
     final public function accessToken(int $uid): ?string {
         $row = $this->connection($uid);

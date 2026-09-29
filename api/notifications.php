@@ -24,6 +24,7 @@ switch ($action) {
         json_out(['success' => true, 'notifications' => $rows, 'unread' => $unread]);
 
     case 'mark_read':
+        verify_csrf();
         $id = (int)($_POST['id'] ?? 0);
         if ($id) {
             update("UPDATE notifications SET is_read=1 WHERE id=? AND user_id=?", [$id, $uid]);

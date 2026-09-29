@@ -46,7 +46,7 @@ $calTaskDates = array_column($calTaskRows, 'due_date');
 // otherwise undated tasks would never appear on the dashboard.
 $todayTodos = fetchAll(
     "SELECT * FROM todos
-     WHERE user_id=? AND deleted_at IS NULL
+     WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL
        AND ( DATE(due_date)=?
              OR (completed=0 AND due_date < ?)
              OR (completed=0 AND due_date IS NULL) )
@@ -172,13 +172,15 @@ $featuredGoal = fetchOne(
 
 // ── Spotify state ──────────────────────────────────────────────
 $spotifyClientId = env('SPOTIFY_CLIENT_ID');
-$spotifyToken    = $_SESSION['spotify_access_token']  ?? '';
-$spotifyExpires  = (int)($_SESSION['spotify_token_expires'] ?? 0);
+// Connected = a stored (encrypted) connection. An expired access token is
+// NOT a disconnect — api/spotify.php refreshes it on the first poll.
+require_once '../includes/providers.php';
+$spotifyConnected = provider('spotify')?->isConnected($uid) ?? false;
 
 if (!$spotifyClientId) {
     $spotifyState = 'not_configured';
     $spotifyTrack = null;
-} elseif (!$spotifyToken || time() >= $spotifyExpires) {
+} elseif (!$spotifyConnected) {
     $spotifyState = 'not_connected';
     $spotifyTrack = null;
 } else {
@@ -192,15 +194,22 @@ if (!$spotifyClientId) {
 $weekStart = date('Y-m-d', strtotime('monday this week'));
 $weekEnd   = date('Y-m-d', strtotime('sunday this week'));
 
+$weeklyLogRows = fetchAll(
+    "SELECT l.habit_id, COUNT(*) c
+     FROM logs l JOIN habits h ON h.id=l.habit_id
+     WHERE h.user_id=? AND l.date_completed BETWEEN ? AND ?
+     GROUP BY l.habit_id",
+    [$uid, $weekStart, $weekEnd]
+);
+$weeklyLogCounts = [];
+foreach ($weeklyLogRows as $r) $weeklyLogCounts[$r['habit_id']] = (int)$r['c'];
+
 $expectedThisWeek = 0;
 $loggedThisWeek   = 0;
 foreach ($todayHabits as $h) {
     $expected = $h['frequency'] === 'daily' ? 7 : 1;
     $expectedThisWeek += $expected;
-    $actual = (int)fetchOne(
-        "SELECT COUNT(*) c FROM logs WHERE habit_id=? AND date_completed BETWEEN ? AND ?",
-        [$h['id'], $weekStart, $weekEnd]
-    )['c'];
+    $actual = $weeklyLogCounts[$h['id']] ?? 0;
     $loggedThisWeek += min($actual, $expected);
 }
 $weeklyHabitRate = $expectedThisWeek > 0

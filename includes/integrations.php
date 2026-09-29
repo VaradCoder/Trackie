@@ -67,7 +67,7 @@ function integrationsRegistry(): array {
             'category' => 'Productivity',
             'desc' => 'Sync events and see today’s schedule in Trackie.',
             'creds' => ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
-            'auth' => 'oauth', 'connect' => '/pages/google_callback.php',
+            'auth' => 'oauth', 'connect' => '/pages/google_callback.php', 'impl' => 'google',
             'docs' => 'https://console.cloud.google.com/apis/credentials',
             'setup' => 'config/env.php → add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET',
         ],
@@ -76,7 +76,7 @@ function integrationsRegistry(): array {
             'category' => 'Productivity',
             'desc' => 'Two-way sync with your Google Tasks lists.',
             'creds' => ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
-            'auth' => 'oauth', 'connect' => '/pages/google_callback.php',
+            'auth' => 'oauth', 'connect' => '/pages/google_callback.php', 'impl' => 'google',
             'docs' => 'https://console.cloud.google.com/apis/credentials',
             'setup' => 'config/env.php → shares GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET',
         ],
@@ -106,6 +106,15 @@ function integrationsRegistry(): array {
             'auth' => 'apikey', 'connect' => '',
             'docs' => 'https://rawg.io/apidocs',
             'setup' => 'config/env.php → add RAWG_API_KEY',
+        ],
+        'workoutdb' => [
+            'name' => 'WorkoutDB', 'icon' => 'fa-dumbbell', 'color' => '#ff4545',
+            'category' => 'Fitness',
+            'desc' => 'Exercise demo videos and how-to steps in your workouts.',
+            'creds' => ['WORKOUTDB_API_KEY'],
+            'auth' => 'apikey', 'connect' => '',
+            'docs' => 'https://work-out-db.com/docs',
+            'setup' => 'config/env.php → add WORKOUTDB_API_KEY',
         ],
         'strava' => [
             'name' => 'Strava', 'icon' => 'fa-brands fa-strava', 'color' => '#fc4c02',
@@ -154,10 +163,12 @@ function integrationsRegistry(): array {
         $p['lastSync']   = null;
         $p['syncStatus'] = null;
         $p['lastError']  = null;
-        $p['hasImpl']    = isset($liveProviders[$key]);
+        // Several cards can share one provider (Calendar + Tasks → 'google').
+        $p['impl']       = $p['impl'] ?? $key;
+        $p['hasImpl']    = isset($liveProviders[$p['impl']]);
 
         if ($p['hasImpl'] && $uid) {
-            $st = $liveProviders[$key]->status($uid);
+            $st = $liveProviders[$p['impl']]->status($uid);
             $p['connected']  = $st['connected'];
             $p['lastSync']   = $st['lastSync'];
             $p['syncStatus'] = $st['syncStatus'];
@@ -170,6 +181,18 @@ function integrationsRegistry(): array {
         else                         $p['status'] = 'active';
     }
     unset($p);
+
+    // WorkoutDB has a key but no per-user connection, so "active" would only
+    // mean "a key is set". The honest health signal is how the most recent
+    // lookup went — if it failed, say so instead of showing a green badge.
+    if (!empty($reg['workoutdb']['configured']) && function_exists('tableExists') && tableExists('workoutdb_cache')) {
+        // Ties (several lookups in one second) resolve toward the error.
+        $last = fetchOne("SELECT status FROM workoutdb_cache ORDER BY fetched_at DESC, status = 'error' DESC LIMIT 1");
+        if ($last && $last['status'] === 'error') {
+            $reg['workoutdb']['status']    = 'unavailable';
+            $reg['workoutdb']['lastError'] = "WorkoutDB didn't respond on the last lookup, so demo videos from it are paused. Trackie retries automatically within the hour.";
+        }
+    }
 
     return $reg;
 }

@@ -10,14 +10,13 @@ require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
 require_once '../includes/providers.php';
+require_once '../includes/oauth.php';
 
 requireAuth();
 
 $clientId     = env('GITHUB_CLIENT_ID');
 $clientSecret = env('GITHUB_CLIENT_SECRET');
-$redirectUri  = (isset($_SERVER['HTTPS']) ? 'https' : 'http')
-              . '://' . $_SERVER['HTTP_HOST']
-              . APP_BASE . '/pages/github_callback.php';
+$redirectUri  = oauthRedirectUri('github_callback.php');
 
 if (!$clientId || !$clientSecret) {
     flash('error', 'GitHub integration is not configured on this server.');
@@ -44,13 +43,15 @@ if (!isset($_GET['code']) && !isset($_GET['error'])) {
 
 // GitHub returned an error (user denied, etc.)
 if (isset($_GET['error'])) {
-    flash('error', 'GitHub authorization was denied.');
+    // GitHub sends error=redirect_uri_mismatch here (to the REGISTERED
+    // callback) when Trackie is opened on a host the OAuth app doesn't know.
+    flash('error', oauthErrorMessage('GitHub', (string)$_GET['error'], (string)($_GET['error_description'] ?? ''), $redirectUri));
     redirect(APP_BASE . '/pages/settings.php');
 }
 
 // State validation (CSRF protection for the OAuth flow itself)
-if (($_GET['state'] ?? '') !== ($_SESSION['github_state'] ?? '')) {
-    flash('error', 'Invalid GitHub state. Please try again.');
+if (($_GET['state'] ?? '') === '' || ($_GET['state'] ?? '') !== ($_SESSION['github_state'] ?? '')) {
+    flash('error', 'GitHub sign-in expired or was opened in another tab. Please connect again.');
     redirect(APP_BASE . '/pages/settings.php');
 }
 unset($_SESSION['github_state']);
@@ -75,7 +76,8 @@ curl_close($ch);
 $data = json_decode($resp, true);
 
 if (empty($data['access_token'])) {
-    flash('error', 'Failed to connect to GitHub. Please try again.');
+    // GitHub answers 200 with {"error": "..."} on a bad exchange.
+    flash('error', oauthErrorMessage('GitHub', (string)($data['error'] ?? 'no_token'), (string)($data['error_description'] ?? ''), $redirectUri));
     redirect(APP_BASE . '/pages/settings.php');
 }
 

@@ -102,6 +102,24 @@ window.addEventListener('load', () => NProgress.done());
 // Remove the skeleton if we return via the back/forward cache
 window.addEventListener('pageshow', () => PageSkeleton.hide());
 
+/* ── Shared HTML escaping ─────────────────────────────────────── */
+// Used anywhere user-controlled text (titles, messages, names) is inserted
+// via innerHTML, so it renders as text instead of executing as markup.
+function escHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Only permits same-origin relative links (e.g. "/pages/todos.php"); anything
+// else (javascript:, data:, protocol-relative //host, absolute http(s) to a
+// different origin, etc.) falls back to "#" rather than being trusted.
+function safeInternalHref(link) {
+  const s = String(link ?? '');
+  if (!/^\/(?!\/)/.test(s)) return '#';
+  return escHtml(s);
+}
+
 /* ── Toast notifications ──────────────────────────────────────── */
 const Toast = (() => {
   let container;
@@ -131,7 +149,7 @@ const Toast = (() => {
     t.className = `toast toast-${type}`;
     t.innerHTML = `
       ${icons[type] || ''}
-      <span class="toast-msg">${msg}</span>
+      <span class="toast-msg">${escHtml(msg)}</span>
       <button class="toast-close" aria-label="Dismiss">×</button>`;
     t.querySelector('.toast-close').addEventListener('click', () => dismiss(t));
     c.appendChild(t);
@@ -147,11 +165,11 @@ const Toast = (() => {
     const t = document.createElement('div');
     t.className = 'toast toast-achievement';
     t.innerHTML = `
-      <span class="toast-ach-badge" aria-hidden="true">${emoji || '🏆'}</span>
+      <span class="toast-ach-badge" aria-hidden="true">${escHtml(emoji) || '🏆'}</span>
       <span class="toast-ach-body">
         <span class="toast-ach-eyebrow">Achievement unlocked</span>
-        <span class="toast-ach-name">${name}</span>
-        ${desc ? `<span class="toast-ach-desc">${desc}</span>` : ''}
+        <span class="toast-ach-name">${escHtml(name)}</span>
+        ${desc ? `<span class="toast-ach-desc">${escHtml(desc)}</span>` : ''}
       </span>
       <button class="toast-close" aria-label="Dismiss">×</button>`;
     t.querySelector('.toast-close').addEventListener('click', () => dismiss(t));
@@ -680,7 +698,7 @@ const Notifications = (() => {
   function renderItem(n) {
     const ico = iconMap[n.type] || iconMap.system;
     const cls = n.is_read == 1 ? '' : ' unread';
-    const href = n.link || '#';
+    const href = safeInternalHref(n.link);
     return `
       <a class="notif-item${cls}" href="${href}"
          data-id="${n.id}" onclick="Trackie.Notifications.markRead(${n.id})">
@@ -688,8 +706,8 @@ const Notifications = (() => {
           <i class="fas ${ico.i}"></i>
         </div>
         <div class="notif-body">
-          <div class="notif-title">${n.title}</div>
-          ${n.message ? `<div class="notif-msg">${n.message}</div>` : ''}
+          <div class="notif-title">${escHtml(n.title)}</div>
+          ${n.message ? `<div class="notif-msg">${escHtml(n.message)}</div>` : ''}
         </div>
         <div class="notif-time">${timeAgo(n.created_at)}</div>
       </a>`;

@@ -415,9 +415,17 @@ CREATE TABLE IF NOT EXISTS exercise_library (
     user_id      INT DEFAULT NULL,
     name         VARCHAR(100) NOT NULL,
     muscle_group VARCHAR(40) DEFAULT NULL,
+    target_muscle     VARCHAR(60)  DEFAULT NULL,
+    secondary_muscles VARCHAR(255) DEFAULT NULL,
     equipment    VARCHAR(40) DEFAULT NULL,
     category     VARCHAR(40) DEFAULT NULL,
+    difficulty   VARCHAR(20) DEFAULT NULL,
+    instructions TEXT        DEFAULT NULL,
     video_path   VARCHAR(255) DEFAULT NULL,
+    video_url    VARCHAR(500) DEFAULT NULL,
+    thumbnail_url VARCHAR(500) DEFAULT NULL,
+    source       VARCHAR(20)  NOT NULL DEFAULT 'library',
+    external_id  VARCHAR(100) DEFAULT NULL,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_user (user_id),
@@ -483,7 +491,14 @@ CREATE TABLE IF NOT EXISTS books (
     user_id     INT NOT NULL,
     title       VARCHAR(200) NOT NULL,
     author      VARCHAR(150) DEFAULT NULL,
-    status      ENUM('want','reading','finished') DEFAULT 'want',
+    pages_total  INT DEFAULT NULL,
+    current_page INT NOT NULL DEFAULT 0,
+    cover_url    VARCHAR(255) DEFAULT NULL,
+    isbn         VARCHAR(20) DEFAULT NULL,
+    ol_key       VARCHAR(40) DEFAULT NULL,
+    publish_year SMALLINT DEFAULT NULL,
+    subjects     VARCHAR(255) DEFAULT NULL,
+    status      ENUM('want','reading','finished','paused') DEFAULT 'want',
     rating      TINYINT DEFAULT NULL,
     notes       VARCHAR(500) DEFAULT NULL,
     started_at  DATE DEFAULT NULL,
@@ -504,6 +519,11 @@ CREATE TABLE IF NOT EXISTS games (
     status       ENUM('wishlist','backlog','playing','completed') DEFAULT 'backlog',
     hours_played DECIMAL(6,1) DEFAULT 0,
     last_played  DATETIME DEFAULT NULL,
+    playtime_2weeks INT DEFAULT NULL,
+    ach_done     SMALLINT DEFAULT NULL,
+    ach_total    SMALLINT DEFAULT NULL,
+    ach_synced_at DATETIME DEFAULT NULL,
+    completed_at DATETIME DEFAULT NULL,
     rating       TINYINT DEFAULT NULL,
     notes        VARCHAR(500) DEFAULT NULL,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -590,6 +610,9 @@ CREATE TABLE IF NOT EXISTS photos (
     camera     VARCHAR(100) DEFAULT NULL,
     status     ENUM('to_edit','edited') DEFAULT 'to_edit',
     taken_date DATE DEFAULT NULL,
+    duration_min INT DEFAULT NULL,
+    notes      VARCHAR(1000) DEFAULT NULL,
+    project_id INT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_user_status (user_id, status)
@@ -607,4 +630,200 @@ CREATE TABLE IF NOT EXISTS plants (
     created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_user_status (user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── WorkoutDB lookup cache (includes/workoutdb.php) ─────────────────
+-- Global catalogue cache, not user data: keyed by normalized exercise
+-- name; status 'hit' | 'miss' | 'error' decides the TTL.
+CREATE TABLE IF NOT EXISTS workoutdb_cache (
+    query_key  VARCHAR(191) NOT NULL PRIMARY KEY,
+    status     VARCHAR(8)   NOT NULL,
+    payload    TEXT         DEFAULT NULL,
+    fetched_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Fitness V2: goals (progress computed from logs, never stored) ───
+CREATE TABLE IF NOT EXISTS fitness_goals (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    user_id       INT NOT NULL,
+    goal_type     VARCHAR(20)  NOT NULL,
+    target_value  DECIMAL(8,2) NOT NULL,
+    exercise_name VARCHAR(100) DEFAULT NULL,
+    start_date    DATE NOT NULL,
+    deadline      DATE DEFAULT NULL,
+    completed_at  DATETIME DEFAULT NULL,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Fitness V2: nutrition (calories EATEN as entered; nothing estimated)
+CREATE TABLE IF NOT EXISTS nutrition_entries (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT NOT NULL,
+    entry_date DATE NOT NULL,
+    meal       VARCHAR(12)  NOT NULL DEFAULT 'snack',
+    name       VARCHAR(120) DEFAULT NULL,
+    calories   INT          DEFAULT NULL,
+    protein_g  DECIMAL(6,1) DEFAULT NULL,
+    water_ml   INT          DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_date (user_id, entry_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS nutrition_targets (
+    user_id    INT PRIMARY KEY,
+    calories   INT          DEFAULT NULL,
+    protein_g  DECIMAL(6,1) DEFAULT NULL,
+    water_ml   INT          DEFAULT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Fitness V2: recovery check-ins (raw inputs only, no derived score)
+CREATE TABLE IF NOT EXISTS recovery_logs (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT NOT NULL,
+    log_date    DATE NOT NULL,
+    sleep_hours DECIMAL(3,1) DEFAULT NULL,
+    energy      TINYINT      DEFAULT NULL,
+    soreness    TINYINT      DEFAULT NULL,
+    notes       VARCHAR(255) DEFAULT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uniq_user_date (user_id, log_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Gaming V2: Steam playtime snapshots, store metadata, API cache ──
+-- Cumulative playtime per sync day; steam_appid 0 = "synced that day" marker.
+CREATE TABLE IF NOT EXISTS steam_playtime_snapshots (
+    user_id      INT  NOT NULL,
+    steam_appid  INT  NOT NULL,
+    snap_date    DATE NOT NULL,
+    playtime_min INT  NOT NULL,
+    PRIMARY KEY (user_id, steam_appid, snap_date),
+    INDEX idx_user_date (user_id, snap_date),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS steam_app_meta (
+    appid        INT          NOT NULL PRIMARY KEY,
+    status       VARCHAR(8)   NOT NULL,
+    genres       VARCHAR(255) DEFAULT NULL,
+    categories   VARCHAR(600) DEFAULT NULL,
+    multiplayer  TINYINT(1)   NOT NULL DEFAULT 0,
+    coop         TINYINT(1)   NOT NULL DEFAULT 0,
+    online_coop  TINYINT(1)   NOT NULL DEFAULT 0,
+    crossplay    TINYINT(1)   NOT NULL DEFAULT 0,
+    fetched_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS provider_cache (
+    cache_key  VARCHAR(191) NOT NULL PRIMARY KEY,
+    status     VARCHAR(8)   NOT NULL,
+    payload    MEDIUMTEXT   DEFAULT NULL,
+    fetched_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Reading V2: sessions, notes & quotes, yearly goals ──
+CREATE TABLE IF NOT EXISTS reading_sessions (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    user_id      INT  NOT NULL,
+    book_id      INT  NOT NULL,
+    session_date DATE NOT NULL,
+    minutes      INT  NOT NULL,
+    start_page   INT  DEFAULT NULL,
+    end_page     INT  DEFAULT NULL,
+    pages        INT  NOT NULL DEFAULT 0,
+    note         VARCHAR(500) DEFAULT NULL,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+    INDEX idx_user_date (user_id, session_date),
+    INDEX idx_book (book_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS book_notes (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT NOT NULL,
+    book_id    INT NOT NULL,
+    kind       ENUM('note','quote') NOT NULL DEFAULT 'note',
+    body       TEXT NOT NULL,
+    page       INT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+    INDEX idx_user_kind (user_id, kind)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS reading_goals (
+    user_id      INT NOT NULL,
+    year         SMALLINT NOT NULL,
+    books_target INT DEFAULT NULL,
+    pages_target INT DEFAULT NULL,
+    updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, year),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Photography V2: projects, uploaded images (EXIF), gear, goals ──
+CREATE TABLE IF NOT EXISTS photo_projects (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT NOT NULL,
+    name        VARCHAR(120) NOT NULL,
+    description VARCHAR(500) DEFAULT NULL,
+    status      ENUM('active','done') NOT NULL DEFAULT 'active',
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS photo_images (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    user_id      INT NOT NULL,
+    shoot_id     INT DEFAULT NULL,
+    project_id   INT DEFAULT NULL,
+    file         VARCHAR(120) NOT NULL,
+    thumb        VARCHAR(120) NOT NULL,
+    width        INT DEFAULT NULL,
+    height       INT DEFAULT NULL,
+    bytes        INT DEFAULT NULL,
+    title        VARCHAR(150) DEFAULT NULL,
+    caption      VARCHAR(1000) DEFAULT NULL,
+    taken_at     DATETIME     DEFAULT NULL,
+    camera       VARCHAR(100) DEFAULT NULL,
+    lens         VARCHAR(100) DEFAULT NULL,
+    iso          INT          DEFAULT NULL,
+    shutter      VARCHAR(20)  DEFAULT NULL,
+    aperture     DECIMAL(4,1) DEFAULT NULL,
+    focal_mm     DECIMAL(6,1) DEFAULT NULL,
+    exif_source  VARCHAR(8)   DEFAULT NULL,
+    favorite     TINYINT(1)   NOT NULL DEFAULT 0,
+    edit_status  ENUM('raw','editing','edited') NOT NULL DEFAULT 'raw',
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id)    REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (shoot_id)   REFERENCES photos(id) ON DELETE SET NULL,
+    FOREIGN KEY (project_id) REFERENCES photo_projects(id) ON DELETE SET NULL,
+    INDEX idx_user_created (user_id, created_at),
+    INDEX idx_user_taken (user_id, taken_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS photo_gear (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT NOT NULL,
+    kind       ENUM('camera','lens','accessory') NOT NULL,
+    name       VARCHAR(100) NOT NULL,
+    notes      VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_kind (user_id, kind)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS photo_goals (
+    user_id          INT PRIMARY KEY,
+    photos_per_month INT DEFAULT NULL,
+    shoots_per_month INT DEFAULT NULL,
+    updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

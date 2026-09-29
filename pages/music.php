@@ -11,7 +11,8 @@ $pageTitle   = 'Music';
 $currentPage = 'music';
 
 $clientId  = env('SPOTIFY_CLIENT_ID');
-$connected = !empty($_SESSION['spotify_access_token']);
+require_once '../includes/providers.php';
+$connected = provider('spotify')?->isConnected($uid) ?? false;
 
 require_once '../includes/head.php';
 ?>
@@ -142,6 +143,11 @@ function escMusic(s) {
    Registers Trackie as a Spotify Connect device. Requires Spotify
    Premium (a Spotify platform limitation, not ours) — free accounts
    will see a clear message instead of a silent failure. */
+/** Spotify said no: say why and how to fix it, instead of "nothing found". */
+function spReconnectHtml(res) {
+  return `<p style="font-size:.875rem;color:var(--muted)">${escHtml(res.error || 'Spotify needs to be reconnected.')}
+    <a href="${API_BASE.replace(/\/api$/, '')}/pages/spotify_callback.php" data-no-spa>Reconnect Spotify</a></p>`;
+}
 let spotifyPlayer = null;
 let spotifyDeviceId = null;
 
@@ -216,6 +222,7 @@ async function loadPlaylists() {
   const box = document.getElementById('musicPlaylists');
   try {
     const res = await Trackie.API.post(`${API_BASE}/spotify.php`, { action: 'playlists' });
+    if (res.needsReconnect || res.connected === false) { box.innerHTML = spReconnectHtml(res); return; }
     if (!res.success || !res.items.length) { box.innerHTML = '<p style="font-size:.875rem;color:var(--muted)">No playlists found.</p>'; return; }
     const current = localStorage.getItem(FOCUS_PLAYLIST_KEY);
     box.innerHTML = res.items.map(p => `
@@ -259,6 +266,7 @@ async function loadTopArtists() {
   const box = document.getElementById('musicTopArtists');
   try {
     const res = await Trackie.API.post(`${API_BASE}/spotify.php`, { action: 'top_artists' });
+    if (res.needsReconnect || res.connected === false) { box.innerHTML = spReconnectHtml(res); return; }
     if (!res.success || !res.items.length) { box.innerHTML = '<p style="font-size:.875rem;color:var(--muted)">Not enough listening history yet.</p>'; return; }
     box.innerHTML = res.items.map(a => `
       <a href="${a.url}" target="_blank" rel="noopener" class="habit-card" style="text-decoration:none;text-align:center">
@@ -273,6 +281,7 @@ async function loadTopTracks() {
   const box = document.getElementById('musicTopTracks');
   try {
     const res = await Trackie.API.post(`${API_BASE}/spotify.php`, { action: 'top_tracks' });
+    if (res.needsReconnect || res.connected === false) { box.innerHTML = spReconnectHtml(res); return; }
     if (!res.success || !res.items.length) { box.innerHTML = '<div style="padding:1rem;font-size:.875rem;color:var(--muted)">Not enough listening history yet.</div>'; return; }
     box.innerHTML = res.items.map((t, i) => `
       <div class="todo-row" style="cursor:pointer" onclick="playOnTrackie(null, '${t.uri || ''}')">
@@ -291,6 +300,7 @@ async function loadRecentlyPlayed() {
   const box = document.getElementById('musicRecentlyPlayed');
   try {
     const res = await Trackie.API.post(`${API_BASE}/spotify.php`, { action: 'recently_played' });
+    if (res.needsReconnect || res.connected === false) { box.innerHTML = spReconnectHtml(res); return; }
     if (!res.success || !res.items.length) { box.innerHTML = '<div style="padding:1rem;font-size:.875rem;color:var(--muted)">No recent listening history.</div>'; return; }
     box.innerHTML = res.items.map(it => `
       <div class="todo-row">

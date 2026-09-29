@@ -40,7 +40,7 @@ note "== 2. PHP syntax =="
 while IFS= read -r f; do
   out="$("$PHP_BIN" -l "$f" 2>&1)"
   echo "$out" | grep -q "No syntax errors" || { red "  PHP FAIL: $f — $out"; FAIL=1; }
-done < <(find "$ROOT/pages" "$ROOT/includes" "$ROOT/api" "$ROOT/config" -name '*.php' 2>/dev/null)
+done < <(find "$ROOT/pages" "$ROOT/includes" "$ROOT/api" "$ROOT/config" "$ROOT/app" -name '*.php' 2>/dev/null)
 [ "$FAIL" = 0 ] && green "  all PHP clean"
 
 note "== 3. Auth =="

@@ -97,22 +97,59 @@ foreach ($plans as $p) { if ($p['day_of_week'] === $todayName) { $todaysPlan = $
 $todaysPlanItems = $todaysPlan
     ? fetchAll("SELECT exercise_name, target_sets FROM workout_plan_items WHERE plan_id=? ORDER BY sort_order", [$todaysPlan['id']])
     : [];
-// Rough estimate: ~2.5 min per target set (work + a share of rest) — an
-// honest ballpark from the plan's own numbers, not an invented constant.
-$todaysPlanEstMin = $todaysPlanItems ? (int)round(array_sum(array_column($todaysPlanItems, 'target_sets')) * 2.5) : 0;
+// Typical duration = the average of this plan's last 5 FINISHED sessions
+// (from real start/end timestamps). No history → no number shown; the old
+// "2.5 min per set" guess is gone.
+$todaysPlanAvgMin = 0;
+if ($todaysPlan) {
+    $avg = fetchOne(
+        "SELECT AVG(duration_sec) a, COUNT(*) n FROM (
+            SELECT duration_sec FROM workout_sessions
+             WHERE user_id=? AND plan_id=? AND ended_at IS NOT NULL AND duration_sec >= 60
+             ORDER BY started_at DESC LIMIT 5) x",
+        [$uid, $todaysPlan['id']]
+    );
+    if ((int)$avg['n'] > 0) $todaysPlanAvgMin = (int)round($avg['a'] / 60);
+}
 
-// ── Fitness Dashboard header stats (this week) ─────────────────
+// ── Today at a glance — every figure from logged data ───────────────
+// Volume = Σ weight × reps of today's sets (legacy quick logs: sets × reps ×
+// weight). A PR = an exercise whose best weight today beats every earlier
+// day; an exercise's first-ever session is not a "record".
+$todayVolume = fitWeekVolume($today, $today);
+$todaySets = (int)fetchOne(
+    "SELECT COALESCE(SUM(CASE WHEN s.c IS NULL THEN COALESCE(wl.sets,0) ELSE s.c END),0) n
+       FROM workout_logs wl
+       LEFT JOIN (SELECT log_id, COUNT(*) c FROM workout_sets GROUP BY log_id) s ON s.log_id = wl.id
+      WHERE wl.user_id=? AND wl.log_date=?",
+    [$uid, $today]
+)['n'];
+$todayTrainingSec = (int)(fetchOne(
+    "SELECT COALESCE(SUM(duration_sec),0) t FROM workout_sessions WHERE user_id=? AND session_date=? AND duration_sec IS NOT NULL",
+    [$uid, $today]
+)['t'] ?? 0);
+$todayPrs = (int)fetchOne(
+    "SELECT COUNT(*) c FROM (
+        SELECT wl.exercise_name, MAX(COALESCE(ws.weight_kg, wl.weight_kg)) best
+          FROM workout_logs wl LEFT JOIN workout_sets ws ON ws.log_id = wl.id
+         WHERE wl.user_id=? AND wl.log_date=?
+         GROUP BY wl.exercise_name) t
+      JOIN (
+        SELECT wl.exercise_name, MAX(COALESCE(ws.weight_kg, wl.weight_kg)) best
+          FROM workout_logs wl LEFT JOIN workout_sets ws ON ws.log_id = wl.id
+         WHERE wl.user_id=? AND wl.log_date<?
+         GROUP BY wl.exercise_name) b ON b.exercise_name = t.exercise_name
+     WHERE t.best > b.best",
+    [$uid, $today, $uid, $today]
+)['c'];
+
+// XP / level from the shared gamification engine (real totals only).
+$xpRow = tableExists('user_xp') ? fetchOne("SELECT total_xp FROM user_xp WHERE user_id=?", [$uid]) : null;
+$xpTotal = (int)($xpRow['total_xp'] ?? 0);
+$xpLevel = function_exists('levelForXp') ? levelForXp($xpTotal) : null;
+
 $hour = (int)date('G');
 $fitGreeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
-
-$exercisesThisWeek = (int)fetchOne(
-    "SELECT COUNT(DISTINCT exercise_name) c FROM workout_logs WHERE user_id=? AND log_date BETWEEN ? AND ?",
-    [$uid, $thisWeekStart, $thisWeekEnd]
-)['c'];
-$trainingTimeThisWeekSec = (int)(fetchOne(
-    "SELECT COALESCE(SUM(duration_sec),0) t FROM workout_sessions WHERE user_id=? AND session_date BETWEEN ? AND ?",
-    [$uid, $thisWeekStart, $thisWeekEnd]
-)['t'] ?? 0);
 
 // ── Weekly plan strip — real completion state per day ───────────
 // completed = a plan was scheduled for that weekday AND something was
@@ -191,8 +228,6 @@ $muscleTop3 = fetchAll(
 
 require_once '../includes/head.php';
 ?>
-<!-- lottie-player web component (optional rest-screen animation) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-player/2.0.12/lottie-player.js" defer></script>
 <!-- Chart.js — Progress tab charts (frequency / volume / muscle distribution) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" defer></script>
 <div class="app-shell">
@@ -207,36 +242,41 @@ require_once '../includes/head.php';
     <h1 class="fit-greeting"><?= h($fitGreeting) ?>, <?= h($userName) ?>! <span aria-hidden="true">👋</span></h1>
     <div class="fit-subgreeting">Let's build consistency. One rep at a time.</div>
   </div>
-  <div class="fit-streak-badge" id="gymStreakBadge">
-    <div class="fit-streak-num"><i class="fas fa-fire"></i> <strong><?= $streak['current'] ?></strong> Day Streak</div>
-    <div class="fit-streak-sub">Keep it alive!</div>
+  <div class="fit-header-badges">
+    <div class="fit-streak-badge" id="gymStreakBadge">
+      <div class="fit-streak-num"><i class="fas fa-fire"></i> <strong><?= $streak['current'] ?></strong> Day Streak</div>
+      <div class="fit-streak-sub"><?= $streak['current'] > 0 ? 'Keep it alive!' : 'Train today to start one' ?></div>
+    </div>
+    <?php if ($xpLevel !== null): ?>
+      <a class="fit-xp-badge" href="<?= APP_BASE ?>/pages/progress.php" title="Your Trackie level — from XP across every module">
+        <span class="fit-xp-level">Level <?= $xpLevel ?></span>
+        <span class="fit-xp-total"><i class="fas fa-bolt" aria-hidden="true"></i> <?= number_format($xpTotal) ?> XP</span>
+      </a>
+    <?php endif; ?>
   </div>
 </div>
 
-<div class="grid-stats" style="margin-bottom:1.5rem" id="gymStatsWrap">
+<!-- Today at a glance — all figures come from today's logged sets/sessions -->
+<div class="grid-stats" style="margin-bottom:1.5rem" id="gymStatsWrap" aria-label="Today">
   <div class="stat-card">
-    <div class="stat-icon-chip" style="color:var(--accent)"><i class="fas fa-calendar-check"></i></div>
-    <div class="stat-val"><?= $sessionsThisWeek ?></div>
-    <div class="stat-label">Workouts · This week</div>
-    <?php if ($sessionsLastWeek > 0): $d = $sessionsThisWeek - $sessionsLastWeek; ?>
-      <div class="stat-trend <?= $d >= 0 ? 'up' : 'down' ?>"><i class="fas fa-arrow-<?= $d >= 0 ? 'up' : 'down' ?>"></i> <?= abs($d) ?> vs last week</div>
-    <?php endif; ?>
+    <div class="stat-icon-chip" style="color:var(--accent)"><i class="fas fa-weight-hanging"></i></div>
+    <div class="stat-val"><?= $todayVolume > 0 ? number_format($todayVolume, 0) . ' kg' : '—' ?></div>
+    <div class="stat-label">Volume · Today</div>
   </div>
   <div class="stat-card">
     <div class="stat-icon-chip" style="color:var(--info)"><i class="fas fa-list-check"></i></div>
-    <div class="stat-val"><?= $exercisesThisWeek ?></div>
-    <div class="stat-label">Exercises · This week</div>
+    <div class="stat-val"><?= $todaySets ?: '—' ?></div>
+    <div class="stat-label">Sets · Today</div>
   </div>
   <div class="stat-card">
     <div class="stat-icon-chip" style="color:var(--ok)"><i class="fas fa-stopwatch"></i></div>
-    <div class="stat-val"><?= $trainingTimeThisWeekSec > 0 ? round($trainingTimeThisWeekSec / 3600, 1) . 'h' : '—' ?></div>
-    <div class="stat-label">Training Time · This week</div>
+    <div class="stat-val"><?= $todayTrainingSec >= 60 ? round($todayTrainingSec / 60) . ' min' : '—' ?></div>
+    <div class="stat-label">Workout time · Today</div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon-chip" style="color:#f59e0b"><i class="fas fa-fire"></i></div>
-    <div class="stat-val"><?= $streak['current'] ?></div>
-    <div class="stat-label">Day Streak</div>
-    <div class="stat-trend up">Keep it going!</div>
+    <div class="stat-icon-chip" style="color:#f59e0b"><i class="fas fa-trophy"></i></div>
+    <div class="stat-val"><?= $todayPrs ?: '—' ?></div>
+    <div class="stat-label">PRs · Today</div>
   </div>
 </div>
 
@@ -245,19 +285,18 @@ require_once '../includes/head.php';
 <?php endif; ?>
 
 <!-- Module tabs -->
-<div class="filter-tabs" style="margin-bottom:1.25rem" id="gymTabs">
-  <button class="filter-tab active" data-tab="overview">Overview</button>
-  <button class="filter-tab" data-tab="practice">Planner</button>
-  <button class="filter-tab" data-tab="library">Library</button>
-  <button class="filter-tab" data-tab="progress">Progress</button>
-  <button class="filter-tab" data-tab="track">History</button>
-  <button class="filter-tab" data-tab="journal">Journal</button>
-  <button class="filter-tab" data-tab="learn">Learn</button>
-  <button class="filter-tab" data-tab="ai">AI Coach</button>
+<div class="filter-tabs fit-tabs" style="margin-bottom:1.25rem" id="gymTabs" role="tablist" aria-label="Fitness sections">
+  <button class="filter-tab active" data-tab="overview" role="tab" id="gymtab-overview" aria-controls="tab-overview" aria-selected="true">Dashboard</button>
+  <button class="filter-tab" data-tab="practice" role="tab" id="gymtab-practice" aria-controls="tab-practice" aria-selected="false" tabindex="-1">Workouts</button>
+  <button class="filter-tab" data-tab="library" role="tab" id="gymtab-library" aria-controls="tab-library" aria-selected="false" tabindex="-1">Exercises</button>
+  <button class="filter-tab" data-tab="progress" role="tab" id="gymtab-progress" aria-controls="tab-progress" aria-selected="false" tabindex="-1">Progress</button>
+  <button class="filter-tab" data-tab="goals" role="tab" id="gymtab-goals" aria-controls="tab-goals" aria-selected="false" tabindex="-1">Goals</button>
+  <button class="filter-tab" data-tab="nutrition" role="tab" id="gymtab-nutrition" aria-controls="tab-nutrition" aria-selected="false" tabindex="-1">Nutrition</button>
+  <button class="filter-tab" data-tab="recovery" role="tab" id="gymtab-recovery" aria-controls="tab-recovery" aria-selected="false" tabindex="-1">Recovery</button>
 </div>
 
 <!-- ═══ Overview ═══ -->
-<div id="tab-overview" class="gym-tab-panel">
+<div id="tab-overview" class="gym-tab-panel" role="tabpanel" aria-labelledby="gymtab-overview">
 
   <div class="fit-grid" style="margin-bottom:1.5rem">
     <div class="fit-col">
@@ -272,8 +311,8 @@ require_once '../includes/head.php';
           <?php endif; ?>
           <div class="fit-today-chips">
             <span class="fit-today-chip"><i class="fas fa-list-check"></i> <?= (int)$todaysPlan['item_count'] ?> Exercise<?= $todaysPlan['item_count']==1?'':'s' ?></span>
-            <?php if ($todaysPlanEstMin > 0): ?>
-              <span class="fit-today-chip"><i class="fas fa-clock"></i> ~<?= $todaysPlanEstMin ?> min</span>
+            <?php if ($todaysPlanAvgMin > 0): ?>
+              <span class="fit-today-chip" title="Average of your last finished sessions of this plan"><i class="fas fa-clock"></i> usually <?= $todaysPlanAvgMin ?> min</span>
             <?php endif; ?>
           </div>
           <button class="btn btn-primary" style="width:100%" onclick="startPlanWorkout(<?= $todaysPlan['id'] ?>, '<?= h(addslashes($todaysPlan['name'])) ?>')">
@@ -294,7 +333,7 @@ require_once '../includes/head.php';
 
       <!-- Recent Workouts -->
       <div class="card card-body">
-        <div class="fit-card-label">Recent Workouts <a href="javascript:void(0)" onclick="switchGymTab('track')">View All →</a></div>
+        <div class="fit-card-label">Recent Workouts <a href="javascript:void(0)" onclick="showWorkoutHistory()">View All →</a></div>
         <div id="logList">
           <?php if (empty($recentWorkouts)): ?>
             <div class="fit-empty">
@@ -307,7 +346,7 @@ require_once '../includes/head.php';
               </div>
             </div>
           <?php else: foreach ($recentWorkouts as $w): ?>
-            <div class="fit-recent-row" onclick="switchGymTab('track')">
+            <div class="fit-recent-row" onclick="showWorkoutHistory()">
               <span class="fit-recent-dot"></span>
               <div style="flex:1;min-width:0">
                 <div class="fit-recent-name"><?= h($w['plan_name'] ?: 'Workout') ?></div>
@@ -364,7 +403,7 @@ require_once '../includes/head.php';
       <!-- Daily Goal -->
       <?php if ($scheduledDaysThisWeek > 0): $goalPct = min(100, round($sessionsThisWeek / $scheduledDaysThisWeek * 100)); ?>
         <div class="card card-body" id="gymDailyGoalWrap" style="text-align:center">
-          <div class="fit-card-label" style="justify-content:center">Daily Goal</div>
+          <div class="fit-card-label" style="justify-content:center">Weekly goal</div>
           <div class="fit-goal-ring" style="--pct:<?= $goalPct ?>">
             <div class="fit-goal-ring-inner">
               <div class="fit-goal-ring-frac"><?= $sessionsThisWeek ?>/<?= $scheduledDaysThisWeek ?></div>
@@ -401,69 +440,154 @@ require_once '../includes/head.php';
 </div>
 
 <!-- Workout session — full-screen splash, hidden until "Start workout" is clicked -->
-<div id="workoutSession" class="workout-overlay hidden">
-  <div class="workout-overlay-inner">
+<div id="workoutSession" class="workout-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sessionPlanName">
+  <div class="wo-shell">
 
-    <div class="wo-header">
-      <div class="wo-plan-name"><i class="fas fa-dumbbell"></i> <span id="sessionPlanName">Workout</span></div>
-      <div class="wo-elapsed"><i class="fas fa-clock"></i> <span id="sessionElapsed">00:00</span></div>
-      <button class="btn btn-icon btn-ghost" style="color:#fff" onclick="quitSession()" title="Quit workout" aria-label="Quit workout"><i class="fas fa-xmark"></i></button>
-    </div>
-    <div class="wo-progress-track"><div class="wo-progress-fill" id="sessionProgressBar" style="width:0%"></div></div>
-    <div class="wo-progress-label" id="sessionProgress">Exercise 1 of 1</div>
-
-    <!-- ── Exercise phase ── -->
-    <div id="woExercisePhase">
-      <video id="sessionExerciseVideo" class="wo-exercise-video hidden" muted loop playsinline autoplay></video>
-      <div class="wo-exercise-name" id="sessionExerciseName">—</div>
-      <div class="wo-prev-performance hidden" id="sessionPrevPerf"></div>
-      <div class="wo-set-indicator" id="sessionSetIndicator">Set 1 of 3</div>
-
-      <div class="wo-set-dots" id="sessionSetDots"></div>
-
-      <div class="wo-pr-banner hidden" id="sessionPrBanner"><i class="fas fa-trophy"></i> New personal record!</div>
-
-      <div class="wo-inputs">
-        <div class="wo-input-group"><label for="sessReps">Reps</label><input id="sessReps" type="number" min="0" class="form-input"></div>
-        <div class="wo-input-group"><label for="sessWeight">Weight (kg)</label><input id="sessWeight" type="number" step="0.5" min="0" class="form-input"></div>
+    <header class="wo-topbar">
+      <button type="button" class="wo-icon-btn" onclick="quitSession()" aria-label="Leave workout"><i class="fas fa-arrow-left" aria-hidden="true"></i></button>
+      <div class="wo-topbar-title">
+        <span class="wo-eyebrow">Workout</span>
+        <h2 id="sessionPlanName">Workout</h2>
       </div>
-
-      <button class="btn btn-primary wo-btn-lg" onclick="completeSet()"><i class="fas fa-check"></i> Complete Set</button>
-      <div class="wo-secondary-actions">
-        <button class="btn btn-ghost" style="color:#fff" onclick="finishExerciseEarly()"><i class="fas fa-forward-step"></i> Finish exercise</button>
-        <button class="btn btn-ghost" style="color:#fff" onclick="skipSessionExercise()"><i class="fas fa-forward"></i> Skip exercise</button>
+      <div class="wo-timer" role="timer" aria-label="Elapsed time">
+        <span class="wo-timer-dot" aria-hidden="true"></span>
+        <span id="sessionElapsed">00:00</span>
       </div>
-    </div>
+    </header>
 
-    <!-- ── Rest / break phase ── -->
-    <div id="woRestPhase" class="hidden">
-      <!-- Set GYM_REST_LOTTIE_SRC below to a .json animation URL to replace the CSS pulse -->
-      <lottie-player id="restLottie" class="wo-rest-lottie hidden" loop autoplay></lottie-player>
-      <div class="wo-rest-ring" id="restRing">
-        <div class="wo-rest-label">BREAK</div>
-        <div class="wo-rest-time" id="restTimeDisplay">00:60</div>
+    <section class="wo-progress" aria-label="Workout progress">
+      <div class="wo-progress-row">
+        <span class="wo-label">Workout progress</span>
+        <span class="wo-progress-pct" id="sessionProgressPct">0%</span>
       </div>
-      <div class="wo-next-preview">Up next: <strong id="nextExerciseName">—</strong></div>
-      <div class="wo-secondary-actions">
-        <button class="btn btn-secondary wo-btn-lg" id="restPauseBtn" onclick="toggleRestPause()"><i class="fas fa-pause"></i> Pause</button>
-        <button class="btn btn-primary wo-btn-lg" onclick="skipRest()"><i class="fas fa-forward"></i> Skip break</button>
+      <div class="wo-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="sessionProgressTrack">
+        <div class="wo-progress-fill" id="sessionProgressBar"></div>
       </div>
-    </div>
+      <div class="wo-progress-meta" id="sessionProgress">—</div>
+    </section>
 
-    <!-- ── Summary phase ── -->
-    <div id="woSummaryPhase" class="hidden">
-      <div class="wo-summary-icon"><i class="fas fa-trophy"></i></div>
-      <div class="wo-exercise-name" id="summaryTitle">Workout complete! 🎉</div>
-      <div class="wo-summary-stats" id="summaryStats"></div>
-      <div class="wo-summary-streak" id="summaryStreak" style="display:none"></div>
-      <button class="btn btn-primary wo-btn-lg" onclick="closeSummary()"><i class="fas fa-check"></i> Done</button>
+    <div class="wo-workspace">
+      <main class="wo-main">
+
+        <!-- ── Exercise phase ── -->
+        <div id="woExercisePhase" class="wo-phase">
+          <article class="wo-card wo-exercise-card" id="sessionExerciseCard">
+            <div class="wo-media hidden" id="sessionMedia">
+              <video id="sessionExerciseVideo" muted loop playsinline autoplay aria-label="Exercise demonstration"></video>
+              <img id="sessionExerciseGif" class="hidden" alt="Exercise demonstration" loading="lazy" referrerpolicy="no-referrer">
+              <span class="wo-media-credit hidden" id="sessionMediaCredit"></span>
+            </div>
+            <div class="wo-exercise-head">
+              <span class="wo-eyebrow" id="sessionExerciseIndex">Exercise</span>
+              <h3 class="wo-exercise-name" id="sessionExerciseName" tabindex="-1">—</h3>
+              <div class="wo-facts">
+                <div class="wo-fact">
+                  <span class="wo-label">Previous</span>
+                  <span class="wo-fact-value" id="sessionPrevPerf">First time</span>
+                  <span class="wo-fact-sub" id="sessionPrevPerfSub"></span>
+                </div>
+                <div class="wo-fact">
+                  <span class="wo-label">Target</span>
+                  <span class="wo-fact-value" id="sessionTarget">—</span>
+                  <span class="wo-fact-sub" id="sessionTargetSub"></span>
+                </div>
+              </div>
+              <details class="wo-howto hidden" id="sessionHowTo">
+                <summary>How to do it</summary>
+                <ol id="sessionHowToSteps"></ol>
+              </details>
+            </div>
+          </article>
+
+          <section class="wo-card wo-set-card" aria-labelledby="sessionSetIndicator">
+            <div class="wo-set-card-head">
+              <h4 class="wo-set-title" id="sessionSetIndicator">Sets</h4>
+              <span class="wo-status" id="sessionSetStatus" role="status" aria-live="polite"></span>
+            </div>
+
+            <div class="wo-pr-banner hidden" id="sessionPrBanner"><i class="fas fa-trophy" aria-hidden="true"></i> New personal record</div>
+
+            <table class="wo-table">
+              <caption class="sr-only">Sets for this exercise: weight, reps and completion</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Set</th>
+                  <th scope="col">Previous</th>
+                  <th scope="col">kg</th>
+                  <th scope="col">Reps</th>
+                  <th scope="col"><span class="sr-only">Done</span><i class="fas fa-check" aria-hidden="true"></i></th>
+                </tr>
+              </thead>
+              <tbody id="sessionSetRows"></tbody>
+            </table>
+
+            <div class="wo-set-tools">
+              <button type="button" class="wo-btn wo-btn-ghost wo-btn-sm" id="woAddSet"><i class="fas fa-plus" aria-hidden="true"></i> Add set</button>
+              <button type="button" class="wo-btn wo-btn-ghost wo-btn-sm" id="woRemoveSet"><i class="fas fa-minus" aria-hidden="true"></i> Remove set</button>
+            </div>
+
+            <div class="wo-rest hidden" id="woRest" role="timer" aria-label="Rest timer">
+              <div class="wo-rest-head">
+                <span class="wo-label">Rest</span>
+                <span class="wo-rest-time" id="woRestTime">01:30</span>
+              </div>
+              <div class="wo-rest-track" aria-hidden="true"><div class="wo-rest-fill" id="woRestFill"></div></div>
+              <div class="wo-rest-actions">
+                <button type="button" class="wo-btn wo-btn-ghost wo-btn-sm" data-rest="-15" aria-label="Rest 15 seconds less">−15s</button>
+                <button type="button" class="wo-btn wo-btn-ghost wo-btn-sm" data-rest="15" aria-label="Rest 15 seconds more">+15s</button>
+                <button type="button" class="wo-btn wo-btn-ghost wo-btn-sm" data-rest="skip">Skip rest</button>
+              </div>
+            </div>
+          </section>
+
+          <div class="wo-actions">
+            <button type="button" class="wo-btn wo-btn-primary" id="completeSetBtn">
+              <i class="fas fa-check" aria-hidden="true"></i><span id="completeSetLabel">Complete set</span>
+            </button>
+            <div class="wo-actions-secondary">
+              <button type="button" class="wo-btn wo-btn-ghost" id="woPrevEx"><i class="fas fa-chevron-left" aria-hidden="true"></i> Previous</button>
+              <button type="button" class="wo-btn wo-btn-ghost" id="woNextEx"><span id="woNextLabel">Next exercise</span> <i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Summary phase ── -->
+        <div id="woSummaryPhase" class="wo-phase hidden">
+          <section class="wo-card wo-summary">
+            <div class="wo-summary-badge" aria-hidden="true"><i class="fas fa-trophy"></i></div>
+            <span class="wo-eyebrow wo-eyebrow-ok" id="summaryEyebrow">Workout complete</span>
+            <h3 class="wo-summary-title" id="summaryTitle" tabindex="-1">—</h3>
+            <dl class="wo-summary-grid" id="summaryStats"></dl>
+            <p class="wo-summary-streak hidden" id="summaryStreak"></p>
+          </section>
+          <section class="wo-card wo-breakdown" aria-labelledby="summaryBreakdownTitle">
+            <h4 class="wo-set-title" id="summaryBreakdownTitle">Exercises</h4>
+            <ul class="wo-breakdown-list" id="summaryBreakdown"></ul>
+          </section>
+          <div class="wo-actions">
+            <button type="button" class="wo-btn wo-btn-primary" onclick="closeSummary()"><i class="fas fa-check" aria-hidden="true"></i><span>Finish workout</span></button>
+          </div>
+        </div>
+
+      </main>
+
+      <aside class="wo-context" aria-label="Session overview">
+        <span class="wo-eyebrow">Today</span>
+        <p class="wo-context-title" id="ctxPlanName">—</p>
+        <dl class="wo-context-list">
+          <div><dt>Exercises</dt><dd id="ctxExercises">—</dd></div>
+          <div><dt>Sets</dt><dd id="ctxSets">—</dd></div>
+          <div><dt>Volume</dt><dd id="ctxVolume">—</dd></div>
+          <div><dt>Time</dt><dd id="ctxTime">00:00</dd></div>
+        </dl>
+      </aside>
     </div>
 
   </div>
 </div>
 
-<!-- ═══ Practice / Planner ═══ -->
-<div id="tab-practice" class="gym-tab-panel hidden">
+<!-- ═══ Workouts (plans · history · journal) ═══ -->
+<div id="tab-practice" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gymtab-practice">
 
 <div style="font-size:.9375rem;font-weight:600;margin-bottom:.75rem">This Week</div>
 <div class="gym-week-grid" style="margin-bottom:1.75rem">
@@ -527,20 +651,49 @@ require_once '../includes/head.php';
   </div>
 <?php endif; ?>
 </div>
+
+<div class="fit-section-head">
+  <h2 class="fit-h2">History</h2>
+  <button class="btn btn-secondary btn-sm" onclick="openLogWorkout()"><i class="fas fa-plus"></i> Quick log</button>
+</div>
+<div id="historyList" class="fit-history" aria-live="polite"><p class="form-hint">Loading your workouts…</p></div>
+<div style="text-align:center;margin:.75rem 0 1.75rem"><button id="historyMore" class="btn btn-secondary btn-sm hidden" type="button">Load older workouts</button></div>
+
+<div class="fit-section-head"><h2 class="fit-h2">Training journal</h2></div>
+<div class="card card-body" style="margin-bottom:1.25rem">
+    <label for="journalBody" class="form-label">New entry</label>
+    <textarea id="journalBody" class="form-input" rows="3" placeholder="How did today's session go? Any PRs, soreness, notes for next time…"></textarea>
+    <div style="display:flex;justify-content:flex-end;margin-top:.625rem">
+      <button class="btn btn-primary btn-sm" onclick="addJournalEntry()"><i class="fas fa-plus"></i> Add entry</button>
+    </div>
+  </div>
+  <div id="journalListWrap">
+    <?php if (empty($journalEntries)): ?>
+      <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-book-open"></i></div><div class="empty-state-title">No journal entries yet</div><p>Jot down how your training is going — form notes, energy levels, what worked.</p></div></div>
+    <?php else: foreach ($journalEntries as $j): ?>
+      <div class="card card-body" style="margin-bottom:.75rem" id="journal-<?= $j['id'] ?>">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem">
+          <div style="font-size:.875rem;color:var(--text);white-space:pre-wrap;flex:1"><?= h($j['body']) ?></div>
+          <button aria-label="Delete journal entry" class="btn btn-icon btn-ghost btn-sm" onclick="deleteJournalEntry(<?= $j['id'] ?>)"><i class="fas fa-trash" style="font-size:.75rem"></i></button>
+        </div>
+        <div style="font-size:.75rem;color:var(--subtle);margin-top:.5rem"><?= formatDate($j['entry_date']) ?></div>
+      </div>
+    <?php endforeach; endif; ?>
+  </div>
 </div>
 
-<!-- ═══ Library ═══ -->
-<div id="tab-library" class="gym-tab-panel hidden">
+<!-- ═══ Exercises ═══ -->
+<div id="tab-library" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gymtab-library">
   <div class="card card-body" style="margin-bottom:1.25rem">
     <div style="display:flex;gap:.625rem;flex-wrap:wrap">
-      <input id="libSearch" class="form-input" placeholder="Search exercises…" style="flex:2;min-width:180px">
-      <select id="libMuscle" class="form-input" style="flex:1;min-width:140px">
+      <input id="libSearch" class="form-input" placeholder="Search exercises…" aria-label="Search exercises" style="flex:2;min-width:180px">
+      <select id="libMuscle" class="form-input" aria-label="Filter by muscle group" style="flex:1;min-width:140px">
         <option value="">All muscle groups</option>
         <?php foreach (['Chest','Back','Legs','Shoulders','Arms','Core','Cardio','Full Body'] as $m): ?>
           <option value="<?= $m ?>"><?= $m ?></option>
         <?php endforeach; ?>
       </select>
-      <select id="libEquipment" class="form-input" style="flex:1;min-width:140px">
+      <select id="libEquipment" class="form-input" aria-label="Filter by equipment" style="flex:1;min-width:140px">
         <option value="">All equipment</option>
         <?php foreach (['Barbell','Dumbbell','Machine','Cable','Bodyweight'] as $eq): ?>
           <option value="<?= $eq ?>"><?= $eq ?></option>
@@ -550,11 +703,69 @@ require_once '../includes/head.php';
     </div>
   </div>
   <div id="libVideoBanner" class="hidden" style="margin-bottom:1.25rem"></div>
-  <div id="libResults" class="grid-cards" aria-live="polite"></div>
+  <p class="form-hint hidden" id="libRemoteHint" style="margin:0 0 .75rem"></p>
+  <div id="libResults" class="fx-grid" aria-live="polite"></div>
+</div>
+
+<!-- Exercise detail sheet (Exercises tab) -->
+<div id="exerciseDetailModal" class="modal-backdrop hidden">
+  <div class="modal-box fx-detail" role="dialog" aria-labelledby="fxDetailName">
+    <div class="modal-header">
+      <span class="modal-title" id="fxDetailName">Exercise</span>
+      <button class="btn btn-icon btn-ghost btn-sm" data-close-modal="exerciseDetailModal" aria-label="Close dialog">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="fx-detail-media hidden" id="fxDetailMedia">
+        <video id="fxDetailVideo" controls muted loop playsinline preload="metadata"></video>
+        <img id="fxDetailGif" class="hidden" alt="" loading="lazy" referrerpolicy="no-referrer">
+      </div>
+      <p class="fx-credit hidden" id="fxDetailCredit"></p>
+      <dl class="fx-facts" id="fxDetailFacts"></dl>
+      <div id="fxDetailStepsWrap" class="hidden">
+        <div class="form-label">How to do it</div>
+        <ol class="fx-steps" id="fxDetailSteps"></ol>
+      </div>
+      <div class="fx-add" id="fxAddWrap">
+        <div class="form-label">Add to a workout</div>
+        <?php if ($plans): ?>
+          <div class="fx-add-row">
+            <select id="fxAddPlan" class="form-input" aria-label="Workout plan">
+              <?php foreach ($plans as $p): ?>
+                <option value="<?= (int)$p['id'] ?>"><?= h($p['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <label class="fx-add-num"><span>Sets</span><input id="fxAddSets" type="number" min="1" max="50" value="3" class="form-input"></label>
+            <label class="fx-add-num"><span>Reps</span><input id="fxAddReps" type="number" min="1" max="100" value="10" class="form-input"></label>
+          </div>
+        <?php else: ?>
+          <p class="form-hint" style="margin:0">Create a workout plan first, then add exercises to it from here.</p>
+        <?php endif; ?>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="fxSaveBtn" type="button"><i class="fas fa-bookmark"></i> Save to my library</button>
+      <button class="btn btn-secondary btn-sm" id="fxLogBtn" type="button"><i class="fas fa-pen"></i> Log a set</button>
+      <?php if ($plans): ?>
+        <button class="btn btn-primary btn-sm" id="fxAddBtn" type="button"><i class="fas fa-plus"></i> Add to workout</button>
+      <?php endif; ?>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ Progress ═══ -->
-<div id="tab-progress" class="gym-tab-panel hidden">
+<div id="tab-progress" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gymtab-progress">
+  <div style="font-size:.9375rem;font-weight:600;margin-bottom:.75rem">Achievements</div>
+  <div class="grid-stats" style="margin-bottom:1.5rem" id="gymAchievementsWrap">
+    <?php foreach ($gymAchKeys as $key): $def = $allAchDefs[$key]; $unlocked = in_array($key, $unlockedKeys, true); ?>
+      <div class="stat-card" style="<?= $unlocked ? '' : 'opacity:.45' ?>">
+        <div style="font-size:1.5rem"><?= $def['emoji'] ?></div>
+        <div class="stat-label" style="margin-top:.25rem"><?= h($def['name']) ?></div>
+        <div style="font-size:.6875rem;color:var(--muted);margin-top:.125rem"><?= h($def['desc']) ?></div>
+      </div>
+    <?php endforeach; ?>
+  </div>
+
+
 
   <div class="grid-stats" style="margin-bottom:1.5rem" id="progTotalsWrap">
     <div class="stat-card"><div class="stat-val" id="progTotalSets">—</div><div class="stat-label">Total sets</div></div>
@@ -598,110 +809,19 @@ require_once '../includes/head.php';
 
 </div>
 
-<!-- ═══ Track ═══ -->
-<div id="tab-track" class="gym-tab-panel hidden">
-  <div style="font-size:.9375rem;font-weight:600;margin-bottom:.75rem">Achievements</div>
-  <div class="grid-stats" style="margin-bottom:1.5rem" id="gymAchievementsWrap">
-    <?php foreach ($gymAchKeys as $key): $def = $allAchDefs[$key]; $unlocked = in_array($key, $unlockedKeys, true); ?>
-      <div class="stat-card" style="<?= $unlocked ? '' : 'opacity:.45' ?>">
-        <div style="font-size:1.5rem"><?= $def['emoji'] ?></div>
-        <div class="stat-label" style="margin-top:.25rem"><?= h($def['name']) ?></div>
-        <div style="font-size:.6875rem;color:var(--muted);margin-top:.125rem"><?= h($def['desc']) ?></div>
-      </div>
-    <?php endforeach; ?>
-  </div>
-
-  <div style="font-size:.9375rem;font-weight:600;margin-bottom:.75rem">Full workout history</div>
-  <div class="card" id="logListFull">
-    <?php if (empty($recentLogs)): ?>
-      <div class="empty-state">
-        <div class="empty-state-icon"><i class="fas fa-dumbbell"></i></div>
-        <div class="empty-state-title">No workouts logged yet</div>
-        <p>Log a workout to start tracking your progress.</p>
-      </div>
-    <?php else: foreach ($recentLogs as $l): ?>
-      <div class="todo-row" id="log-full-<?= $l['id'] ?>">
-        <div style="width:36px;height:36px;border-radius:.5rem;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)">
-          <i class="fas fa-dumbbell" style="font-size:.8125rem"></i>
-        </div>
-        <div style="flex:1;min-width:0">
-          <span class="todo-title"><?= h($l['exercise_name']) ?></span>
-          <div class="todo-meta">
-            <?php
-              $parts = [];
-              if ($l['sets'])     $parts[] = $l['sets'] . ' sets';
-              if ($l['reps'])     $parts[] = $l['reps'] . ' reps';
-              if ($l['weight_kg']) $parts[] = $l['weight_kg'] . ' kg';
-              echo h(implode(' · ', $parts));
-            ?>
-            <span style="color:var(--subtle)"><?= formatDate($l['log_date']) ?></span>
-          </div>
-        </div>
-        <button aria-label="Delete workout log" class="btn btn-icon btn-ghost btn-sm" onclick="deleteLog(<?= $l['id'] ?>, true)" title="Delete">
-          <i class="fas fa-trash" style="font-size:.75rem"></i>
-        </button>
-      </div>
-    <?php endforeach; endif; ?>
-  </div>
+<!-- ═══ Goals ═══ -->
+<div id="tab-goals" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gymtab-goals">
+<?php include __DIR__ . '/../includes/components/fitness_goals.php'; ?>
 </div>
 
-<!-- ═══ Journal ═══ -->
-<div id="tab-journal" class="gym-tab-panel hidden">
-  <div class="card card-body" style="margin-bottom:1.25rem">
-    <label for="journalBody" class="form-label">New entry</label>
-    <textarea id="journalBody" class="form-input" rows="3" placeholder="How did today's session go? Any PRs, soreness, notes for next time…"></textarea>
-    <div style="display:flex;justify-content:flex-end;margin-top:.625rem">
-      <button class="btn btn-primary btn-sm" onclick="addJournalEntry()"><i class="fas fa-plus"></i> Add entry</button>
-    </div>
-  </div>
-  <div id="journalListWrap">
-    <?php if (empty($journalEntries)): ?>
-      <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-book-open"></i></div><div class="empty-state-title">No journal entries yet</div><p>Jot down how your training is going — form notes, energy levels, what worked.</p></div></div>
-    <?php else: foreach ($journalEntries as $j): ?>
-      <div class="card card-body" style="margin-bottom:.75rem" id="journal-<?= $j['id'] ?>">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem">
-          <div style="font-size:.875rem;color:var(--text);white-space:pre-wrap;flex:1"><?= h($j['body']) ?></div>
-          <button aria-label="Delete journal entry" class="btn btn-icon btn-ghost btn-sm" onclick="deleteJournalEntry(<?= $j['id'] ?>)"><i class="fas fa-trash" style="font-size:.75rem"></i></button>
-        </div>
-        <div style="font-size:.75rem;color:var(--subtle);margin-top:.5rem"><?= formatDate($j['entry_date']) ?></div>
-      </div>
-    <?php endforeach; endif; ?>
-  </div>
+<!-- ═══ Nutrition ═══ -->
+<div id="tab-nutrition" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gymtab-nutrition">
+<?php include __DIR__ . '/../includes/components/fitness_nutrition.php'; ?>
 </div>
 
-<!-- ═══ Learn ═══ -->
-<div id="tab-learn" class="gym-tab-panel hidden">
-  <div class="grid-cards">
-    <?php
-    $gymResources = [
-      ['title' => 'Starting Strength basics',      'desc' => 'Barbell fundamentals for beginners', 'icon' => 'fa-book'],
-      ['title' => 'Progressive overload explained', 'desc' => 'How to keep making gains over time', 'icon' => 'fa-chart-line'],
-      ['title' => 'Form check checklist',           'desc' => 'Common mistakes on the big lifts',   'icon' => 'fa-clipboard-check'],
-      ['title' => 'Recovery & sleep basics',        'desc' => 'Why rest days actually build muscle', 'icon' => 'fa-bed'],
-    ];
-    foreach ($gymResources as $r): ?>
-      <div class="habit-card" style="opacity:.85">
-        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
-          <i class="fas <?= $r['icon'] ?>" style="color:var(--accent);font-size:1.125rem"></i>
-          <div style="font-weight:600;font-size:.9375rem;color:var(--text)"><?= h($r['title']) ?></div>
-        </div>
-        <p style="font-size:.8125rem;color:var(--muted);margin:0"><?= h($r['desc']) ?></p>
-      </div>
-    <?php endforeach; ?>
-  </div>
-  <p class="form-hint" style="margin-top:1rem">Starter curated list — real course/book links go here once you decide on sources.</p>
-</div>
-
-<!-- ═══ AI Coach ═══ -->
-<div id="tab-ai" class="gym-tab-panel hidden">
-  <div class="card card-body" style="text-align:center;padding:2.5rem 1.5rem">
-    <i class="fas fa-robot" style="font-size:2rem;color:var(--muted);margin-bottom:.75rem"></i>
-    <div style="font-weight:600;font-size:1rem;color:var(--text);margin-bottom:.375rem">AI Coach — Coming soon</div>
-    <p style="font-size:.875rem;color:var(--muted);max-width:420px;margin:0 auto">
-      This will analyze your workout history and give real, data-grounded feedback here. The backend is already built —
-      it's just switched off for now.
-    </p>
-  </div>
+<!-- ═══ Recovery ═══ -->
+<div id="tab-recovery" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gymtab-recovery">
+<?php include __DIR__ . '/../includes/components/fitness_recovery.php'; ?>
 </div>
 
 <!-- Add plan modal -->
@@ -876,21 +996,515 @@ const API_BASE = '<?= APP_BASE ?>/api';
 // Library/Progress are expensive-ish (search query / multiple aggregate
 // queries + chart render) and below-the-fold on first load, so they lazy-
 // load on first activation rather than on every page render.
-const gymTabLoaded = { library: false, progress: false };
-function switchGymTab(tab) {
-  document.querySelectorAll('#gymTabs .filter-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+const gymTabLoaded = {};
+const gymTabLoaders = {
+  practice:  () => loadHistory(true),
+  library:   () => { searchExercises(); checkVideoBanner(); },
+  progress:  () => { loadProgressTab(); loadBodyStats(); },
+  goals:     () => loadGoals(),
+  nutrition: () => loadNutrition(),
+  recovery:  () => loadRecovery(),
+};
+function switchGymTab(tab, { focus = false } = {}) {
+  document.querySelectorAll('#gymTabs .filter-tab').forEach(b => {
+    const on = b.dataset.tab === tab;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+    b.tabIndex = on ? 0 : -1;
+    if (on && focus) b.focus();
+  });
   document.querySelectorAll('.gym-tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== `tab-${tab}`));
-  if (tab === 'library' && !gymTabLoaded.library) { gymTabLoaded.library = true; searchExercises(); checkVideoBanner(); }
-  if (tab === 'progress' && !gymTabLoaded.progress) { gymTabLoaded.progress = true; loadProgressTab(); loadBodyStats(); }
+  // Tabs load their data on first open, not on every page render.
+  if (!gymTabLoaded[tab] && gymTabLoaders[tab]) { gymTabLoaded[tab] = true; gymTabLoaders[tab](); }
+}
+// History lives in the Workouts tab, below the weekly plan and plans list.
+function showWorkoutHistory() {
+  switchGymTab('practice');
+  requestAnimationFrame(() => document.getElementById('historyList')
+    ?.previousElementSibling?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 }
 document.getElementById('gymTabs').addEventListener('click', e => {
   const btn = e.target.closest('[data-tab]');
   if (btn) switchGymTab(btn.dataset.tab);
 });
+// WAI-ARIA tabs: arrow keys / Home / End move between tabs.
+document.getElementById('gymTabs').addEventListener('keydown', e => {
+  const tabs = [...document.querySelectorAll('#gymTabs [data-tab]')];
+  const i = tabs.indexOf(document.activeElement);
+  if (i < 0) return;
+  const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+  if (to === undefined) return;
+  e.preventDefault();
+  switchGymTab(tabs[(to + tabs.length) % tabs.length].dataset.tab, { focus: true });
+});
+
+/* Small DOM helpers shared by the section renderers below. */
+function fEl(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+function fEmpty(icon, title, text) {
+  const wrap = fEl('div', 'empty-state');
+  const ic = fEl('div', 'empty-state-icon');
+  ic.append(fEl('i', `fas ${icon}`));
+  wrap.append(ic, fEl('div', 'empty-state-title', title), fEl('p', null, text));
+  return wrap;
+}
+function fKg(w) { return (Math.round(w * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 }); }
+function fDate(ymd) {
+  const [y, m, d] = String(ymd).split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - dt) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return dt.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', ...(y !== today.getFullYear() ? { year: 'numeric' } : {}) });
+}
+async function fPost(body) {
+  return Trackie.API.post(`${API_BASE}/gym.php`, body);
+}
+
+/* ── Workouts → History (every set) ─────────────────────────────── */
+let historyOffset = 0;
+async function loadHistory(reset = false) {
+  const list = document.getElementById('historyList');
+  const more = document.getElementById('historyMore');
+  if (!list) return;
+  if (reset) { historyOffset = 0; list.replaceChildren(fEl('p', 'form-hint', 'Loading your workouts…')); }
+  more.disabled = true;
+  try {
+    const res = await fPost({ action: 'history', limit: 10, offset: historyOffset });
+    if (!res.success) throw new Error('history');
+    if (reset) list.replaceChildren();
+    if (!res.entries.length && historyOffset === 0) {
+      const card = fEl('div', 'card');
+      card.append(fEmpty('fa-dumbbell', 'No workouts yet', 'Start a plan or quick-log an exercise — every set you log shows up here.'));
+      list.append(card);
+    }
+    res.entries.forEach(e => list.append(historyEntry(e)));
+    historyOffset += res.entries.length;
+    more.classList.toggle('hidden', !res.has_more);
+  } catch {
+    if (reset) list.replaceChildren(fEl('p', 'form-hint', "Couldn't load your history — try again in a moment."));
+    else Trackie.Toast.error("Couldn't load older workouts.");
+  } finally { more.disabled = false; }
+}
+
+function historyEntry(e) {
+  const det = fEl('details', 'card fit-hist');
+  const sum = fEl('summary', 'fit-hist-sum');
+  const main = fEl('div', 'fit-hist-main');
+  main.append(fEl('span', 'fit-hist-title', e.title), fEl('span', 'fit-hist-date', fDate(e.date)));
+  const meta = [];
+  meta.push(`${e.exercises.length} exercise${e.exercises.length === 1 ? '' : 's'}`);
+  if (e.set_count) meta.push(`${e.set_count} set${e.set_count === 1 ? '' : 's'}`);
+  if (e.volume > 0) meta.push(`${Math.round(e.volume).toLocaleString()} kg`);
+  if (e.duration_sec) meta.push(`${Math.max(1, Math.round(e.duration_sec / 60))} min`);
+  main.append(fEl('span', 'fit-hist-meta', meta.join(' · ')));
+  sum.append(main);
+  if (e.guided && e.finished === false) sum.append(fEl('span', 'badge badge-gray', 'Not finished'));
+  det.append(sum);
+
+  const body = fEl('div', 'fit-hist-body');
+  e.exercises.forEach(x => {
+    const row = fEl('div', 'fit-hist-ex');
+    row.id = `hist-log-${x.log_id}`;
+    const head = fEl('div', 'fit-hist-ex-head');
+    head.append(fEl('span', 'fit-hist-ex-name', x.name));
+    if (x.volume > 0) head.append(fEl('span', 'fit-hist-ex-vol', `${Math.round(x.volume).toLocaleString()} kg`));
+    const del = fEl('button', 'btn btn-icon btn-ghost btn-sm');
+    del.type = 'button';
+    del.dataset.deleteLog = x.log_id;
+    del.setAttribute('aria-label', `Delete ${x.name} from this workout`);
+    del.append(fEl('i', 'fas fa-trash'));
+    head.append(del);
+    const sets = fEl('div', 'fit-hist-sets');
+    if (x.legacy) {
+      const s = x.summary || {};
+      const parts = [];
+      if (s.sets) parts.push(`${s.sets} × ${s.reps ?? '—'}`);
+      else if (s.reps) parts.push(`${s.reps} reps`);
+      if (s.weight) parts.push(`${fKg(s.weight)} kg`);
+      sets.append(fEl('span', 'fit-hist-set', parts.join(' @ ') || 'Logged'));
+    } else {
+      x.sets.forEach((s, i) => {
+        const t = [s.weight !== null ? `${fKg(s.weight)} kg` : null, s.reps !== null ? `${s.reps}` : null].filter(Boolean).join(' × ');
+        const chip = fEl('span', 'fit-hist-set');
+        chip.append(fEl('b', null, String(i + 1)), ' ' + (t || 'Logged'));
+        sets.append(chip);
+      });
+    }
+    row.append(head, sets);
+    if (x.notes) row.append(fEl('p', 'fit-hist-notes', x.notes));
+    body.append(row);
+  });
+  det.append(body);
+  return det;
+}
+
+document.getElementById('historyMore')?.addEventListener('click', () => loadHistory(false));
+document.getElementById('historyList')?.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-delete-log]');
+  if (!btn) return;
+  const ok = await Trackie.confirmDialog('Delete this exercise and all its sets from your history?', { confirmText: 'Delete', danger: true });
+  if (!ok) return;
+  try {
+    const res = await fPost({ action: 'delete_log', log_id: btn.dataset.deleteLog });
+    if (!res.success) { Trackie.Toast.error(res.error || 'Failed.'); return; }
+    Trackie.Toast.success('Deleted.');
+    loadHistory(true);
+    Trackie.refreshFragments(['gymStatsWrap', 'gymStreakBadge', 'gymProgressPreviewWrap', 'logList']);
+  } catch { Trackie.Toast.error('Network error.'); }
+});
+
+/* ── Goals ──────────────────────────────────────────────────────── */
+const GOAL_TARGET_UI = {
+  workouts:        { label: 'Workouts', min: 1, step: 1, placeholder: 'e.g. 20' },
+  exercise_weight: { label: 'Target weight (kg)', min: 0.5, step: 0.5, placeholder: 'e.g. 50' },
+  streak:          { label: 'Streak (days)', min: 2, step: 1, placeholder: 'e.g. 30' },
+};
+function syncGoalForm() {
+  const type = document.getElementById('goalType').value;
+  const ui = GOAL_TARGET_UI[type];
+  const t = document.getElementById('goalTarget');
+  document.getElementById('goalTargetLabel').textContent = ui.label;
+  t.min = ui.min; t.step = ui.step; t.placeholder = ui.placeholder;
+  document.getElementById('goalExerciseWrap').classList.toggle('hidden', type !== 'exercise_weight');
+}
+function toggleGoalForm(show) {
+  document.getElementById('goalForm').classList.toggle('hidden', !show);
+  document.getElementById('goalAddToggle').setAttribute('aria-expanded', show ? 'true' : 'false');
+  if (show) { syncGoalForm(); document.getElementById('goalType').focus(); }
+}
+document.getElementById('goalAddToggle')?.addEventListener('click', () => toggleGoalForm(document.getElementById('goalForm').classList.contains('hidden')));
+document.getElementById('goalCancel')?.addEventListener('click', () => toggleGoalForm(false));
+document.getElementById('goalType')?.addEventListener('change', syncGoalForm);
+document.getElementById('goalForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = e.submitter || e.target.querySelector('[type="submit"]');
+  btn.disabled = true;
+  try {
+    const res = await fPost({
+      action: 'goal_add',
+      goal_type: document.getElementById('goalType').value,
+      target: document.getElementById('goalTarget').value,
+      exercise_name: document.getElementById('goalExercise').value.trim(),
+      deadline: document.getElementById('goalDeadline').value,
+    });
+    if (!res.success) { Trackie.Toast.warning(res.error || "Couldn't save that goal."); return; }
+    Trackie.Toast.success('Goal set.');
+    e.target.reset();
+    toggleGoalForm(false);
+    loadGoals();
+  } catch { Trackie.Toast.error('Network error.'); }
+  finally { btn.disabled = false; }
+});
+
+async function loadGoals() {
+  const list = document.getElementById('goalsList');
+  if (!list) return;
+  try {
+    const res = await fPost({ action: 'goals_list' });
+    if (!res.success) throw new Error('goals');
+    list.replaceChildren();
+    if (!res.goals.length) {
+      const card = fEl('div', 'card');
+      card.append(fEmpty('fa-bullseye', 'No fitness goals yet', 'Set one — progress fills in automatically from the workouts you log.'));
+      list.append(card);
+      return;
+    }
+    res.goals.forEach(g => list.append(goalCard(g)));
+  } catch { list.replaceChildren(fEl('p', 'form-hint', "Couldn't load your goals — try again in a moment.")); }
+}
+
+function goalCard(g) {
+  const card = fEl('div', 'card card-body fit-goal' + (g.completed_at ? ' is-done' : ''));
+  const head = fEl('div', 'fit-goal-head');
+  head.append(fEl('span', 'fit-goal-title', g.title));
+  if (g.completed_at) head.append(fEl('span', 'badge badge-green', 'Reached'));
+  else if (g.overdue) head.append(fEl('span', 'badge badge-red', 'Past deadline'));
+  const del = fEl('button', 'btn btn-icon btn-ghost btn-sm');
+  del.type = 'button';
+  del.dataset.deleteGoal = g.id;
+  del.setAttribute('aria-label', `Delete goal: ${g.title}`);
+  del.append(fEl('i', 'fas fa-trash'));
+  head.append(del);
+
+  const cur = g.unit === 'kg' ? fKg(g.current) : Math.round(g.current);
+  const tgt = g.unit === 'kg' ? fKg(g.target) : Math.round(g.target);
+  const bar = fEl('div', 'fit-goal-bar');
+  bar.setAttribute('role', 'progressbar');
+  bar.setAttribute('aria-valuemin', '0');
+  bar.setAttribute('aria-valuemax', '100');
+  bar.setAttribute('aria-valuenow', String(g.pct));
+  bar.setAttribute('aria-label', `${g.title}: ${g.pct}%`);
+  const fill = fEl('div', 'fit-goal-fill');
+  fill.style.width = g.pct + '%';
+  bar.append(fill);
+
+  const meta = fEl('div', 'fit-goal-meta');
+  meta.append(fEl('span', null, `${cur} / ${tgt} ${g.unit}`));
+  const since = g.type === 'workouts' ? `since ${fDate(g.start_date)}` : '';
+  const when = g.completed_at ? `Reached ${fDate(g.completed_at.slice(0, 10))}` : (g.deadline ? `Due ${fDate(g.deadline)}` : since);
+  if (when) meta.append(fEl('span', null, when));
+  card.append(head, bar, meta);
+  return card;
+}
+document.getElementById('goalsList')?.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-delete-goal]');
+  if (!btn) return;
+  const ok = await Trackie.confirmDialog('Delete this goal?', { confirmText: 'Delete', danger: true });
+  if (!ok) return;
+  try {
+    const res = await fPost({ action: 'goal_delete', id: btn.dataset.deleteGoal });
+    if (res.success) loadGoals(); else Trackie.Toast.error(res.error || 'Failed.');
+  } catch { Trackie.Toast.error('Network error.'); }
+});
+
+/* ── Nutrition ──────────────────────────────────────────────────── */
+let nutriTargets = null;
+async function loadNutrition() {
+  const summary = document.getElementById('nutriSummary');
+  if (!summary) return;
+  try {
+    const res = await fPost({ action: 'nutrition_day' });
+    if (!res.success) throw new Error('nutrition');
+    nutriTargets = res.targets;
+    renderNutriSummary(res.totals, res.targets);
+    renderNutriEntries(res.entries);
+    renderNutriRecent(res.recent);
+  } catch { summary.replaceChildren(fEl('p', 'form-hint', "Couldn't load nutrition — try again in a moment.")); }
+}
+
+function renderNutriSummary(t, targets) {
+  const wrap = document.getElementById('nutriSummary');
+  wrap.replaceChildren();
+  const metric = (label, value, target, unit) => {
+    const card = fEl('div', 'card card-body fit-nutri-metric');
+    card.append(fEl('span', 'fit-nutri-label', label));
+    const v = fEl('span', 'fit-nutri-value', `${value.toLocaleString()}${unit}`);
+    if (target) v.append(fEl('small', null, ` / ${target.toLocaleString()}${unit}`));
+    card.append(v);
+    if (target) {
+      const pct = Math.min(100, Math.round(value / target * 100));
+      const bar = fEl('div', 'fit-goal-bar');
+      bar.setAttribute('role', 'progressbar');
+      bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', '100'); bar.setAttribute('aria-valuenow', String(pct));
+      bar.setAttribute('aria-label', `${label} ${pct}% of target`);
+      const fill = fEl('div', 'fit-goal-fill'); fill.style.width = pct + '%';
+      bar.append(fill);
+      card.append(bar);
+    } else {
+      card.append(fEl('span', 'form-hint', 'No target set'));
+    }
+    return card;
+  };
+  wrap.append(
+    metric('Calories eaten', t.calories, targets?.calories, ' kcal'),
+    metric('Protein', t.protein_g, targets?.protein_g, ' g'),
+    metric('Water', t.water_ml, targets?.water_ml, ' ml'),
+  );
+}
+
+function renderNutriEntries(entries) {
+  const wrap = document.getElementById('nutriEntries');
+  wrap.replaceChildren();
+  if (!entries.length) {
+    wrap.append(fEmpty('fa-utensils', 'Nothing logged today', 'Add what you eat and drink above — only what you log is counted.'));
+    return;
+  }
+  const mealName = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack', water: 'Water' };
+  entries.forEach(en => {
+    const row = fEl('div', 'fit-nutri-row');
+    const left = fEl('div', 'fit-nutri-row-main');
+    left.append(fEl('span', 'fit-nutri-meal', mealName[en.meal] || en.meal));
+    left.append(fEl('span', 'fit-nutri-food', en.name || (en.meal === 'water' ? 'Water' : '—')));
+    const vals = [];
+    if (en.calories !== null) vals.push(`${en.calories.toLocaleString()} kcal`);
+    if (en.protein_g !== null) vals.push(`${en.protein_g} g protein`);
+    if (en.water_ml !== null) vals.push(`${en.water_ml.toLocaleString()} ml`);
+    const del = fEl('button', 'btn btn-icon btn-ghost btn-sm');
+    del.type = 'button';
+    del.dataset.deleteNutri = en.id;
+    del.setAttribute('aria-label', `Delete ${en.name || mealName[en.meal]} entry`);
+    del.append(fEl('i', 'fas fa-trash'));
+    row.append(left, fEl('span', 'fit-nutri-vals', vals.join(' · ')), del);
+    wrap.append(row);
+  });
+}
+
+function renderNutriRecent(days) {
+  const wrap = document.getElementById('nutriRecent');
+  wrap.replaceChildren();
+  if (!days.length) { wrap.append(fEl('p', 'form-hint fit-pad', 'No days logged in the last week yet.')); return; }
+  const table = fEl('table', 'fit-table');
+  const thead = fEl('thead');
+  const hr = fEl('tr');
+  ['Day', 'Calories', 'Protein', 'Water'].forEach(h => { const th = fEl('th', null, h); th.scope = 'col'; hr.append(th); });
+  thead.append(hr);
+  const tbody = fEl('tbody');
+  days.forEach(d => {
+    const tr = fEl('tr');
+    const th = fEl('th', null, fDate(d.date)); th.scope = 'row';
+    tr.append(th, fEl('td', null, d.calories ? `${d.calories.toLocaleString()} kcal` : '—'),
+      fEl('td', null, d.protein_g ? `${d.protein_g} g` : '—'), fEl('td', null, d.water_ml ? `${d.water_ml.toLocaleString()} ml` : '—'));
+    tbody.append(tr);
+  });
+  table.append(thead, tbody);
+  wrap.append(table);
+}
+
+async function addNutrition(fields, btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fPost({ action: 'nutrition_add', ...fields });
+    if (!res.success) { Trackie.Toast.warning(res.error || "Couldn't add that."); return false; }
+    loadNutrition();
+    return true;
+  } catch { Trackie.Toast.error('Network error.'); return false; }
+  finally { if (btn) btn.disabled = false; }
+}
+document.getElementById('nutriForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const ok = await addNutrition({
+    meal: document.getElementById('nutriMeal').value,
+    name: document.getElementById('nutriName').value.trim(),
+    calories: document.getElementById('nutriCalories').value,
+    protein_g: document.getElementById('nutriProtein').value,
+  }, e.submitter);
+  if (ok) {
+    ['nutriName', 'nutriCalories', 'nutriProtein'].forEach(id => document.getElementById(id).value = '');
+    Trackie.Toast.success('Added.');
+  }
+});
+document.getElementById('nutriForm')?.addEventListener('click', async e => {
+  const b = e.target.closest('[data-water]');
+  if (!b) return;
+  if (await addNutrition({ meal: 'water', water_ml: b.dataset.water }, b)) Trackie.Toast.success(`+${b.dataset.water} ml water`);
+});
+document.getElementById('nutriEntries')?.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-delete-nutri]');
+  if (!btn) return;
+  try {
+    const res = await fPost({ action: 'nutrition_delete', id: btn.dataset.deleteNutri });
+    if (res.success) loadNutrition(); else Trackie.Toast.error(res.error || 'Failed.');
+  } catch { Trackie.Toast.error('Network error.'); }
+});
+document.getElementById('nutriTargetsBtn')?.addEventListener('click', () => {
+  document.getElementById('tgtCalories').value = nutriTargets?.calories ?? '';
+  document.getElementById('tgtProtein').value = nutriTargets?.protein_g ?? '';
+  document.getElementById('tgtWater').value = nutriTargets?.water_ml ?? '';
+  Trackie.openModal('nutriTargetsModal');
+});
+document.getElementById('nutriTargetsSave')?.addEventListener('click', async e => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const res = await fPost({
+      action: 'nutrition_targets_save',
+      calories: document.getElementById('tgtCalories').value,
+      protein_g: document.getElementById('tgtProtein').value,
+      water_ml: document.getElementById('tgtWater').value,
+    });
+    if (!res.success) { Trackie.Toast.warning(res.error || "Couldn't save targets."); return; }
+    Trackie.closeModal('nutriTargetsModal');
+    Trackie.Toast.success('Targets saved.');
+    loadNutrition();
+  } catch { Trackie.Toast.error('Network error.'); }
+  finally { btn.disabled = false; }
+});
+
+/* ── Recovery ───────────────────────────────────────────────────── */
+async function loadRecovery() {
+  const daysWrap = document.getElementById('recoveryDays');
+  if (!daysWrap) return;
+  try {
+    const res = await fPost({ action: 'recovery_list' });
+    if (!res.success) throw new Error('recovery');
+    renderRecoveryWeek(res.week);
+    renderRecoveryDays(res.days);
+    // Prefill today's form with what's already saved for today.
+    const t = res.days[0];
+    if (t && t.logged) {
+      document.getElementById('recSleep').value = t.sleep_hours ?? '';
+      document.getElementById('recNotes').value = t.notes ?? '';
+      ['energy', 'soreness'].forEach(k => {
+        document.querySelectorAll(`#recoveryForm input[name="${k}"]`).forEach(r => { r.checked = t[k] !== null && +r.value === t[k]; });
+      });
+    }
+  } catch { daysWrap.replaceChildren(fEl('p', 'form-hint fit-pad', "Couldn't load recovery — try again in a moment.")); }
+}
+
+function renderRecoveryWeek(w) {
+  const wrap = document.getElementById('recoveryWeek');
+  wrap.replaceChildren();
+  const stat = (icon, color, value, label, sub) => {
+    const c = fEl('div', 'stat-card');
+    const chip = fEl('div', 'stat-icon-chip');
+    chip.style.color = color;
+    chip.append(fEl('i', `fas ${icon}`));
+    c.append(chip, fEl('div', 'stat-val', value), fEl('div', 'stat-label', label));
+    if (sub) c.append(fEl('div', 'form-hint', sub));
+    return c;
+  };
+  const avg = (a, unit = '') => a ? `${a.avg}${unit}` : '—';
+  const basis = a => a ? `from ${a.days} logged day${a.days === 1 ? '' : 's'}` : 'nothing logged yet';
+  wrap.append(
+    stat('fa-bed', 'var(--info)', avg(w.sleep, ' h'), 'Avg sleep', basis(w.sleep)),
+    stat('fa-bolt', '#f59e0b', avg(w.energy, ' / 5'), 'Avg energy', basis(w.energy)),
+    stat('fa-person-running', 'var(--accent)', avg(w.soreness, ' / 5'), 'Avg soreness', basis(w.soreness)),
+    stat('fa-couch', 'var(--ok)', String(w.rest_days), 'Rest days', `${w.trained} training day${w.trained === 1 ? '' : 's'} in the last 7 days`),
+  );
+}
+
+function renderRecoveryDays(days) {
+  const wrap = document.getElementById('recoveryDays');
+  const table = fEl('table', 'fit-table');
+  const hr = fEl('tr');
+  ['Day', 'Sleep', 'Energy', 'Soreness', 'Training', 'Notes'].forEach(h => { const th = fEl('th', null, h); th.scope = 'col'; hr.append(th); });
+  const thead = fEl('thead'); thead.append(hr);
+  const tbody = fEl('tbody');
+  days.forEach(d => {
+    const tr = fEl('tr', d.logged ? null : 'is-empty');
+    const th = fEl('th', null, fDate(d.date)); th.scope = 'row';
+    tr.append(th,
+      fEl('td', null, d.sleep_hours !== null ? `${d.sleep_hours} h` : '—'),
+      fEl('td', null, d.energy !== null ? `${d.energy}/5` : '—'),
+      fEl('td', null, d.soreness !== null ? `${d.soreness}/5` : '—'),
+      // Today isn't over — only a finished day without a workout is a rest day.
+      fEl('td', null, d.trained ? 'Trained' : (d.date === days[0].date ? 'Not yet' : 'Rest')),
+      fEl('td', 'fit-td-notes', d.notes || ''));
+    tbody.append(tr);
+  });
+  table.append(thead, tbody);
+  wrap.replaceChildren(table);
+}
+
+document.getElementById('recoveryForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = e.submitter || e.target.querySelector('[type="submit"]');
+  const pick = name => document.querySelector(`#recoveryForm input[name="${name}"]:checked`)?.value ?? '';
+  btn.disabled = true;
+  try {
+    const res = await fPost({
+      action: 'recovery_save',
+      sleep_hours: document.getElementById('recSleep').value,
+      energy: pick('energy'),
+      soreness: pick('soreness'),
+      notes: document.getElementById('recNotes').value.trim(),
+    });
+    if (!res.success) { Trackie.Toast.warning(res.error || "Couldn't save your check-in."); return; }
+    Trackie.Toast.success('Check-in saved.');
+    loadRecovery();
+  } catch { Trackie.Toast.error('Network error.'); }
+  finally { btn.disabled = false; }
+});
 
 function notifyNewAchievements(keys) {
   if (!keys || !keys.length) return;
-  keys.forEach(k => Trackie.Toast.success(`🏆 Achievement unlocked! Check the Track tab.`, 5000));
+  keys.forEach(k => Trackie.Toast.success(`🏆 Achievement unlocked! See it under Progress.`, 5000));
 }
 
 /* ── Journal ──────────────────────────────────────────────────── */
@@ -1091,25 +1705,133 @@ function openLogWorkout(exerciseName, planId) {
   Trackie.openModal('logWorkoutModal');
 }
 
-/* ── Workout session — full-screen splash with set tracking + rest breaks ──
-   State machine: 'exercise' (log sets one at a time) → 'rest' (countdown
-   between exercises) → next exercise, or 'summary' when the plan is done.
-   Each completed set is logged to the server immediately (session_log_set)
-   instead of batched at the end of the exercise — that's what makes real
-   per-set history, "previous performance", and live PR detection possible. */
-const REST_SECONDS = 60;
-const GYM_REST_LOTTIE_SRC = ''; // paste a .json Lottie animation URL here for the break screen
+/* ── Active workout (Fitness V2) ────────────────────────────────────
+   Full-screen session with DYNAMIC sets. Each exercise holds a list of set
+   rows { n, weight, reps, done, pr }; `n` is the set_number the server keys
+   on, so ticking a row upserts it (session_log_set), editing a done row
+   re-saves it, and un-ticking deletes it (session_delete_set). Every number
+   shown — sets, volume, PRs, duration, XP — comes from saved sets or the
+   server; nothing is estimated. */
+const WO_DEFAULT_REST = 90; // seconds between sets when the plan item sets none
 let session = null;
 
-(function setupRestLottie() {
-  const el = document.getElementById('restLottie');
-  if (!GYM_REST_LOTTIE_SRC || !el) return;
-  el.addEventListener('error', () => el.classList.add('hidden'));
-  el.setAttribute('autoplay', '');
-  el.setAttribute('src', GYM_REST_LOTTIE_SRC);
-  el.classList.remove('hidden');
-  document.getElementById('restRing')?.classList.add('has-lottie');
-})();
+const woEl = id => document.getElementById(id);
+
+function woNum(v) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+function woFmtWeight(w) {
+  return (Math.round(w * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+function woFmtVolume(v) {
+  return v > 0 ? `${Math.round(v).toLocaleString()} kg` : '—';
+}
+function woFmtClock(sec) {
+  return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+}
+function woSetLabel(s) {
+  const parts = [];
+  if (s.weight !== null && s.weight !== undefined) parts.push(`${woFmtWeight(s.weight)} kg`);
+  if (s.reps !== null && s.reps !== undefined) parts.push(`${s.reps}`);
+  return parts.join(' × ') || 'Logged';
+}
+function woVolume(sets) {
+  return sets.reduce((sum, s) => sum + ((s.reps && s.weight) ? s.reps * s.weight : 0), 0);
+}
+// Media URLs come from the server (library or a provider). Defence in depth:
+// only https:// or a same-origin root path may become a src.
+function woMediaUrl(u) {
+  return typeof u === 'string' && (/^https:\/\//i.test(u) || /^\/(?!\/)/.test(u)) ? u : null;
+}
+// free-exercise-db ships two photos (start + end position). Alternating them
+// shows the movement like a GIF; with reduced motion the start frame stays put.
+function woPlayFrames(img, frames) {
+  woStopFrames(img);
+  const safe = (frames || []).map(woMediaUrl).filter(Boolean);
+  if (!safe.length) return false;
+  let i = 0;
+  img.src = safe[0];
+  safe.slice(1).forEach(u => { const pre = new Image(); pre.src = u; });
+  if (safe.length > 1 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    img._woFrames = setInterval(() => {
+      if (!img.isConnected) { woStopFrames(img); return; }
+      i = (i + 1) % safe.length;
+      img.src = safe[i];
+    }, 900);
+  }
+  return true;
+}
+function woStopFrames(img) {
+  if (img && img._woFrames) { clearInterval(img._woFrames); img._woFrames = null; }
+}
+function woFmtDate(ymd) {
+  const [y, m, d] = String(ymd).split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const opts = { day: 'numeric', month: 'short' };
+  if (y !== new Date().getFullYear()) opts.year = 'numeric';
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, opts);
+}
+function woFocus(id) {
+  requestAnimationFrame(() => woEl(id)?.focus({ preventScroll: true }));
+}
+
+// #page-main (view-transition-name) and .page-content (a retained entry
+// transform) trap anything inside them: the overlay's z-index could not rise
+// above the sidebar/topbar/bottom-nav, and `fixed` became relative to the
+// content column. While a workout runs, the overlay lives on <body> so it is
+// truly full-screen; it goes back home when the workout ends.
+function woPortal(toBody) {
+  const root = woEl('workoutSession');
+  if (!root) return;
+  document.body.classList.toggle('workout-open', toBody);
+  if (toBody) {
+    if (root.parentNode === document.body) return;
+    root._woHome = root.parentNode;
+    root._woNext = root.nextSibling;
+    document.body.appendChild(root);
+  } else if (root._woHome && root._woHome.isConnected) {
+    root._woHome.insertBefore(root, root._woNext && root._woNext.parentNode === root._woHome ? root._woNext : null);
+  } else {
+    root.remove(); // its page is gone (SpaNav swapped it) — nothing to return to
+  }
+}
+function woTeardown() {
+  if (session) { clearInterval(session.timerHandle); woStopRest(); }
+  woStopFrames(woEl('sessionExerciseGif'));
+  window.__woActive = null;
+  document.body.style.overflow = '';
+  woEl('workoutSession')?.classList.add('hidden');
+  woPortal(false);
+}
+
+/* ── Session state helpers ─────────────────────────────────────────── */
+function woCurrent() { return session.exercises[session.index]; }
+function woEnsureRows(ex) {
+  if (ex.sets) return;
+  // woNum: DECIMAL columns arrive as strings ("60.00") — show "60".
+  ex.sets = Array.from({ length: ex.targetSets }, (_, i) => ({
+    n: i + 1, weight: woNum(ex.targetWeight) ?? '', reps: woNum(ex.targetReps) ?? '',
+    done: false, pr: false, saving: false, touched: false,
+  }));
+}
+// Everything already saved on the server, across the whole session.
+function woDoneSets() {
+  const out = [];
+  session.exercises.forEach(ex => (ex.sets || []).forEach(s => {
+    if (s.done) out.push({ exercise: ex.name, n: s.n, reps: s.savedReps, weight: s.savedWeight, pr: s.pr });
+  }));
+  return out;
+}
+function woRowsTotal() {
+  return session.exercises.reduce((n, ex) => n + (ex.sets ? ex.sets.length : ex.targetSets), 0);
+}
+function woExerciseComplete(ex) {
+  return !!ex.sets && ex.sets.length > 0 && ex.sets.every(s => s.done);
+}
+function woAllComplete() {
+  return session.exercises.every(woExerciseComplete);
+}
 
 async function startPlanWorkout(planId, planName) {
   try {
@@ -1122,14 +1844,25 @@ async function startPlanWorkout(planId, planName) {
 
     session = {
       planId, planName, sessionId: sessRes.session_id,
-      exercises: planRes.items.map(i => ({ name: i.exercise_name, targetSets: i.target_sets, targetReps: i.target_reps, targetWeight: i.target_weight })),
-      index: 0, currentSet: 1, lastReps: null, lastWeight: null,
-      loggedExercises: new Set(), newAchievements: [],
-      elapsedSec: 0, paused: false, timerHandle: null, restHandle: null,
+      exercises: planRes.items.map(i => ({
+        name: i.exercise_name,
+        targetSets: Math.max(1, parseInt(i.target_sets, 10) || 1),
+        targetReps: i.target_reps ?? null,
+        targetWeight: i.target_weight ?? null,
+        rest: Math.max(0, parseInt(i.rest_seconds, 10) || WO_DEFAULT_REST),
+        sets: null, info: null,
+      })),
+      index: 0, pending: 0, newAchievements: [],
+      elapsedSec: 0, timerHandle: null, rest: null,
     };
-    document.getElementById('sessionPlanName').textContent = planName;
+    woEl('sessionPlanName').textContent = planName;
+    woEl('ctxPlanName').textContent = planName;
+    woEl('sessionElapsed').textContent = '00:00';
+    woEl('ctxTime').textContent = '00:00';
+    window.__woActive = session; // lets the popstate guard stop this session's timers
     document.body.style.overflow = 'hidden';
-    document.getElementById('workoutSession').classList.remove('hidden');
+    woPortal(true);
+    woEl('workoutSession').classList.remove('hidden');
     showPhase('exercise');
     renderExercisePhase();
     startSessionTimer();
@@ -1137,224 +1870,595 @@ async function startPlanWorkout(planId, planName) {
 }
 
 function showPhase(phase) {
-  document.getElementById('woExercisePhase').classList.toggle('hidden', phase !== 'exercise');
-  document.getElementById('woRestPhase').classList.toggle('hidden', phase !== 'rest');
-  document.getElementById('woSummaryPhase').classList.toggle('hidden', phase !== 'summary');
+  woEl('woExercisePhase').classList.toggle('hidden', phase !== 'exercise');
+  woEl('woSummaryPhase').classList.toggle('hidden', phase !== 'summary');
+  woEl('workoutSession').dataset.phase = phase;
 }
 
 function renderExercisePhase() {
-  const ex = session.exercises[session.index];
-  session.currentSet = 1;
-  // lastReps/lastWeight pre-fill the NEXT SET of the SAME exercise with what
-  // was just typed. Reset per exercise so one exercise's numbers never leak
-  // into the next exercise's default (a fixed data-correctness bug).
-  session.lastReps = null;
-  session.lastWeight = null;
+  const ex = woCurrent();
+  woEnsureRows(ex);
+  woEl('sessionExerciseIndex').textContent = `Exercise ${session.index + 1} of ${session.exercises.length}`;
+  woEl('sessionExerciseName').textContent = ex.name;
+  woEl('sessionTarget').textContent = ex.targetReps
+    ? `${ex.targetReps} reps × ${ex.targetSets} sets`
+    : `${ex.targetSets} sets`;
+  woEl('sessionTargetSub').textContent = woNum(ex.targetWeight) ? `at ${woFmtWeight(woNum(ex.targetWeight))} kg` : '';
+  woEl('sessionPrBanner').classList.toggle('hidden', !ex.sets.some(s => s.pr));
+  woEl('sessionSetStatus').textContent = '';
+  renderSetRows();
+  renderNav();
   updateOverallProgress();
-  document.getElementById('sessionExerciseName').textContent = ex.name;
-  document.getElementById('sessionPrBanner').classList.add('hidden');
-  renderSetState(ex);
-  loadPreviousPerformance(ex.name);
+  loadPreviousPerformance(ex);
+  woFocus('sessionExerciseName');
 }
 
-async function loadPreviousPerformance(exerciseName) {
-  const el = document.getElementById('sessionPrevPerf');
-  const vid = document.getElementById('sessionExerciseVideo');
-  el.classList.add('hidden');
-  vid.classList.add('hidden');
-  vid.removeAttribute('src');
-  try {
-    const res = await Trackie.API.post(`${API_BASE}/gym.php`, {action:'previous_performance', exercise_name: exerciseName});
-    if (!res.success) return;
+function renderNav() {
+  const last = session.index === session.exercises.length - 1;
+  woEl('woPrevEx').disabled = session.index === 0;
+  woEl('woNextLabel').textContent = last ? 'Finish workout' : 'Next exercise';
+}
 
-    if (res.video_url) {
-      vid.src = res.video_url;
-      vid.classList.remove('hidden');
-      vid.play().catch(() => {}); // autoplay can be blocked silently — controls still work
+/* ── Set table ─────────────────────────────────────────────────────── */
+function renderSetRows() {
+  const ex = woCurrent();
+  const prev = ex.info && Array.isArray(ex.info.sets) ? ex.info.sets : [];
+  const tbody = woEl('sessionSetRows');
+  const nextIdx = ex.sets.findIndex(s => !s.done);
+  tbody.replaceChildren(...ex.sets.map((s, i) => {
+    const tr = document.createElement('tr');
+    tr.className = 'wo-row' + (s.done ? ' is-done' : '') + (i === nextIdx ? ' is-next' : '') + (s.saving ? ' is-saving' : '');
+    tr.dataset.n = s.n;
+
+    const th = document.createElement('th');
+    th.scope = 'row';
+    th.textContent = String(i + 1);
+    if (s.pr) {
+      const pr = document.createElement('i');
+      pr.className = 'fas fa-trophy wo-row-pr';
+      pr.setAttribute('aria-label', 'personal record');
+      th.append(' ', pr);
     }
 
-    if (!res.found || !res.sets.length) return;
-    const best = res.sets.reduce((a, b) => ((b.weight_kg ?? 0) > (a.weight_kg ?? 0) ? b : a));
-    const parts = [];
-    if (best.weight_kg) parts.push(`${best.weight_kg} kg`);
-    if (best.reps) parts.push(`${best.reps} reps`);
-    if (!parts.length) return;
-    el.innerHTML = `<i class="fas fa-clock-rotate-left"></i> Last time: ${parts.join(' × ')} (${res.sets.length} set${res.sets.length===1?'':'s'})`;
-    el.classList.remove('hidden');
-  } catch { /* purely informational — never block the workout on this */ }
+    const p = prev[i];
+    const tdPrev = document.createElement('td');
+    tdPrev.className = 'wo-prev';
+    tdPrev.textContent = p ? woSetLabel({ weight: woNum(p.weight_kg), reps: woNum(p.reps) }).replace(' kg', '') : '—';
+
+    const cell = (field, label, step, mode) => {
+      const td = document.createElement('td');
+      const input = document.createElement('input');
+      input.className = 'wo-cell';
+      input.type = 'number';
+      input.min = '0';
+      input.step = step;
+      input.inputMode = mode;
+      input.dataset.field = field;
+      input.placeholder = '—';
+      input.value = s[field] ?? '';
+      input.setAttribute('aria-label', `Set ${i + 1} ${label}`);
+      td.append(input);
+      return td;
+    };
+
+    const tdCheck = document.createElement('td');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'wo-check';
+    btn.disabled = s.saving;
+    btn.setAttribute('aria-pressed', s.done ? 'true' : 'false');
+    btn.setAttribute('aria-label', s.done ? `Undo set ${i + 1}` : `Complete set ${i + 1}`);
+    btn.innerHTML = s.saving ? '<span class="wo-spin" aria-hidden="true"></span>' : '<i class="fas fa-check" aria-hidden="true"></i>';
+    tdCheck.append(btn);
+
+    tr.append(th, tdPrev, cell('weight', 'weight in kilograms', '0.5', 'decimal'), cell('reps', 'reps', '1', 'numeric'), tdCheck);
+    return tr;
+  }));
+
+  const doneCount = ex.sets.filter(s => s.done).length;
+  woEl('sessionSetIndicator').textContent = `Sets · ${doneCount}/${ex.sets.length} done`;
+  const btn = woEl('completeSetBtn');
+  btn.disabled = nextIdx === -1 || ex.sets[nextIdx]?.saving;
+  woEl('completeSetLabel').textContent = nextIdx === -1 ? 'All sets done' : `Complete set ${nextIdx + 1}`;
+  woEl('woRemoveSet').disabled = ex.sets.length <= 1;
 }
 
-function renderSetState(ex) {
-  document.getElementById('sessionSetIndicator').textContent = `Set ${session.currentSet} of ${ex.targetSets} · target ${ex.targetReps} reps`;
-  document.getElementById('sessReps').value = session.lastReps ?? ex.targetReps;
-  document.getElementById('sessWeight').value = session.lastWeight ?? (ex.targetWeight ?? '');
-  document.getElementById('sessionSetDots').innerHTML = Array.from({length: ex.targetSets}, (_, i) =>
-    `<span class="wo-dot ${i < session.currentSet - 1 ? 'done' : (i === session.currentSet - 1 ? 'active' : '')}"></span>`
-  ).join('');
-}
+function woRowFor(n) { return woCurrent().sets.find(s => s.n === n); }
 
-function updateOverallProgress() {
-  document.getElementById('sessionProgress').textContent = `Exercise ${session.index + 1} of ${session.exercises.length}`;
-  document.getElementById('sessionProgressBar').style.width = Math.round((session.index / session.exercises.length) * 100) + '%';
-}
-
-function startSessionTimer() {
-  clearInterval(session.timerHandle);
-  session.timerHandle = setInterval(() => {
-    if (session.paused) return;
-    session.elapsedSec++;
-    const m = String(Math.floor(session.elapsedSec / 60)).padStart(2, '0');
-    const s = String(session.elapsedSec % 60).padStart(2, '0');
-    document.getElementById('sessionElapsed').textContent = `${m}:${s}`;
-  }, 1000);
-}
-
-async function completeSet() {
-  const ex = session.exercises[session.index];
-  const reps   = document.getElementById('sessReps').value;
-  const weight = document.getElementById('sessWeight').value;
-  session.lastReps = reps;
-  session.lastWeight = weight;
-  const setNumber = session.currentSet;
-
+async function saveSet(ex, s, { fromEdit = false } = {}) {
+  const reps = s.reps === '' || s.reps === null ? '' : String(s.reps);
+  const weight = s.weight === '' || s.weight === null ? '' : String(s.weight);
+  if (reps === '' && weight === '') {
+    Trackie.Toast.warning('Enter reps or weight for this set first.');
+    return false;
+  }
+  s.saving = true;
+  session.pending++;
+  if (ex === woCurrent()) renderSetRows();
   try {
     const res = await Trackie.API.post(`${API_BASE}/gym.php`, {
       action: 'session_log_set',
       session_id: session.sessionId,
       exercise_name: ex.name,
-      set_number: setNumber,
+      set_number: s.n,
       reps, weight,
       plan_id: session.planId,
     });
-    if (!res.success) { Trackie.Toast.error(res.error || 'Failed to log that set.'); return; }
-    session.loggedExercises.add(ex.name);
+    if (!res.success) { Trackie.Toast.error(res.error || 'Failed to save that set.'); return false; }
+    const wasDone = s.done;
+    s.done = true;
+    s.savedReps = woNum(reps);
+    s.savedWeight = woNum(weight);
+    s.pr = !!(res.is_pr && res.previous_best !== null);
     if (res.newAchievements?.length) session.newAchievements.push(...res.newAchievements);
-
-    const banner = document.getElementById('sessionPrBanner');
-    if (res.is_pr && res.previous_best !== null) {
-      banner.classList.remove('hidden');
-    } else {
-      banner.classList.add('hidden');
+    if (ex === woCurrent()) {
+      woEl('sessionPrBanner').classList.toggle('hidden', !ex.sets.some(x => x.pr));
+      const pos = ex.sets.indexOf(s) + 1;
+      woEl('sessionSetStatus').textContent = fromEdit || wasDone ? `Set ${pos} updated` : `Set ${pos} logged`;
     }
-  } catch { Trackie.Toast.error('Network error — that set was not saved.'); return; }
-
-  if (session.currentSet < ex.targetSets) {
-    session.currentSet++;
-    renderSetState(ex);
-    return;
+    return true;
+  } catch {
+    Trackie.Toast.error('Network error — that set was not saved.');
+    return false;
+  } finally {
+    s.saving = false;
+    session && session.pending--;
+    if (session && ex === woCurrent()) { renderSetRows(); updateOverallProgress(); }
   }
-  advanceSession();
 }
 
-function finishExerciseEarly() {
-  advanceSession();
+async function completeRow(n) {
+  if (!session) return;
+  const ex = woCurrent();
+  const s = ex.sets.find(x => x.n === n);
+  if (!s || s.saving || s.done) return;
+  const ok = await saveSet(ex, s);
+  if (!ok || !session) return;
+  const moreToDo = !woAllComplete();
+  if (moreToDo && ex.rest > 0) woStartRest(ex.rest);
+  if (!moreToDo) woEl('sessionSetStatus').textContent = 'Every set is done — finish when you are ready';
 }
 
-function skipSessionExercise() {
-  advanceSession();
+async function uncompleteRow(n) {
+  const ex = woCurrent();
+  const s = ex.sets.find(x => x.n === n);
+  if (!s || s.saving || !s.done) return;
+  s.saving = true;
+  session.pending++;
+  renderSetRows();
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/gym.php`, {
+      action: 'session_delete_set', session_id: session.sessionId, exercise_name: ex.name, set_number: s.n,
+    });
+    if (!res.success) { Trackie.Toast.error(res.error || "Couldn't undo that set."); return; }
+    s.done = false;
+    s.pr = false;
+    woEl('sessionPrBanner').classList.toggle('hidden', !ex.sets.some(x => x.pr));
+    woEl('sessionSetStatus').textContent = `Set ${ex.sets.indexOf(s) + 1} marked not done`;
+  } catch { Trackie.Toast.error('Network error — nothing was changed.'); }
+  finally {
+    s.saving = false;
+    session && session.pending--;
+    if (session) { renderSetRows(); updateOverallProgress(); }
+  }
 }
 
-function advanceSession() {
-  session.index++;
-  if (session.index >= session.exercises.length) { showSummary(); return; }
-  startRest();
+function addSet() {
+  const ex = woCurrent();
+  const last = ex.sets[ex.sets.length - 1];
+  const n = ex.sets.reduce((m, s) => Math.max(m, s.n), 0) + 1;
+  ex.sets.push({
+    n, weight: last ? last.weight : (woNum(ex.targetWeight) ?? ''), reps: last ? last.reps : (woNum(ex.targetReps) ?? ''),
+    done: false, pr: false, saving: false, touched: false,
+  });
+  renderSetRows();
+  updateOverallProgress();
+  requestAnimationFrame(() => woEl('sessionSetRows').lastElementChild?.querySelector('input')?.focus());
 }
 
-function startRest() {
-  showPhase('rest');
-  session.restRemaining = REST_SECONDS;
-  session.restPaused = false;
-  document.getElementById('nextExerciseName').textContent = session.exercises[session.index].name;
-  document.getElementById('restPauseBtn').innerHTML = '<i class="fas fa-pause"></i> Pause';
-  renderRestTime();
-  clearInterval(session.restHandle);
-  session.restHandle = setInterval(() => {
-    if (session.restPaused) return;
-    session.restRemaining--;
-    renderRestTime();
-    if (session.restRemaining <= 0) { clearInterval(session.restHandle); endRest(); }
+async function removeSet() {
+  const ex = woCurrent();
+  if (ex.sets.length <= 1) return;
+  const s = ex.sets[ex.sets.length - 1];
+  if (s.saving) return;
+  if (s.done) {
+    const ok = await Trackie.confirmDialog(`Remove set ${ex.sets.length}? It is already logged and will be deleted.`, { confirmText: 'Remove set', danger: true });
+    if (!ok || !session) return;
+    await uncompleteRow(s.n);
+    if (s.done) return; // the delete failed — keep the row
+  }
+  ex.sets.pop();
+  renderSetRows();
+  updateOverallProgress();
+}
+
+/* ── Previous performance + demo media (loaded once per exercise) ──── */
+async function loadPreviousPerformance(ex) {
+  if (ex.info) { applyExerciseInfo(ex); return; }
+  resetExerciseMedia();
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/gym.php`, {action:'previous_performance', exercise_name: ex.name});
+    if (!res.success || !session) return;
+    ex.info = res;
+    // Pre-fill untouched, not-done rows with last time's numbers where the
+    // plan set none: real previous data only, never a guess.
+    const prevSets = res.found && Array.isArray(res.sets) ? res.sets : [];
+    if (ex.sets && prevSets.length) {
+      ex.sets.forEach((s, i) => {
+        if (s.done || s.touched) return;
+        const p = prevSets[Math.min(i, prevSets.length - 1)];
+        if ((s.weight === '' || s.weight === null) && p.weight_kg !== null && p.weight_kg !== undefined) s.weight = woNum(p.weight_kg) ?? '';
+        if ((s.reps === '' || s.reps === null) && p.reps !== null && p.reps !== undefined) s.reps = woNum(p.reps) ?? '';
+      });
+    }
+    if (woCurrent() === ex) { applyExerciseInfo(ex); renderSetRows(); }
+  } catch { /* purely informational — never block the workout on this */ }
+}
+
+function resetExerciseMedia() {
+  const vid = woEl('sessionExerciseVideo');
+  woEl('sessionPrevPerf').textContent = 'First time';
+  woEl('sessionPrevPerfSub').textContent = '';
+  woEl('sessionMedia').classList.add('hidden');
+  woEl('sessionExerciseCard').classList.remove('has-media');
+  vid.removeAttribute('src');
+  vid.removeAttribute('poster');
+  vid.classList.remove('hidden');
+  woStopFrames(woEl('sessionExerciseGif'));
+  woEl('sessionExerciseGif').classList.add('hidden');
+  woEl('sessionExerciseGif').removeAttribute('src');
+  woEl('sessionMediaCredit').classList.add('hidden');
+  woEl('sessionHowTo').classList.add('hidden');
+  woEl('sessionHowTo').open = false;
+  woEl('sessionHowToSteps').replaceChildren();
+}
+
+function applyExerciseInfo(ex) {
+  resetExerciseMedia();
+  const res = ex.info;
+  if (!res) return;
+  const media = woEl('sessionMedia');
+  const vid = woEl('sessionExerciseVideo');
+  const gif = woEl('sessionExerciseGif');
+  const videoUrl = woMediaUrl(res.video_url);
+  const gifUrl = woMediaUrl(res.gif_url);
+  const frames = Array.isArray(res.frames) ? res.frames : [];
+  if (videoUrl || gifUrl || frames.length) {
+    if (videoUrl) {
+      const poster = woMediaUrl(res.video_poster);
+      if (poster) vid.poster = poster;
+      vid.src = videoUrl;
+      vid.play().catch(() => {}); // autoplay can be blocked silently — controls still work
+    } else {
+      vid.classList.add('hidden');
+      if (gifUrl) gif.src = gifUrl; else woPlayFrames(gif, frames);
+      gif.alt = res.demo_name ? `${res.demo_name} demonstration` : 'Exercise demonstration';
+      gif.classList.remove('hidden');
+    }
+    // Third-party media is credited by its source (and names the exact demo shown).
+    const credit = woEl('sessionMediaCredit');
+    credit.textContent = res.demo_credit || '';
+    credit.title = res.demo_name ? `Demo: ${res.demo_name} · ${res.demo_credit}` : '';
+    credit.classList.toggle('hidden', !res.demo_credit);
+    media.classList.remove('hidden');
+    woEl('sessionExerciseCard').classList.add('has-media');
+  }
+  const steps = Array.isArray(res.instructions) ? res.instructions.filter(s => typeof s === 'string' && s.trim()) : [];
+  if (steps.length) {
+    const ol = woEl('sessionHowToSteps');
+    steps.forEach(s => { const li = document.createElement('li'); li.textContent = s; ol.append(li); });
+    woEl('sessionHowTo').classList.remove('hidden');
+  }
+  if (!res.found || !res.sets?.length) return;
+  const best = res.sets.reduce((a, b) => ((b.weight_kg ?? 0) > (a.weight_kg ?? 0) ? b : a));
+  const label = woSetLabel({ weight: woNum(best.weight_kg), reps: woNum(best.reps) });
+  woEl('sessionPrevPerf').textContent = label === 'Logged' ? '—' : label;
+  const n = res.sets.length;
+  woEl('sessionPrevPerfSub').textContent = `${n} set${n === 1 ? '' : 's'}` + (res.log_date ? ` · ${woFmtDate(res.log_date)}` : '');
+}
+
+/* ── Progress, context panel, timers ───────────────────────────────── */
+// Progress = sets done ÷ set rows planned (rows the user added count too).
+function updateOverallProgress(finished = false) {
+  const total = session.exercises.length;
+  const rows = woRowsTotal();
+  const done = woDoneSets().length;
+  const pct = finished ? 100 : (rows ? Math.round((done / rows) * 100) : 0);
+  const completed = session.exercises.filter(woExerciseComplete).length;
+  woEl('sessionProgressBar').style.width = pct + '%';
+  woEl('sessionProgressPct').textContent = pct + '%';
+  woEl('sessionProgressTrack').setAttribute('aria-valuenow', String(pct));
+  woEl('sessionProgress').textContent =
+    `${total} exercise${total === 1 ? '' : 's'} · ${completed} completed`;
+  woEl('ctxExercises').textContent = `${completed} / ${total}`;
+  woEl('ctxSets').textContent = `${done} / ${rows}`;
+  woEl('ctxVolume').textContent = woFmtVolume(woVolume(woDoneSets()));
+}
+
+function startSessionTimer() {
+  clearInterval(session.timerHandle);
+  session.timerHandle = setInterval(() => {
+    if (!session) return;
+    session.elapsedSec++;
+    const t = woFmtClock(session.elapsedSec);
+    woEl('sessionElapsed').textContent = t;
+    woEl('ctxTime').textContent = t;
   }, 1000);
 }
-function renderRestTime() {
-  const m = String(Math.floor(session.restRemaining / 60)).padStart(2, '0');
-  const s = String(session.restRemaining % 60).padStart(2, '0');
-  document.getElementById('restTimeDisplay').textContent = `${m}:${s}`;
+
+function woStartRest(seconds) {
+  woStopRest();
+  session.rest = { total: seconds, remaining: seconds, handle: null };
+  woEl('woRest').classList.remove('hidden');
+  woRenderRest();
+  session.rest.handle = setInterval(() => {
+    if (!session || !session.rest) return;
+    session.rest.remaining--;
+    woRenderRest();
+    if (session.rest.remaining <= 0) {
+      woStopRest();
+      woEl('sessionSetStatus').textContent = 'Rest over — next set';
+      if (navigator.vibrate) navigator.vibrate(200);
+    }
+  }, 1000);
 }
-function toggleRestPause() {
-  session.restPaused = !session.restPaused;
-  document.getElementById('restPauseBtn').innerHTML = session.restPaused
-    ? '<i class="fas fa-play"></i> Resume'
-    : '<i class="fas fa-pause"></i> Pause';
+function woRenderRest() {
+  const r = session.rest;
+  woEl('woRestTime').textContent = woFmtClock(Math.max(0, r.remaining));
+  woEl('woRestFill').style.width = (r.total ? Math.max(0, r.remaining) / r.total * 100 : 0) + '%';
 }
-function skipRest() { clearInterval(session.restHandle); endRest(); }
-function endRest() {
-  showPhase('exercise');
+function woStopRest() {
+  if (session && session.rest) clearInterval(session.rest.handle);
+  if (session) session.rest = null;
+  woEl('woRest')?.classList.add('hidden');
+}
+function woAdjustRest(delta) {
+  if (!session.rest) return;
+  session.rest.remaining = Math.max(0, session.rest.remaining + delta);
+  session.rest.total = Math.max(session.rest.total, session.rest.remaining);
+  if (session.rest.remaining === 0) { woStopRest(); return; }
+  woRenderRest();
+}
+
+/* ── Navigation + finishing ────────────────────────────────────────── */
+function goToExercise(i) {
+  if (!session || i < 0 || i >= session.exercises.length) return;
+  session.index = i;
   renderExercisePhase();
 }
 
-async function showSummary() {
-  clearInterval(session.restHandle);
+async function nextOrFinish() {
+  if (!session) return;
+  if (session.index < session.exercises.length - 1) { goToExercise(session.index + 1); return; }
+  if (session.pending) return; // let in-flight saves land first
+  const done = woDoneSets().length;
+  if (!done) { quitSession(); return; }
+  if (woAllComplete()) { showSummary(); return; }
+  const ok = await Trackie.confirmDialog(
+    `Finish now? You've logged ${done} of ${woRowsTotal()} sets. Logged sets are saved.`,
+    { confirmText: 'Finish workout' }
+  );
+  if (ok && session) showSummary({ early: true });
+}
+
+function woStat(grid, label, value, accent) {
+  const row = document.createElement('div');
+  if (accent) row.className = `wo-stat-${accent}`;
+  const dt = document.createElement('dt');
+  dt.textContent = label;
+  const dd = document.createElement('dd');
+  dd.textContent = value;
+  row.append(dt, dd);
+  grid.append(row);
+}
+
+function renderBreakdown() {
+  const list = woEl('summaryBreakdown');
+  list.replaceChildren();
+  session.exercises.forEach(ex => {
+    const done = (ex.sets || []).filter(s => s.done);
+    if (!done.length) return;
+    const li = document.createElement('li');
+    const head = document.createElement('div');
+    head.className = 'wo-bd-head';
+    const name = document.createElement('span');
+    name.className = 'wo-bd-name';
+    name.textContent = ex.name;
+    const vol = document.createElement('span');
+    vol.className = 'wo-bd-vol';
+    vol.textContent = woFmtVolume(woVolume(done.map(s => ({ reps: s.savedReps, weight: s.savedWeight }))));
+    head.append(name, vol);
+    const sets = document.createElement('div');
+    sets.className = 'wo-bd-sets';
+    done.forEach(s => {
+      const chip = document.createElement('span');
+      chip.className = 'wo-bd-set' + (s.pr ? ' is-pr' : '');
+      chip.textContent = woSetLabel({ weight: s.savedWeight, reps: s.savedReps });
+      if (s.pr) chip.setAttribute('title', 'Personal record');
+      sets.append(chip);
+    });
+    li.append(head, sets);
+    list.append(li);
+  });
+  woEl('summaryBreakdown').closest('.wo-breakdown').classList.toggle('hidden', !list.children.length);
+}
+
+async function showSummary({ early = false } = {}) {
   clearInterval(session.timerHandle);
+  woStopRest();
   showPhase('summary');
-  updateOverallProgress();
+  updateOverallProgress(!early); // an early end shows the real progress, not a fake 100%
+  session.endedEarly = early;
+  woEl('summaryEyebrow').textContent = early ? 'Workout ended early' : 'Workout complete';
+  woEl('summaryTitle').textContent = session.planName;
+  woEl('summaryStreak').classList.add('hidden');
+  renderBreakdown();
 
   // Server-authoritative counts/duration — the client-side elapsed timer can
   // drift if the tab was backgrounded, so ask the API for the real numbers
   // (this also awards session XP + runs the achievement check, once).
-  let exerciseCount = session.loggedExercises.size;
-  let mins = Math.round(session.elapsedSec / 60);
+  const doneSets = woDoneSets();
+  let exerciseCount = new Set(doneSets.map(s => s.exercise)).size;
+  let durationSec = session.elapsedSec;
+  let streak = null;
   try {
     const res = await Trackie.API.post(`${API_BASE}/gym.php`, {action:'session_complete', session_id: session.sessionId});
     if (res.success) {
       exerciseCount = res.exercise_count;
-      mins = Math.round(res.duration_sec / 60);
+      durationSec = res.duration_sec;
       if (res.xp) session.xpGained = res.xp.gained;
       if (res.newAchievements?.length) session.newAchievements.push(...res.newAchievements);
-      if (res.streak !== null && res.streak !== undefined) {
-        const streakEl = document.getElementById('summaryStreak');
-        streakEl.innerHTML = `<i class="fas fa-fire"></i> ${res.streak} Day Streak`;
-        streakEl.style.display = 'block';
-      }
+      streak = res.streak ?? null;
     }
   } catch { /* fall back to client-side numbers below */ }
+  if (!session) return;
 
-  document.getElementById('summaryStats').innerHTML =
-    `<strong>${exerciseCount}</strong> exercise${exerciseCount===1?'':'s'} logged · <strong>${mins}</strong> min` +
-    (session.xpGained ? ` · <strong>+${session.xpGained}</strong> XP` : '');
+  const mins = Math.round(durationSec / 60);
+  const grid = woEl('summaryStats');
+  grid.replaceChildren();
+  woStat(grid, 'Duration', mins < 1 ? '< 1 min' : `${mins} min`);
+  woStat(grid, 'Exercises', String(exerciseCount));
+  woStat(grid, 'Sets', String(doneSets.length));
+  woStat(grid, 'Volume', woFmtVolume(woVolume(doneSets)));
+  const prs = doneSets.filter(s => s.pr).length;
+  if (prs) woStat(grid, 'New PRs', String(prs), 'xp');
+  if (session.xpGained) woStat(grid, 'XP earned', `+${session.xpGained} XP`, 'xp');
+  const achCount = session.newAchievements.length;
+  if (achCount) woStat(grid, 'Achievements', `${achCount} new`, 'xp');
+
+  if (streak) {
+    const streakEl = woEl('summaryStreak');
+    streakEl.innerHTML = '<i class="fas fa-fire" aria-hidden="true"></i> ';
+    streakEl.append(`${streak}-day streak`);
+    streakEl.classList.remove('hidden');
+  }
+  woFocus('summaryTitle');
 }
+
 async function closeSummary() {
-  document.body.style.overflow = '';
-  document.getElementById('workoutSession').classList.add('hidden');
-  Trackie.Toast.success(`${session.planName} complete! 💪`);
+  woTeardown();
+  Trackie.Toast.success(session.endedEarly ? `${session.planName} saved.` : `${session.planName} complete! 💪`);
   notifyNewAchievements(session.newAchievements);
   session = null;
-  await Trackie.refreshFragments(['gymStatsWrap', 'gymStreakBadge', 'gymWeeklyPlanWrap', 'gymProgressPreviewWrap', 'gymDailyGoalWrap', 'gymPlansWrap', 'logList', 'logListFull', 'gymAchievementsWrap']);
+  await Trackie.refreshFragments(['gymStatsWrap', 'gymStreakBadge', 'gymWeeklyPlanWrap', 'gymProgressPreviewWrap', 'gymDailyGoalWrap', 'gymPlansWrap', 'logList', 'gymAchievementsWrap']);
+  if (typeof loadHistory === 'function') loadHistory(true);
 }
 
+// Leaving early. With work logged, "End & save" takes the same server path as
+// finishing (session_complete: duration, session XP once, achievements) and
+// shows the summary — logged work always counts. With nothing logged, the
+// empty session is discarded (session_cancel deletes it server-side).
 async function quitSession() {
-  const hasLogs = session.loggedExercises.size > 0;
-  const ok = hasLogs
-    ? await Trackie.confirmDialog(`End this workout? ${session.loggedExercises.size} exercise${session.loggedExercises.size===1?'':'s'} already logged will be kept.`, {confirmText:'End workout'})
-    : await Trackie.confirmDialog('Quit this workout? Nothing has been logged yet.', {confirmText:'Quit', danger:true});
-  if (!ok) return;
-  clearInterval(session.timerHandle);
-  clearInterval(session.restHandle);
-  document.body.style.overflow = '';
-  document.getElementById('workoutSession').classList.add('hidden');
+  if (!session) return;
+  if (woEl('workoutSession').dataset.phase === 'summary') { closeSummary(); return; }
+  if (session.pending) return; // a set is mid-save; its result decides what "ending" keeps
+
+  const sets = woDoneSets().length;
+  if (sets > 0) {
+    const ok = await Trackie.confirmDialog(
+      `End the workout now? Your ${sets} logged set${sets === 1 ? ' is' : 's are'} saved and will count toward your stats.`,
+      { confirmText: 'End & save' }
+    );
+    if (!ok || !session) return;
+    showSummary({ early: true });
+    return;
+  }
+
+  const ok = await Trackie.confirmDialog('Quit this workout? Nothing has been logged yet.', { confirmText: 'Quit', danger: true });
+  if (!ok || !session) return;
   const sessionId = session.sessionId;
-  const newAch = session.newAchievements;
+  woTeardown();
   session = null;
   try {
     await Trackie.API.post(`${API_BASE}/gym.php`, {action:'session_cancel', session_id: sessionId});
   } catch {}
-  if (hasLogs) {
-    Trackie.Toast.info('Workout ended — progress kept.');
-    notifyNewAchievements(newAch);
-    await Trackie.refreshFragments(['gymStatsWrap', 'gymStreakBadge', 'gymWeeklyPlanWrap', 'gymProgressPreviewWrap', 'gymDailyGoalWrap', 'gymPlansWrap', 'logList', 'logListFull', 'gymAchievementsWrap']);
-  } else {
-    Trackie.Toast.info('Workout cancelled.');
-  }
+  Trackie.Toast.info('Workout cancelled.');
 }
+
+// All workout-screen controls are delegated from the overlay element itself:
+// SpaNav replaces it on every visit, so listeners never stack up.
+(function wireWorkoutControls() {
+  // Browser Back mid-workout swaps the page under a <body>-level overlay.
+  // One window listener for the app's lifetime (this script re-runs on every
+  // SpaNav visit, so guard against stacking it).
+  if (!window.__woPopstateBound) {
+    window.__woPopstateBound = true;
+    window.addEventListener('popstate', () => {
+      const stale = document.querySelectorAll('body > .workout-overlay');
+      if (!stale.length) return;
+      // Sets already logged are saved server-side; only the live UI is lost.
+      const live = window.__woActive;
+      if (live) {
+        clearInterval(live.timerHandle);
+        if (live.rest) clearInterval(live.rest.handle);
+        live.dead = true;
+        window.__woActive = null;
+      }
+      stale.forEach(el => el.remove());
+      document.body.classList.remove('workout-open');
+      document.body.style.overflow = '';
+    });
+  }
+  const root = woEl('workoutSession');
+  if (!root) return;
+
+  root.addEventListener('click', e => {
+    if (!session) return;
+    const check = e.target.closest('.wo-check');
+    if (check) {
+      const n = +check.closest('tr').dataset.n;
+      const s = woRowFor(n);
+      if (s) (s.done ? uncompleteRow(n) : completeRow(n));
+      return;
+    }
+    const rest = e.target.closest('[data-rest]');
+    if (rest) {
+      if (rest.dataset.rest === 'skip') woStopRest();
+      else woAdjustRest(parseInt(rest.dataset.rest, 10));
+      return;
+    }
+    if (e.target.closest('#completeSetBtn')) {
+      const next = woCurrent().sets.find(s => !s.done);
+      if (next) completeRow(next.n);
+    } else if (e.target.closest('#woAddSet')) addSet();
+    else if (e.target.closest('#woRemoveSet')) removeSet();
+    else if (e.target.closest('#woPrevEx')) goToExercise(session.index - 1);
+    else if (e.target.closest('#woNextEx')) nextOrFinish();
+  });
+
+  // Typing into a row updates local state; a DONE row is re-saved on change.
+  root.addEventListener('input', e => {
+    const input = e.target.closest('.wo-cell');
+    if (!input || !session) return;
+    const s = woRowFor(+input.closest('tr').dataset.n);
+    if (!s) return;
+    s[input.dataset.field] = input.value === '' ? '' : input.value;
+    s.touched = true;
+  });
+  root.addEventListener('change', e => {
+    const input = e.target.closest('.wo-cell');
+    if (!input || !session) return;
+    const s = woRowFor(+input.closest('tr').dataset.n);
+    if (s && s.done && !s.saving &&
+        (woNum(s.reps) !== s.savedReps || woNum(s.weight) !== s.savedWeight)) {
+      saveSet(woCurrent(), s, { fromEdit: true });
+    }
+  });
+
+  root.addEventListener('keydown', e => {
+    if (!session) return;
+    const input = e.target.closest('.wo-cell');
+    if (e.key === 'Enter' && input) {
+      e.preventDefault();
+      const s = woRowFor(+input.closest('tr').dataset.n);
+      if (s && !s.done) completeRow(s.n);
+      else input.blur(); // commits the edit via "change"
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      quitSession();
+    }
+  });
+})();
 
 async function saveLog() {
   const exercise = document.getElementById('logExercise').value.trim();
@@ -1374,7 +2478,7 @@ async function saveLog() {
       Trackie.closeModal('logWorkoutModal');
       Trackie.Toast.success('Workout logged!' + (res.xp ? ` +${res.xp.gained} XP` : ''));
       notifyNewAchievements(res.newAchievements);
-      await Trackie.refreshFragments(['gymStatsWrap', 'gymStreakBadge', 'gymWeeklyPlanWrap', 'gymProgressPreviewWrap', 'gymDailyGoalWrap', 'gymPlansWrap', 'logList', 'logListFull', 'gymAchievementsWrap']);
+      await Trackie.refreshFragments(['gymStatsWrap', 'gymStreakBadge', 'gymWeeklyPlanWrap', 'gymProgressPreviewWrap', 'gymDailyGoalWrap', 'gymPlansWrap', 'logList', 'gymAchievementsWrap']);
     } else Trackie.Toast.error(res.error || 'Failed.');
   } catch { Trackie.Toast.error('Network error.'); }
 }
@@ -1392,27 +2496,219 @@ async function deleteLog(id) {
   } catch { Trackie.Toast.error('Network error.'); }
 }
 
-/* ── Exercise Library ─────────────────────────────────────────── */
+/* ── Exercise Library (Fitness V2) ───────────────────────────────
+   Data comes from the `exercise_catalog` action (app/Modules/Fitness):
+   the local library plus any remote provider, in one normalized shape.
+   Everything user- or provider-supplied is set via textContent / DOM, never
+   concatenated into HTML. */
 let libSearchDebounce = null;
-function exerciseCardHtml(ex) {
-  const tags = [ex.muscle_group, ex.equipment].filter(Boolean);
-  const safeName = ex.name.replace(/'/g, "\\'");
-  return `
-    <div class="habit-card gym-ex-card">
-      ${ex.video_path ? `
-        <button class="gym-ex-video-thumb" onclick="watchExerciseVideo('${safeName}', '${API_BASE.replace('/api','')}/${ex.video_path}')" aria-label="Watch ${ex.name} demo">
-          <i class="fas fa-circle-play"></i>
-        </button>` : ''}
-      <div class="gym-ex-card-head">
-        <span class="gym-ex-name">${ex.name}</span>
-        <button class="btn btn-icon btn-ghost btn-sm" aria-label="Log ${ex.name}" title="Log a set"
-                onclick="openLogWorkout('${safeName}')">
-          <i class="fas fa-plus"></i>
-        </button>
-      </div>
-      <div class="gym-ex-tags">${tags.map(t => `<span class="gym-ex-tag">${t}</span>`).join('')}</div>
-    </div>`;
+let libResults = [];
+let libRequestSeq = 0;
+let fxCurrent = null;
+
+function fxEl(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
 }
+function fxTitle(s) { return s ? String(s).replace(/\b\w/g, c => c.toUpperCase()) : s; }
+
+function exerciseCard(ex, index) {
+  const card = fxEl('button', 'fx-card');
+  card.type = 'button';
+  card.dataset.index = index;
+  card.setAttribute('aria-label', `${ex.name} — details`);
+
+  const thumb = fxEl('div', 'fx-thumb');
+  const img = woMediaUrl(ex.thumbnail_url) || woMediaUrl(ex.gif_url);
+  if (img) {
+    const i = fxEl('img');
+    i.src = img; i.alt = ''; i.loading = 'lazy'; i.referrerPolicy = 'no-referrer';
+    thumb.append(i);
+  } else {
+    thumb.append(fxEl('i', `fas ${ex.video_url ? 'fa-circle-play' : 'fa-dumbbell'}`));
+    thumb.classList.add('is-icon');
+  }
+  if (ex.video_url) thumb.append(fxEl('span', 'fx-thumb-badge', 'Video'));
+
+  const body = fxEl('div', 'fx-card-body');
+  body.append(fxEl('span', 'fx-name', ex.name));
+  const muscles = [ex.target || ex.body_part, ...(ex.secondary || []).slice(0, 2)].filter(Boolean).map(fxTitle);
+  if (muscles.length) body.append(fxEl('span', 'fx-muscles', muscles.join(' · ')));
+  const tags = fxEl('span', 'fx-tags');
+  [ex.equipment, ex.difficulty].filter(Boolean).forEach(t => tags.append(fxEl('span', 'fx-tag', fxTitle(t))));
+  if (ex.source === 'workoutdb') tags.append(fxEl('span', 'fx-tag fx-tag-src', 'WorkoutDB'));
+  else if (ex.custom) tags.append(fxEl('span', 'fx-tag fx-tag-src', 'Mine'));
+  body.append(tags);
+
+  card.append(thumb, body);
+  return card;
+}
+
+async function searchExercises() {
+  const wrap = document.getElementById('libResults');
+  const hint = document.getElementById('libRemoteHint');
+  const q = document.getElementById('libSearch').value.trim();
+  const seq = ++libRequestSeq;
+  wrap.replaceChildren(fxEl('p', 'form-hint', 'Searching…'));
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/gym.php`, {
+      action: 'exercise_catalog', q,
+      body_part: document.getElementById('libMuscle').value,
+      equipment: document.getElementById('libEquipment').value,
+    });
+    if (seq !== libRequestSeq) return; // a newer search is already on its way
+    if (!res.success) throw new Error('catalog');
+    libResults = res.exercises || [];
+
+    // Honest provider status: only mention WorkoutDB when it is set up.
+    const remoteOn = !!(res.remote && res.remote.workoutdb);
+    hint.classList.toggle('hidden', !remoteOn || !!q);
+    hint.textContent = remoteOn && !q ? 'Type an exercise name to also search WorkoutDB.' : '';
+
+    if (!libResults.length) {
+      const icon = fxEl('div', 'empty-state-icon');
+      icon.append(fxEl('i', 'fas fa-search'));
+      const inner = fxEl('div', 'empty-state');
+      inner.append(icon, fxEl('div', 'empty-state-title', 'No exercises found'),
+                   fxEl('p', null, 'Try a different search, or add it as a custom exercise.'));
+      const empty = fxEl('div', 'card');
+      empty.append(inner);
+      wrap.replaceChildren(empty);
+      return;
+    }
+    wrap.replaceChildren(...libResults.map(exerciseCard));
+  } catch {
+    if (seq === libRequestSeq) wrap.replaceChildren(fxEl('p', 'form-hint', "Couldn't load exercises — check your connection and try again."));
+  }
+}
+
+function openExerciseDetail(ex) {
+  if (!ex) return;
+  fxCurrent = ex;
+  document.getElementById('fxDetailName').textContent = ex.name;
+
+  renderDetailMedia(ex);
+
+  // Library exercises without their own clip: ask the server for the cached
+  // demo (ExerciseDB GIF / free-exercise-db photos) and fill it in when it lands.
+  if (ex.source === 'library' && !ex.video_url && !ex.gif_url && !(ex.frames || []).length) {
+    Trackie.API.post(`${API_BASE}/gym.php`, { action: 'exercise_detail', source: 'library', id: ex.id })
+      .then(res => {
+        if (!res.success || fxCurrent !== ex) return;
+        Object.assign(ex, {
+          gif_url: res.exercise.gif_url || null, frames: res.exercise.frames || [],
+          demo_credit: res.exercise.demo_credit || null, demo_name: res.exercise.demo_name || null,
+          instructions: (ex.instructions || []).length ? ex.instructions : (res.exercise.instructions || []),
+        });
+        renderDetailMedia(ex);
+        renderDetailSteps(ex);
+      })
+      .catch(() => { /* a demo is optional — the sheet works without it */ });
+  }
+
+  const facts = document.getElementById('fxDetailFacts');
+  facts.replaceChildren();
+  [['Target', ex.target || ex.body_part], ['Secondary', (ex.secondary || []).join(', ')],
+   ['Equipment', ex.equipment], ['Difficulty', ex.difficulty]].forEach(([k, v]) => {
+    if (!v) return;
+    const row = fxEl('div');
+    row.append(fxEl('dt', null, k), fxEl('dd', null, fxTitle(v)));
+    facts.append(row);
+  });
+
+  renderDetailSteps(ex);
+
+  document.getElementById('fxSaveBtn').classList.toggle('hidden', ex.source === 'library');
+  Trackie.openModal('exerciseDetailModal');
+}
+
+function renderDetailMedia(ex) {
+  const media = document.getElementById('fxDetailMedia');
+  const vid = document.getElementById('fxDetailVideo');
+  const gif = document.getElementById('fxDetailGif');
+  const credit = document.getElementById('fxDetailCredit');
+  const videoUrl = woMediaUrl(ex.video_url), gifUrl = woMediaUrl(ex.gif_url);
+  const frames = Array.isArray(ex.frames) ? ex.frames : [];
+  woStopFrames(gif);
+  vid.removeAttribute('src'); vid.removeAttribute('poster'); gif.removeAttribute('src');
+  vid.classList.toggle('hidden', !videoUrl);
+  gif.classList.toggle('hidden', !!videoUrl || (!gifUrl && !frames.length));
+  if (videoUrl) {
+    const poster = woMediaUrl(ex.thumbnail_url);
+    if (poster) vid.poster = poster;
+    vid.src = videoUrl;
+  } else if (gifUrl || frames.length) {
+    if (gifUrl) gif.src = gifUrl; else woPlayFrames(gif, frames);
+    gif.alt = `${ex.demo_name || ex.name} demonstration`;
+  }
+  media.classList.toggle('hidden', !videoUrl && !gifUrl && !frames.length);
+  // Name the source — and the exact exercise shown when it's a close match.
+  const showCredit = !videoUrl && !!ex.demo_credit;
+  credit.textContent = showCredit
+    ? `Demo${ex.demo_name && fitnessNameKey(ex.demo_name) !== fitnessNameKey(ex.name) ? `: ${ex.demo_name}` : ''} · ${ex.demo_credit}`
+    : '';
+  credit.classList.toggle('hidden', !showCredit);
+}
+function fitnessNameKey(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+function renderDetailSteps(ex) {
+  const steps = ex.instructions || [];
+  document.getElementById('fxDetailSteps').replaceChildren(...steps.map(s => fxEl('li', null, s)));
+  document.getElementById('fxDetailStepsWrap').classList.toggle('hidden', !steps.length);
+}
+
+// Delegated: result cards are re-rendered on every search.
+document.getElementById('libResults')?.addEventListener('click', e => {
+  const card = e.target.closest('.fx-card');
+  if (card) openExerciseDetail(libResults[+card.dataset.index]);
+});
+document.getElementById('exerciseDetailModal')?.addEventListener('click', e => {
+  if (e.target.closest('[data-close-modal]') || e.target.classList.contains('modal-backdrop')) {
+    document.getElementById('fxDetailVideo').pause();
+    woStopFrames(document.getElementById('fxDetailGif'));
+  }
+});
+document.getElementById('fxLogBtn')?.addEventListener('click', () => {
+  if (!fxCurrent) return;
+  Trackie.closeModal('exerciseDetailModal');
+  openLogWorkout(fxCurrent.name);
+});
+document.getElementById('fxSaveBtn')?.addEventListener('click', async e => {
+  if (!fxCurrent || fxCurrent.source === 'library') return;
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/gym.php`, { action: 'exercise_save', source: fxCurrent.source, id: fxCurrent.id });
+    if (!res.success) { Trackie.Toast.error(res.error || "Couldn't save that exercise."); return; }
+    Trackie.Toast.success(`${fxCurrent.name} saved to your library.`);
+    btn.classList.add('hidden');
+    searchExercises();
+  } catch { Trackie.Toast.error('Network error.'); }
+  finally { btn.disabled = false; }
+});
+document.getElementById('fxAddBtn')?.addEventListener('click', async e => {
+  if (!fxCurrent) return;
+  const btn = e.currentTarget;
+  const planSel = document.getElementById('fxAddPlan');
+  btn.disabled = true;
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/gym.php`, {
+      action: 'plan_add_exercise',
+      plan_id: planSel.value,
+      exercise_name: fxCurrent.name,
+      sets: document.getElementById('fxAddSets').value,
+      reps: document.getElementById('fxAddReps').value,
+    });
+    if (!res.success) { Trackie.Toast.error(res.error || "Couldn't add it."); return; }
+    Trackie.Toast.success(`Added to ${planSel.options[planSel.selectedIndex].text}.`);
+    Trackie.closeModal('exerciseDetailModal');
+    await Trackie.refreshFragments(['gymPlansWrap']);
+  } catch { Trackie.Toast.error('Network error.'); }
+  finally { btn.disabled = false; }
+});
+
 function watchExerciseVideo(name, url) {
   document.getElementById('wvTitle').textContent = name;
   document.getElementById('wvPlayer').src = url;
@@ -1424,27 +2720,10 @@ document.getElementById('watchVideoModal')?.addEventListener('click', e => {
     document.getElementById('wvPlayer').removeAttribute('src');
   }
 });
-async function searchExercises() {
-  const wrap = document.getElementById('libResults');
-  wrap.innerHTML = '<p class="form-hint">Searching…</p>';
-  try {
-    const res = await Trackie.API.post(`${API_BASE}/gym.php`, {
-      action: 'exercise_search',
-      q: document.getElementById('libSearch').value.trim(),
-      muscle: document.getElementById('libMuscle').value,
-      equipment: document.getElementById('libEquipment').value,
-    });
-    if (!res.success || !res.exercises.length) {
-      wrap.innerHTML = '<div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-search"></i></div><div class="empty-state-title">No exercises found</div><p>Try a different search, or add it as a custom exercise.</p></div></div>';
-      return;
-    }
-    wrap.innerHTML = res.exercises.map(exerciseCardHtml).join('');
-  } catch { wrap.innerHTML = '<p class="form-hint">Network error.</p>'; }
-}
-['libSearch'].forEach(id => document.getElementById(id)?.addEventListener('input', () => {
+document.getElementById('libSearch')?.addEventListener('input', () => {
   clearTimeout(libSearchDebounce);
-  libSearchDebounce = setTimeout(searchExercises, 300);
-}));
+  libSearchDebounce = setTimeout(searchExercises, 350);
+});
 ['libMuscle', 'libEquipment'].forEach(id => document.getElementById(id)?.addEventListener('change', searchExercises));
 
 /* ── Exercise video matching ─────────────────────────────────────
@@ -1503,8 +2782,8 @@ function renderCurrentVideoAssign() {
   player.load();
 
   const select = document.getElementById('avExisting');
-  select.innerHTML = '<option value="">— choose one —</option>' +
-    videoAssignAllExercises.map(ex => `<option value="${ex.id}">${ex.name}${ex.muscle_group ? ' (' + ex.muscle_group + ')' : ''}</option>`).join('');
+  select.replaceChildren(new Option('— choose one —', ''), ...videoAssignAllExercises.map(ex =>
+    new Option(ex.name + (ex.muscle_group ? ` (${ex.muscle_group})` : ''), ex.id)));
 
   // Best-effort guess at a name from the filename, so the "new exercise"
   // field isn't blank — still fully editable before assigning.
@@ -1658,8 +2937,8 @@ function renderPrList(records) {
   }
   wrap.innerHTML = records.slice(0, 8).map(r => `
     <div class="qstat-item">
-      <span class="qstat-label"><i class="fas fa-trophy" style="color:#f59e0b"></i> ${r.exercise_name}</span>
-      <span class="qstat-value">${r.weight_kg} kg${r.reps ? ` × ${r.reps}` : ''}</span>
+      <span class="qstat-label"><i class="fas fa-trophy" style="color:#f59e0b"></i> ${escHtml(r.exercise_name)}</span>
+      <span class="qstat-value">${escHtml(r.weight_kg)} kg${r.reps ? ` × ${escHtml(r.reps)}` : ''}</span>
     </div>`).join('');
 }
 
