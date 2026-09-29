@@ -691,6 +691,8 @@ $migrations = [
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
+    'habits.schedule_days' => "ALTER TABLE habits ADD COLUMN IF NOT EXISTS schedule_days VARCHAR(13) DEFAULT NULL AFTER frequency",
+
     // Gardening — plant collection
     'plants table' => "CREATE TABLE IF NOT EXISTS plants (
         id                INT AUTO_INCREMENT PRIMARY KEY,

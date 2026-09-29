@@ -4436,3 +4436,10 @@ html { overflow-x: clip; }
 /* Toast action button (Undo) */
 .toast-action { background: none; border: 1px solid currentColor; color: inherit; font: inherit; font-size: .75rem; font-weight: 700; padding: .1875rem .625rem; border-radius: 999px; cursor: pointer; margin-left: .5rem; flex-shrink: 0; }
 .toast-action:hover { background: rgba(255,255,255,.12); }
+
+/* Habit schedule: weekday picker */
+.habit-days { display: flex; gap: .375rem; flex-wrap: wrap; }
+.habit-day input { position: absolute; opacity: 0; }
+.habit-day span { display: inline-flex; align-items: center; justify-content: center; min-width: 2.75rem; height: 2.25rem; padding: 0 .5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .8125rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+.habit-day input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
+.habit-day input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }

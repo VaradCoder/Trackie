@@ -46,7 +46,7 @@ $priDone  = count(array_filter($priorities, fn($t) => (bool)$t['completed']));
 
 // ── Habits due today ─────────────────────────────────────────────
 $habits = fetchAll(
-    "SELECT h.id, h.name, h.color,
+    "SELECT h.id, h.name, h.color, h.frequency, h.schedule_days,
             MAX(CASE WHEN l.date_completed=? THEN 1 ELSE 0 END) AS logged_today
      FROM habits h
      LEFT JOIN logs l ON l.habit_id=h.id
@@ -55,6 +55,18 @@ $habits = fetchAll(
      ORDER BY logged_today ASC, h.name ASC",
     [$today, $uid]
 );
+// Only habits scheduled for today; the rest are listed as "not due".
+require_once '../includes/habit_schedule.php';
+$weekStart = userSetting($uid, 'week_start');
+$hLogs = [];
+foreach (fetchAll("SELECT l.habit_id, l.date_completed d FROM logs l JOIN habits h ON h.id=l.habit_id
+                   WHERE h.user_id=? AND l.date_completed >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)", [$uid]) as $r) $hLogs[$r['habit_id']][] = $r['d'];
+$notDue = [];
+$habits = array_values(array_filter($habits, function ($h) use ($today, $hLogs, $weekStart, &$notDue) {
+    if ($h['logged_today'] || habitDueOn($h, $today, $hLogs[$h['id']] ?? [], $weekStart)) return true;
+    $notDue[] = $h;
+    return false;
+}));
 $habitsDone = count(array_filter($habits, fn($h) => (bool)$h['logged_today']));
 
 // ── Goal snapshot: nearest deadline / most recently moved, not complete ──
@@ -132,6 +144,9 @@ require_once '../includes/head.php';
         </span>
       </label>
     <?php endforeach; endif; ?>
+    <?php if ($notDue): ?>
+      <p class="form-hint" style="margin:.625rem 0 0"><i class="fas fa-moon"></i> Not due today: <?= h(implode(', ', array_column($notDue, 'name'))) ?></p>
+    <?php endif; ?>
   </div>
 </div>
 

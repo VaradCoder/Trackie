@@ -207,7 +207,8 @@ foreach ($weeklyLogRows as $r) $weeklyLogCounts[$r['habit_id']] = (int)$r['c'];
 $expectedThisWeek = 0;
 $loggedThisWeek   = 0;
 foreach ($todayHabits as $h) {
-    $expected = $h['frequency'] === 'daily' ? 7 : 1;
+    require_once __DIR__ . '/../includes/habit_schedule.php';
+    $expected = habitWeekTarget($h);   // 7, scheduled days, or 1 for weekly
     $expectedThisWeek += $expected;
     $actual = $weeklyLogCounts[$h['id']] ?? 0;
     $loggedThisWeek += min($actual, $expected);

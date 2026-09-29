@@ -47,6 +47,7 @@ CREATE TABLE habits (
     user_id    INT          NOT NULL,
     name       VARCHAR(100) NOT NULL,
     frequency  ENUM('daily','weekly') DEFAULT 'daily',
+    schedule_days VARCHAR(13) DEFAULT NULL,
     color      VARCHAR(7)   DEFAULT '#ef4444',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

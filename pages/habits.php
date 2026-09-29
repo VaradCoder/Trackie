@@ -11,6 +11,8 @@ $pageTitle   = 'Habits';
 $currentPage = 'habits';
 $today       = date('Y-m-d');
 
+require_once '../includes/habit_schedule.php';
+$weekStart = userSetting($uid, 'week_start');
 $habits = fetchAll(
     "SELECT h.*,
             COUNT(l.id)                                                  AS total_logs,
@@ -25,6 +27,13 @@ $habits = fetchAll(
      ORDER BY h.created_at DESC",
     [$uid]
 );
+
+// Log dates per habit → schedule-aware per-habit streaks and week targets.
+$logsByHabit = [];
+foreach (fetchAll("SELECT l.habit_id, l.date_completed d FROM logs l JOIN habits h ON h.id=l.habit_id WHERE h.user_id=?", [$uid]) as $r) {
+    $logsByHabit[$r['habit_id']][] = $r['d'];
+}
+$weekFrom = weekStartOf(date('Y-m-d'), $weekStart);
 
 // ── Hobby-based suggestions (USP: personalize from Profile → Your hobbies) ──
 $userHobbies = fetchOne("SELECT hobbies FROM users WHERE id=?", [$uid])['hobbies'] ?? null;
@@ -133,10 +142,13 @@ if ($totalHabits > 0) {
 <?php else: ?>
   <div class="grid-cards">
     <?php foreach ($habits as $h):
-      // Correct progress: daily = logs this week / 7, weekly = min(logs this week, 1) / 1
-      $target   = $h['frequency'] === 'daily' ? 7 : 1;
-      $achieved = min((int)$h['logs_week'], $target);
-      $pct      = round($achieved / $target * 100);
+      // Week progress against what's actually scheduled (7, 3 for Mon/Wed/Fri, 1 for weekly).
+      $hLogs    = $logsByHabit[$h['id']] ?? [];
+      $target   = habitWeekTarget($h);
+      $achieved = min(count(array_filter($hLogs, static fn($d) => $d >= $weekFrom)), $target);
+      $pct      = (int)round($achieved / $target * 100);
+      $hStreak  = habitStreak($h, $hLogs, $weekStart);
+      $dueToday = habitDueOn($h, date('Y-m-d'), $hLogs, $weekStart);
     ?>
       <div class="habit-card" id="habit-<?= $h['id'] ?>">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.875rem">
@@ -144,7 +156,10 @@ if ($totalHabits > 0) {
             <span class="habit-dot" style="background:<?= h($h['color']) ?>"></span>
             <div>
               <div style="font-weight:600;font-size:.9375rem;color:var(--text)"><?= h($h['name']) ?></div>
-              <span class="badge badge-gray" style="margin-top:var(--sp-1)"><?= ucfirst($h['frequency']) ?></span>
+              <span class="badge badge-gray" style="margin-top:var(--sp-1)"><?= h(habitScheduleLabel($h)) ?></span>
+              <?php if ($hStreak['current'] > 0): ?>
+                <span class="badge" style="margin-top:var(--sp-1);background:rgba(245,158,11,.15);color:#f59e0b">🔥 <?= (int)$hStreak['current'] ?> <?= $h['frequency'] === 'weekly' ? 'wk' : 'd' ?></span>
+              <?php endif; ?>
             </div>
           </div>
           <button class="btn btn-icon btn-ghost btn-sm" onclick="openEditHabit(<?= $h['id'] ?>)" title="Edit" aria-label="Edit habit"><i class="fas fa-pen"></i></button>
@@ -157,14 +172,15 @@ if ($totalHabits > 0) {
         <!-- Stats -->
         <div style="display:flex;gap:var(--sp-4);margin-bottom:.875rem;font-size:.8125rem;color:var(--muted)">
           <span>Total: <strong style="color:var(--text)"><?= $h['total_logs'] ?></strong></span>
-          <span>This week: <strong style="color:var(--text)"><?= $h['logs_week'] ?></strong></span>
+          <span>This week: <strong style="color:var(--text)"><?= $achieved ?>/<?= $target ?></strong></span>
+          <span>Best: <strong style="color:var(--text)"><?= (int)$hStreak['best'] ?></strong></span>
         </div>
 
         <!-- Progress bar (this week) -->
         <div style="margin-bottom:.875rem">
           <div style="display:flex;justify-content:space-between;font-size:.8125rem;margin-bottom:var(--sp-1)">
             <span style="color:var(--muted)">
-              <?= $h['frequency'] === 'daily' ? 'Week progress' : 'Done this week' ?>
+              <?= $h['frequency'] === 'weekly' ? 'Done this week' : 'Week progress' ?>
             </span>
             <span style="font-weight:600;color:var(--text)"><?= $pct ?>%</span>
           </div>
@@ -178,6 +194,9 @@ if ($totalHabits > 0) {
         <?php
           $curStatus = $h['logged_today'] ? 'done' : ($h['today_status'] ?: null);
         ?>
+        <?php if (!$dueToday && !$curStatus): ?>
+          <p class="form-hint" style="margin:0 0 .5rem"><i class="fas fa-moon"></i> Not scheduled today — rest day for this habit.</p>
+        <?php endif; ?>
         <div id="habit-btn-<?= $h['id'] ?>">
           <?= renderHabitStatusControl($h['id'], $curStatus) ?>
         </div>
@@ -211,14 +230,23 @@ if ($totalHabits > 0) {
       <div class="form-grid-2">
         <div class="form-group">
           <label for="habitFreq" class="form-label">Frequency</label>
-          <select id="habitFreq" class="form-input">
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
+          <select id="habitFreq" class="form-input" onchange="habitDaysUI()">
+            <option value="daily">Every day</option>
+            <option value="days">Specific days</option>
+            <option value="weekly">Once a week</option>
           </select>
         </div>
         <div class="form-group">
           <label for="habitColor" class="form-label">Color</label>
           <input id="habitColor" class="form-input" type="color" value="#ef4444" style="height:2.5rem;padding:var(--sp-1) .5rem">
+        </div>
+      </div>
+      <div class="form-group hidden" id="habitDaysWrap">
+        <span class="form-label">On these days</span>
+        <div class="habit-days">
+          <?php foreach ([1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 0 => 'Sun'] as $v => $l): ?>
+            <label class="habit-day"><input type="checkbox" value="<?= $v ?>"><span><?= $l ?></span></label>
+          <?php endforeach; ?>
         </div>
       </div>
     </div>
@@ -249,7 +277,20 @@ async function addSuggested(name, freq, color, btn) {
   } catch { Trackie.Toast.error('Network error.'); btn.disabled = false; }
 }
 
+const HABIT_DAY_IDS = [0, 1, 2, 3, 4, 5, 6];
+function habitDaysUI() {
+  const show = document.getElementById('habitFreq').value === 'days';
+  document.getElementById('habitDaysWrap').classList.toggle('hidden', !show);
+}
+function setHabitDays(csv) {
+  const on = new Set(String(csv || '').split(',').filter(Boolean).map(Number));
+  document.querySelectorAll('#habitDaysWrap input').forEach(i => i.checked = on.has(+i.value));
+}
+function getHabitDays() {
+  return [...document.querySelectorAll('#habitDaysWrap input:checked')].map(i => i.value).join(',');
+}
 function openAddHabit() {
+  setHabitDays('1,3,5'); setTimeout(habitDaysUI);
   document.getElementById('habitId').value    = '';
   document.getElementById('habitModalTitle').textContent = 'New Habit';
   document.getElementById('habitName').value  = '';
@@ -263,10 +304,14 @@ async function saveHabit() {
   if (!name) { Trackie.Toast.warning('Name is required.'); return; }
   try {
     const editId = document.getElementById('habitId').value;
+    const freqSel = document.getElementById('habitFreq').value;
+    const days = freqSel === 'days' ? getHabitDays() : '';
+    if (freqSel === 'days' && !days) { Trackie.Toast.warning('Pick at least one day.'); return; }
     const res = await Trackie.API.post(`${API_BASE}/habits.php`, {
       action: editId ? 'edit' : 'add', habit_id: editId,
       name,
-      frequency: document.getElementById('habitFreq').value,
+      frequency: freqSel === 'weekly' ? 'weekly' : 'daily',
+      schedule_days: days,
       color: document.getElementById('habitColor').value,
     });
     if (res.success) {
@@ -283,7 +328,8 @@ async function openEditHabit(id) {
     if (!res.success) { Trackie.Toast.error(res.error || 'Not found.'); return; }
     document.getElementById('habitId').value    = res.habit.id;
     document.getElementById('habitName').value  = res.habit.name;
-    document.getElementById('habitFreq').value  = res.habit.frequency;
+    document.getElementById('habitFreq').value  = res.habit.frequency === 'weekly' ? 'weekly' : (res.habit.schedule_days ? 'days' : 'daily');
+    setHabitDays(res.habit.schedule_days || '1,3,5'); habitDaysUI();
     document.getElementById('habitColor').value = res.habit.color || '#ef4444';
     document.getElementById('habitModalTitle').textContent = 'Edit Habit';
     Trackie.openModal('addHabitModal');

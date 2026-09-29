@@ -21,9 +21,11 @@ switch ($action) {
         if (!in_array($freq, ['daily','weekly'], true)) $freq = 'daily';
         if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) $color = '#ef4444';
 
+        require_once '../includes/habit_schedule.php';
+        $days = $freq === 'daily' ? normalizeScheduleDays($_POST['schedule_days'] ?? '') : null;
         $id = insert(
-            "INSERT INTO habits (user_id,name,frequency,color) VALUES (?,?,?,?)",
-            [$uid, $name, $freq, $color]
+            "INSERT INTO habits (user_id,name,frequency,schedule_days,color) VALUES (?,?,?,?,?)",
+            [$uid, $name, $freq, $days, $color]
         );
         json_out(['success' => true, 'id' => $id]);
 
@@ -84,7 +86,7 @@ switch ($action) {
         json_out(['success' => true]);
 
     case 'get':
-        $h = fetchOne("SELECT id, name, frequency, color FROM habits WHERE id=? AND user_id=?", [(int)($_POST['habit_id'] ?? 0), $uid]);
+        $h = fetchOne("SELECT id, name, frequency, schedule_days, color FROM habits WHERE id=? AND user_id=?", [(int)($_POST['habit_id'] ?? 0), $uid]);
         if (!$h) json_out(['success' => false, 'error' => 'Habit not found.'], 404);
         json_out(['success' => true, 'habit' => $h]);
 
@@ -95,7 +97,9 @@ switch ($action) {
         $color = preg_match('/^#[0-9a-fA-F]{6}$/', $_POST['color'] ?? '') ? $_POST['color'] : '#ef4444';
         if ($name === '') json_out(['success' => false, 'error' => 'Name is required.'], 422);
         if (!fetchOne("SELECT id FROM habits WHERE id=? AND user_id=?", [$id, $uid])) json_out(['success' => false, 'error' => 'Habit not found.'], 404);
-        update("UPDATE habits SET name=?, frequency=?, color=? WHERE id=? AND user_id=?", [$name, $freq, $color, $id, $uid]);
+        require_once '../includes/habit_schedule.php';
+        $days = $freq === 'daily' ? normalizeScheduleDays($_POST['schedule_days'] ?? '') : null;
+        update("UPDATE habits SET name=?, frequency=?, schedule_days=?, color=? WHERE id=? AND user_id=?", [$name, $freq, $days, $color, $id, $uid]);
         json_out(['success' => true]);
 
     case 'delete':
