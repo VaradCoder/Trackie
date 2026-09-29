@@ -21,6 +21,7 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
 $root = dirname(__DIR__);
 chdir($root);
+date_default_timezone_set(getenv('APP_TIMEZONE') ?: 'Asia/Kolkata');
 
 function git(string $args): string {
     $out = shell_exec('git ' . $args . ' 2>&1');
@@ -97,8 +98,10 @@ if ($changed) {
     if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) fail('Cannot create zip.');
     foreach ($changed as $p) {
         // Contents exactly as committed at HEAD, not the working copy.
-        $blob = shell_exec('git show ' . escapeshellarg('HEAD:' . $p));
-        if ($blob === null) fail("Could not read {$p} from HEAD.");
+        // (shell_exec returns null for EMPTY output, e.g. .gitkeep, so check existence separately.)
+        exec('git cat-file -e ' . escapeshellarg('HEAD:' . $p) . ' 2>&1', $_, $rc);
+        if ($rc !== 0) { $zip->close(); @unlink($zipPath); fail("Could not read {$p} from HEAD."); }
+        $blob = (string)shell_exec('git show ' . escapeshellarg('HEAD:' . $p));
         $zip->addFromString($p, $blob);
     }
     $zip->close();
