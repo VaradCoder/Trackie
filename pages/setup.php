@@ -695,6 +695,12 @@ $migrations = [
 
     'habits.schedule_days' => "ALTER TABLE habits ADD COLUMN IF NOT EXISTS schedule_days VARCHAR(13) DEFAULT NULL AFTER frequency",
 
+    // Notification preferences: per-user time zone + quiet hours.
+    'user_settings timezone/quiet hours' => "ALTER TABLE user_settings
+        ADD COLUMN IF NOT EXISTS timezone    VARCHAR(64) DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS quiet_start TIME DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS quiet_end   TIME DEFAULT NULL",
+
     // ── Life V2 ──
     'sports v2 columns' => "ALTER TABLE sports_sessions
         ADD COLUMN IF NOT EXISTS result VARCHAR(5) DEFAULT NULL AFTER session_type,

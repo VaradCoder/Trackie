@@ -59,7 +59,13 @@ function tryRememberLogin(): bool {
 }
 
 function requireAuth(): void {
-    if (tryRememberLogin()) return;
+    if (tryRememberLogin()) {
+        // Settings → time zone: "today", streaks and reminder times follow the
+        // user's own midnight (PHP + MySQL session). No-op for the default zone.
+        require_once __DIR__ . '/settings.php';
+        try { applyUserTimezone(currentUserId()); } catch (Throwable $e) { error_log('timezone: ' . $e->getMessage()); }
+        return;
+    }
 
     // fetch()/XHR callers get a JSON 401 instead of a redirect to the login
     // HTML (which fetch follows silently, leaving the UI parsing a web page).

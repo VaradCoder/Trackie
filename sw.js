@@ -8,7 +8,7 @@
  * Scope is derived from the SW's own location, so it works whether the app
  * is served from "/" (live) or "/Trackie/" (local) without edits.
  */
-const VERSION = 'trackie-v5';   // bumped: Phase 6-7 (analytics, weekly review, landing page, CSP)
+const VERSION = 'trackie-v6';   // bumped: push + notificationclick, app-like navigation
 const STATIC  = `static-${VERSION}`;
 const RUNTIME = `runtime-${VERSION}`;
 const PAGES   = `pages-${VERSION}`;   // last-seen HTML pages for offline viewing
@@ -130,4 +130,54 @@ self.addEventListener('fetch', event => {
 // Allow the page to tell a waiting SW to activate immediately.
 self.addEventListener('message', e => {
   if (e.data === 'SKIP_WAITING') self.skipWaiting();
+});
+
+/* ── Web Push ───────────────────────────────────────────────────────
+   Payload (includes/notify.php → includes/webpush.php, aes128gcm):
+   { title, body, url, tag }. Shown even when no Trackie tab is open. */
+self.addEventListener('push', event => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data && event.data.text() }; }
+  const title = data.title || 'Trackie';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: data.body || '',
+    tag: data.tag || undefined,          // same reminder replaces, never stacks
+    renotify: !!data.tag,
+    icon: `${BASE}assets/images/icon-192.png`,
+    badge: `${BASE}assets/images/icon-192.png`,
+    data: { url: data.url || `${BASE}pages/today.php` },
+  }));
+});
+
+// Tap → focus an open Trackie window and take it to the deep link, else open one.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || `${BASE}pages/today.php`, self.location.origin);
+  // Only same-origin deep links — a push payload can never send the user off-site.
+  const url = target.origin === self.location.origin ? target.href : `${self.location.origin}${BASE}pages/today.php`;
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const win = wins.find(w => new URL(w.url).pathname.startsWith(BASE));
+    if (win) {
+      await win.focus();
+      try { return await win.navigate(url); } catch { win.postMessage({ type: 'navigate', url }); return; }
+    }
+    return self.clients.openWindow(url);
+  })());
+});
+
+// The browser rotated the subscription — re-register it with the new keys.
+self.addEventListener('pushsubscriptionchange', event => {
+  event.waitUntil((async () => {
+    try {
+      const sub = event.newSubscription || await self.registration.pushManager.subscribe(event.oldSubscription.options);
+      const j = sub.toJSON();
+      await fetch(`${BASE}api/push.php`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: new URLSearchParams({ action: 'resubscribe', endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth,
+                                    old_endpoint: event.oldSubscription?.endpoint || '' }),
+      });
+    } catch { /* next visit to Settings re-subscribes */ }
+  })());
 });

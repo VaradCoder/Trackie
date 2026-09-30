@@ -83,7 +83,48 @@ require_once '../includes/head.php';
       <p class="settings-help">Level-ups, unlocked achievements and streak milestones in the bell list.</p></div>
     <label class="settings-switch"><input type="checkbox" id="prefNotifyAchievements" <?= $prefs['notify_achievements'] ? 'checked' : '' ?>><span></span></label>
   </div>
+  <div class="settings-row">
+    <div><label for="prefTimezone" class="settings-label">Time zone</label>
+      <p class="settings-help">When your day starts and ends: Today, streaks and reminder times follow it.
+        <button type="button" class="btn-link" id="prefTzDetect" hidden></button></p></div>
+    <select id="prefTimezone" class="form-input settings-control">
+      <option value="" <?= $prefs['timezone'] === '' ? 'selected' : '' ?>>Server default (<?= h(serverTimezone()) ?>)</option>
+      <?php foreach (timezone_identifiers_list() as $tz): ?>
+        <option value="<?= h($tz) ?>" <?= $prefs['timezone'] === $tz ? 'selected' : '' ?>><?= h(str_replace('_', ' ', $tz)) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <div class="settings-row">
+    <div><span class="settings-label" id="prefQuietLbl">Quiet hours</span>
+      <p class="settings-help">No reminder pop-ups or push notifications in this window. They still land in the bell list. Leave empty to turn off.</p></div>
+    <div class="settings-control settings-quiet" role="group" aria-labelledby="prefQuietLbl">
+      <input type="time" id="prefQuietStart" class="form-input" value="<?= h($prefs['quiet_start']) ?>" aria-label="Quiet hours start">
+      <span aria-hidden="true">to</span>
+      <input type="time" id="prefQuietEnd" class="form-input" value="<?= h($prefs['quiet_end']) ?>" aria-label="Quiet hours end">
+    </div>
+  </div>
   <p class="settings-help" id="prefsStatus" aria-live="polite" style="margin:.25rem 0 0"></p>
+</div>
+
+<h3 class="settings-h3" style="margin-top:2rem">This device</h3>
+<div class="card card-body settings-prefs" id="deviceCard">
+  <div class="settings-row">
+    <div><label for="prefTheme" class="settings-label">Theme</label>
+      <p class="settings-help">Saved on this device. System follows your phone or computer.</p></div>
+    <select id="prefTheme" class="form-input settings-control">
+      <option value="system">System</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </select>
+  </div>
+  <div class="settings-row" id="pushRow">
+    <div><label for="prefPush" class="settings-label">Push notifications on this device</label>
+      <p class="settings-help" id="pushHelp">Reminders reach this device even when Trackie is closed.</p></div>
+    <div class="settings-control" style="display:flex;align-items:center;gap:.5rem;justify-content:flex-end">
+      <button type="button" class="btn btn-secondary btn-sm" id="pushTest" hidden>Send test</button>
+      <label class="settings-switch"><input type="checkbox" id="prefPush" disabled><span></span></label>
+    </div>
+  </div>
 </div>
 
 <h3 class="settings-h3" style="margin-top:2rem">Integrations</h3>
@@ -202,12 +243,72 @@ async function savePrefs() {
       week_start: document.getElementById('prefWeekStart').value,
       notify_reminders: document.getElementById('prefNotifyReminders').checked ? 1 : 0,
       notify_achievements: document.getElementById('prefNotifyAchievements').checked ? 1 : 0,
-    });
+      timezone: document.getElementById('prefTimezone').value,
+      quiet_start: document.getElementById('prefQuietStart').value,
+      quiet_end: document.getElementById('prefQuietEnd').value,
+    }, { button: null });
     status.textContent = res.success ? 'Saved.' : '';
     if (!res.success) Trackie.Toast.error(res.error || 'Could not save.');
-  } catch { status.textContent = ''; Trackie.Toast.error('Network error.'); }
+  } catch (e) { status.textContent = ''; Trackie.Toast.error(e.message || 'Could not save.'); }
 }
-document.getElementById('prefsCard').addEventListener('change', savePrefs);
+document.getElementById('prefsCard').addEventListener('change', e => {
+  // Quiet hours need both ends — wait until the pair is complete (or both cleared).
+  if (e.target.id === 'prefQuietStart' || e.target.id === 'prefQuietEnd') {
+    const a = document.getElementById('prefQuietStart').value, b = document.getElementById('prefQuietEnd').value;
+    if (!!a !== !!b) { document.getElementById('prefsStatus').textContent = 'Set both times to turn quiet hours on.'; return; }
+  }
+  savePrefs();
+});
+
+// Offer the device's own zone when it differs from what's saved.
+(function tzSuggest() {
+  const sel = document.getElementById('prefTimezone'), btn = document.getElementById('prefTzDetect');
+  let dev = ''; try { dev = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
+  if (!dev || sel.value === dev || ![...sel.options].some(o => o.value === dev)) return;
+  btn.textContent = `Use this device's zone (${dev.replace(/_/g, ' ')})`;
+  btn.hidden = false;
+  btn.addEventListener('click', () => { sel.value = dev; btn.hidden = true; savePrefs(); });
+})();
+
+/* ── This device: theme + push ─────────────────────────────── */
+(function deviceSettings() {
+  const theme = document.getElementById('prefTheme');
+  theme.value = Trackie.Theme.mode();
+  theme.addEventListener('change', () => Trackie.Theme.set(theme.value));
+
+  const box = document.getElementById('prefPush'), help = document.getElementById('pushHelp'), testBtn = document.getElementById('pushTest');
+  const say = t => { help.textContent = t; };
+  async function refresh() {
+    try {
+      const st = await Trackie.Push.status();
+      if (!st.supported) {
+        say(st.native ? 'The Trackie app delivers reminders as system notifications on this phone.' : "This browser can't receive push notifications. Reminders still appear in the bell list.");
+        box.disabled = true; box.checked = false; return;
+      }
+      if (!st.configured) { say('Push is not set up on the server yet (an admin needs to add VAPID keys).'); box.disabled = true; return; }
+      box.disabled = st.permission === 'denied' && !st.subscribed;
+      box.checked = st.subscribed;
+      testBtn.hidden = !st.subscribed;
+      say(st.permission === 'denied' ? 'Notifications are blocked for Trackie in this browser. Allow them in the site settings to turn this on.'
+        : st.subscribed ? `On. Reminders reach this device even when Trackie is closed${st.devices > 1 ? ` (${st.devices} devices in total)` : ''}.`
+        : 'Reminders reach this device even when Trackie is closed.');
+    } catch (e) { say(e.message || 'Could not check push status.'); }
+  }
+  box.addEventListener('change', async () => {
+    box.disabled = true;
+    try {
+      if (box.checked) { await Trackie.Push.enable(); Trackie.Toast.success('Push notifications are on for this device.'); }
+      else { await Trackie.Push.disable(); Trackie.Toast.info('Push notifications are off for this device.'); }
+    } catch (e) { box.checked = !box.checked; Trackie.Toast.error(e.message || 'Could not change push notifications.'); }
+    await refresh();
+  });
+  testBtn.addEventListener('click', async () => {
+    const r = await Trackie.Push.test().catch(e => ({ success: false, error: e.message }));
+    if (r.success) Trackie.Toast.success(r.sent ? 'Test sent. It should appear in a moment.' : 'No device accepted the push. Try turning it off and on again.');
+    else Trackie.Toast.error(r.error || 'Could not send a test.');
+  });
+  refresh();
+})();
 
 async function syncProvider(key, btn) {
   const original = btn.innerHTML;

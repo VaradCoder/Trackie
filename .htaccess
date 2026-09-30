@@ -36,9 +36,19 @@ RedirectMatch 404 /\.(git|idea|vscode|svn|hg)(/|$)
     </FilesMatch>
 </IfModule>
 
+# The service worker and manifest must always be revalidated — a cached sw.js
+# is how installed PWAs get stuck on an old version. (Before the long-cache
+# rule below, which would otherwise match .js.)
+<IfModule mod_headers.c>
+    <FilesMatch "^(sw\.js|manifest\.json|offline\.html)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+        Header set Service-Worker-Allowed "/"
+    </FilesMatch>
+</IfModule>
+
 # Cache static assets
 <IfModule mod_headers.c>
-    <FilesMatch "\.(css|js|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf)$">
+    <FilesMatch "(?<!^sw)\.(css|js|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf)$">
         Header set Cache-Control "public, max-age=31536000"
     </FilesMatch>
 </IfModule>

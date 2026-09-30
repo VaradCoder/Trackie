@@ -53,69 +53,12 @@ if ($isCli) {
 
 if (!tableExists('reminders')) { echo "reminders table missing\n"; exit; }
 
-// ── Advance a fired recurring/smart reminder past now ───────────
-function nextFire(array $r): string
-{
-    $now  = time();
-    $fire = strtotime($r['next_fire_at']);
-    $step = $r['type'] === 'smart'
-        ? '+1 day'
-        : '+' . max(1, (int) $r['repeat_every']) . ' ' . $r['repeat_unit'];
-    while ($fire <= $now) {
-        $fire = strtotime($step, $fire);
-    }
-    return date('Y-m-d H:i:s', $fire);
-}
+// One engine for every delivery path (includes/notify.php): claims each fire
+// atomically, so a cron run and an open tab can never both send the same one;
+// judges "due" in each user's own time zone; respects quiet hours and
+// notification preferences; writes the bell entry and sends Web Push.
+require_once __DIR__ . '/../includes/notify.php';
+$fired  = fireDueReminders();
+$pushed = array_sum(array_column($fired, 'pushed'));
 
-// ── Find every due reminder across all users ────────────────────
-$due = fetchAll(
-    "SELECT * FROM reminders WHERE active = 1 AND next_fire_at <= NOW() ORDER BY user_id"
-);
-
-$pushed = 0;
-$fired  = 0;
-
-foreach ($due as $r) {
-    $uid = (int) $r['user_id'];
-
-    // Smart reminders only fire if the linked habit isn't logged today.
-    if ($r['type'] === 'smart' && !empty($r['habit_id'])) {
-        $logged = fetchOne(
-            "SELECT 1 FROM logs WHERE habit_id = ? AND date_completed = CURDATE() LIMIT 1",
-            [(int) $r['habit_id']]
-        );
-        if ($logged) {
-            // Skip this fire; just advance the schedule.
-            update("UPDATE reminders SET next_fire_at = ? WHERE id = ?", [nextFire($r), $r['id']]);
-            continue;
-        }
-    }
-
-    $title = '⏰ ' . $r['title'];
-    $body  = $r['notes'] !== null && $r['notes'] !== '' ? $r['notes'] : 'Trackie reminder';
-
-    // In-app notification (bell) — deduped per day by createNotification().
-    createNotification($uid, 'reminder', $title, $body, APP_BASE . '/pages/reminders.php');
-
-    // Web Push to the user's devices — unless they turned reminder notifications off.
-    require_once __DIR__ . '/../includes/settings.php';
-    if (userSetting($uid, 'notify_reminders')) $pushed += sendPushToUser($uid, [
-        'title' => $title,
-        'body'  => $body,
-        'url'   => APP_BASE . '/pages/reminders.php',
-        'tag'   => 'reminder-' . $r['id'],
-    ]);
-    $fired++;
-
-    // Advance the schedule: once → deactivate; recurring/smart → step forward.
-    if ($r['type'] === 'once') {
-        update("UPDATE reminders SET active = 0, last_fired_at = NOW() WHERE id = ?", [$r['id']]);
-    } else {
-        update(
-            "UPDATE reminders SET next_fire_at = ?, last_fired_at = NOW() WHERE id = ?",
-            [nextFire($r), $r['id']]
-        );
-    }
-}
-
-echo "dispatched: $fired reminder(s), $pushed push(es) sent\n";
+echo 'dispatched: ' . count($fired) . " reminder(s), $pushed push(es) sent\n";

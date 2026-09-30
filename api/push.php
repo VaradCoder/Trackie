@@ -15,10 +15,15 @@ require_once '../includes/auth.php';
 require_once '../includes/webpush.php';
 
 requireAuth();
-verify_csrf();
 
 $uid    = currentUserId();
 $action = sanitizeInput($_POST['action'] ?? '');
+
+// The service worker re-registers a rotated subscription on its own
+// (pushsubscriptionchange) and has no CSRF token. Instead it must prove
+// ownership: the OLD endpoint has to be registered to this signed-in user.
+// Every other action is CSRF-protected as usual.
+if ($action !== 'resubscribe') verify_csrf();
 
 // Degrade gracefully before migration / on hosts without the crypto stack.
 if (!tableExists('push_subscriptions')) {
@@ -39,7 +44,7 @@ switch ($action) {
         $auth     = sanitizeInput($_POST['auth']     ?? '');
         $ua       = substr(sanitizeInput($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
 
-        if (!$endpoint || !$p256dh || !$auth || !filter_var($endpoint, FILTER_VALIDATE_URL)) {
+        if (!$endpoint || !$p256dh || !$auth || !filter_var($endpoint, FILTER_VALIDATE_URL) || !str_starts_with($endpoint, 'https://')) {
             json_out(['success' => false, 'error' => 'Invalid subscription.'], 422);
         }
 
@@ -52,6 +57,30 @@ switch ($action) {
             [$uid, $endpoint, $p256dh, $auth, $ua]
         );
         json_out(['success' => true]);
+    }
+
+    case 'resubscribe': {
+        $old      = (string)($_POST['old_endpoint'] ?? '');
+        $endpoint = (string)($_POST['endpoint'] ?? '');
+        $p256dh   = sanitizeInput($_POST['p256dh'] ?? '');
+        $auth     = sanitizeInput($_POST['auth'] ?? '');
+        if ($old === '' || !fetchOne("SELECT id FROM push_subscriptions WHERE user_id=? AND endpoint=?", [$uid, $old])) {
+            json_out(['success' => false, 'error' => 'Unknown subscription.'], 403);
+        }
+        if (!filter_var($endpoint, FILTER_VALIDATE_URL) || !str_starts_with($endpoint, 'https://') || !$p256dh || !$auth) {
+            json_out(['success' => false, 'error' => 'Invalid subscription.'], 422);
+        }
+        update("UPDATE push_subscriptions SET endpoint=?, p256dh=?, auth=?, last_used_at=NOW() WHERE user_id=? AND endpoint=?",
+               [$endpoint, $p256dh, $auth, $uid, $old]);
+        json_out(['success' => true]);
+    }
+
+    case 'status': {
+        // Is push usable on the server, and is THIS device subscribed?
+        $endpoint = (string)($_POST['endpoint'] ?? '');
+        json_out(['success' => true, 'configured' => (bool)vapidConfig(),
+                  'subscribed' => $endpoint !== '' && (bool)fetchOne("SELECT id FROM push_subscriptions WHERE user_id=? AND endpoint=?", [$uid, $endpoint]),
+                  'devices' => (int)(fetchOne("SELECT COUNT(*) n FROM push_subscriptions WHERE user_id=?", [$uid])['n'] ?? 0)]);
     }
 
     case 'unsubscribe': {

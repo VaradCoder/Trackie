@@ -27,7 +27,22 @@ try {
     exit(1);
 }
 
-openssl_pkey_export($key, $pem);
+// Export needs openssl.cnf too; on Windows/XAMPP PHP often can't find it and
+// openssl_pkey_export() then fails SILENTLY, leaving an empty private key
+// (push is then "not configured" forever). Try the same paths as newEcKey().
+$pem = '';
+foreach ([null, getenv('OPENSSL_CONF') ?: null, 'C:/xampp/apache/conf/openssl.cnf', 'C:/xampp/php/extras/ssl/openssl.cnf',
+          'C:/xampp/php/extras/openssl/openssl.cnf', '/etc/ssl/openssl.cnf', '/usr/lib/ssl/openssl.cnf'] as $cnf) {
+    if ($cnf !== null && !is_file($cnf)) continue;
+    $ok = $cnf === null ? openssl_pkey_export($key, $pem) : openssl_pkey_export($key, $pem, null, ['config' => $cnf]);
+    if ($ok && str_contains((string)$pem, 'PRIVATE KEY') && openssl_pkey_get_private($pem)) break;
+    $pem = '';
+}
+if ($pem === '') {
+    fwrite(STDERR, "Could not export the private key (OpenSSL config not found). Set OPENSSL_CONF to your openssl.cnf and run again.
+");
+    exit(1);
+}
 $details = openssl_pkey_get_details($key);
 
 // Raw 65-byte uncompressed public point → base64url (used by the browser as

@@ -45,15 +45,8 @@ function initialFire(string $type, ?string $date, string $time, int $every, stri
 
 /** Advance a fired recurring/smart reminder past now. */
 function advanceFire(array $r): string {
-    $now  = time();
-    $fire = strtotime($r['next_fire_at']);
-    $step = $r['type'] === 'smart'
-        ? '+1 day'
-        : '+' . max(1, (int)$r['repeat_every']) . ' ' . $r['repeat_unit'];
-    while ($fire <= $now) {
-        $fire = strtotime($step, $fire);
-    }
-    return date('Y-m-d H:i:s', $fire);
+    require_once __DIR__ . '/../includes/notify.php';
+    return reminderNextFire($r);
 }
 
 /** Validate + collect fields shared by add/edit. Exits with 422 on bad input. */
@@ -158,51 +151,14 @@ switch ($action) {
         json_out(['success' => true, 'reminder' => $r]);
 
     case 'poll':
-        $due   = fetchAll(
-            "SELECT * FROM reminders WHERE user_id=? AND active=1 AND next_fire_at <= NOW()",
-            [$uid]
-        );
+        // Same engine as cron/dispatch.php (includes/notify.php): atomic
+        // claim per fire, so an open tab and the cron can't both deliver it.
+        // Only fires allowed to be loud (preferences + quiet hours) pop up.
+        require_once '../includes/notify.php';
         $fired = [];
-
-        foreach ($due as $r) {
-            $notify  = true;
-            $message = $r['notes'] ?: '';
-
-            if ($r['type'] === 'smart' && $r['habit_id']) {
-                $logged = fetchOne(
-                    "SELECT id FROM logs WHERE habit_id=? AND date_completed=CURDATE()",
-                    [$r['habit_id']]
-                );
-                if ($logged) {
-                    $notify = false;     // habit already done today — stay quiet
-                } else {
-                    $habit   = fetchOne("SELECT name FROM habits WHERE id=?", [$r['habit_id']]);
-                    $message = $message ?: ('"' . ($habit['name'] ?? 'Habit') . '" isn\'t logged yet today.');
-                }
-            }
-
-            if ($r['type'] === 'once') {
-                update("UPDATE reminders SET active=0, last_fired_at=NOW() WHERE id=?", [$r['id']]);
-            } else {
-                update("UPDATE reminders SET next_fire_at=?, last_fired_at=NOW() WHERE id=?",
-                       [advanceFire($r), $r['id']]);
-            }
-
-            if ($notify) {
-                // Direct insert — createNotification() dedupes per day, which
-                // would swallow repeats of an every-N-hours reminder.
-                insert(
-                    "INSERT INTO notifications (user_id,type,title,message,link) VALUES (?,?,?,?,?)",
-                    [$uid, 'reminder', '⏰ ' . $r['title'], $message, APP_BASE . '/pages/reminders.php']
-                );
-                // Settings → Preferences: pop-ups can be switched off; the bell entry above stays.
-                require_once '../includes/settings.php';
-                if (userSetting($uid, 'notify_reminders')) {
-                    $fired[] = ['id' => (int)$r['id'], 'title' => $r['title'], 'message' => $message];
-                }
-            }
+        foreach (fireDueReminders($uid) as $f) {
+            if ($f['popup']) $fired[] = ['id' => $f['id'], 'title' => $f['title'], 'message' => $f['message'], 'pushed' => $f['pushed'] > 0];
         }
-
         json_out([
             'success' => true,
             'fired'   => $fired,
@@ -214,7 +170,8 @@ switch ($action) {
         // as OS-level local notifications that fire even when it's closed.
         // Smart reminders are left out: they depend on whether the habit is
         // logged by then, which can't be known in advance (the in-app check
-        // still fires them). Capped at 60 — iOS keeps at most 64 pending.
+        // still fires them). Quiet hours are skipped. Capped at 60 — iOS keeps at
+        // most 64 pending.
         require_once '../includes/settings.php';
         if (!userSetting($uid, 'notify_reminders')) json_out(['success' => true, 'occurrences' => []]);
         $until = time() + 7 * 86400;
@@ -224,7 +181,7 @@ switch ($action) {
             $t = strtotime($r['next_fire_at']);
             $step = '+' . max(1, (int)$r['repeat_every']) . ' ' . $r['repeat_unit'];
             for ($n = 0; $t <= $until && $n < 200; $n++) {
-                if ($t > time()) $occ[] = ['reminder_id' => (int)$r['id'], 'title' => $r['title'], 'body' => $r['notes'] ?: 'Trackie reminder', 'at' => date('c', $t)];
+                if ($t > time() && !inQuietHours($uid, $t)) $occ[] = ['reminder_id' => (int)$r['id'], 'title' => $r['title'], 'body' => $r['notes'] ?: 'Trackie reminder', 'at' => date('c', $t)];
                 if ($r['type'] === 'once') break;
                 $t = strtotime($step, $t);
             }

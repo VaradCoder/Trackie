@@ -246,8 +246,101 @@ const Theme = (() => {
     });
   }
 
-  return { init, toggle, apply };
+  /** 'light' | 'dark' | 'system' — stored per device (screens differ). */
+  function set(mode) {
+    if (mode === 'system') {
+      try { localStorage.removeItem(KEY); } catch {}
+      apply(window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    } else {
+      try { localStorage.setItem(KEY, mode); } catch {}
+      apply(mode);
+    }
+  }
+  function mode() {
+    try { return localStorage.getItem(KEY) || 'system'; } catch { return 'system'; }
+  }
+
+  return { init, toggle, apply, set, mode };
 })();
+
+/* ── Web Push (this device) ─────────────────────────────────────────
+   Server side: api/push.php stores the subscription; includes/notify.php
+   sends reminders to every subscribed device even with Trackie closed.
+   Not offered inside the native app (it schedules OS notifications itself). */
+const Push = (() => {
+  const base = () => document.querySelector('meta[name="app-base"]')?.content || '';
+  const isNative = () => !!window.Capacitor?.isNativePlatform?.();
+  const supported = () => !isNative() && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+  function b64uToBytes(s) {
+    const pad = '='.repeat((4 - s.length % 4) % 4);
+    const raw = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from(raw, c => c.charCodeAt(0));
+  }
+  // serviceWorker.ready never settles when no worker is registered (private
+  // mode, blocked storage) — wait a bounded time, then report it plainly.
+  async function registration(ms = 8000) {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg?.active) return reg;
+    const ready = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), ms))]);
+    if (!ready) throw new API.ApiError("Trackie's background service is not running in this browser, so push is unavailable. Reload the page and try again.");
+    return ready;
+  }
+  async function currentSub() {
+    const reg = await navigator.serviceWorker.getRegistration();
+    return reg ? reg.pushManager.getSubscription() : null;
+  }
+
+  /** { supported, configured, subscribed, permission, devices } */
+  async function status() {
+    if (!supported()) return { supported: false, native: isNative() };
+    const sub = await currentSub().catch(() => null);
+    const r = await API.post(base() + '/api/push.php', { action: 'status', endpoint: sub?.endpoint || '' }, { button: null, quiet: true });
+    return { supported: true, configured: !!r.configured, subscribed: !!(sub && r.subscribed), permission: Notification.permission, devices: r.devices || 0 };
+  }
+
+  async function enable() {
+    if (!supported()) throw new API.ApiError('This browser does not support push notifications.');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new API.ApiError(perm === 'denied'
+      ? 'Notifications are blocked for Trackie in your browser settings. Allow them there, then try again.'
+      : 'Notification permission was not granted.');
+    const k = await API.post(base() + '/api/push.php', { action: 'publicKey' }, { button: null, quiet: true });
+    if (!k.success) throw new API.ApiError(k.error || 'Push is not set up on the server yet.');
+    const reg = await registration();
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(k.key) });
+    const j = sub.toJSON();
+    const r = await API.post(base() + '/api/push.php', { action: 'subscribe', endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }, { button: null });
+    if (!r.success) throw new API.ApiError(r.error || 'Could not register this device.');
+    return true;
+  }
+
+  async function disable() {
+    const sub = await currentSub().catch(() => null);
+    if (sub) {
+      await API.post(base() + '/api/push.php', { action: 'unsubscribe', endpoint: sub.endpoint }, { button: null }).catch(() => null);
+      await sub.unsubscribe().catch(() => null);
+    }
+    return true;
+  }
+
+  const test = () => API.post(base() + '/api/push.php', { action: 'test' });
+
+  return { supported, status, enable, disable, test };
+})();
+
+// A notification tap while Trackie is open: the service worker asks the page
+// to go to the reminder's deep link (in-app navigation, no reload).
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type !== 'navigate' || typeof e.data.url !== 'string') return;
+    try {
+      const u = new URL(e.data.url, location.href);
+      if (u.origin === location.origin) SpaNav.swap(u.href, true);
+    } catch {}
+  });
+}
 
 /* ── Sidebar ───────────────────────────────────────────────────────
    Desktop (≥1024px): docked open BY DEFAULT. It used to default closed,
@@ -2241,6 +2334,6 @@ window.Trackie = {
   confirmDialog, openModal, closeModal,
   showSkeleton, clearSkeleton, toggleItem, refreshFragments,
   Notifications, Search, Shortcuts, QuickAdd, Reminders, PageSkeleton, Animate, PWA, Net, SyncQueue, SpaNav, Platform, Ripple, Viewport,
-  createCrudModal, showAchievementToasts, Live
+  createCrudModal, showAchievementToasts, Live, Push
 };
 window.trackieFetch = trackieFetch;
