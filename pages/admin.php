@@ -4,6 +4,7 @@ require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
 
+require_once '../includes/webpush.php';
 requireAdmin();
 
 $uid         = currentUserId();
@@ -63,6 +64,7 @@ $config = [
     ['Sender address (MAIL_FROM)', $isSet('MAIL_FROM') ? 'Set' : 'Missing', $isSet('MAIL_FROM')],
     ['Support email', $isSet('SUPPORT_EMAIL') ? 'Set' : 'Missing (shown on Privacy/Terms)', $isSet('SUPPORT_EMAIL')],
     ['App URL (APP_URL)', $isSet('APP_URL') ? 'Set' : 'Missing — canonical links use the request host', $isSet('APP_URL')],
+    ['Web Push keys (keys/vapid.php)', (function_exists('pushEnabled') && pushEnabled()) ? 'Installed' : 'Missing — reminders cannot reach closed browsers', function_exists('pushEnabled') && pushEnabled()],
     ['Cron token', $isSet('CRON_TOKEN') ? 'Set' : 'Missing — web cron disabled', $isSet('CRON_TOKEN')],
     ['Token encryption key', $isSet('TRACKIE_ENCRYPTION_KEY') ? 'Set' : 'Missing — connecting GitHub/Google/Spotify will fail', $isSet('TRACKIE_ENCRYPTION_KEY')],
     ['GitHub sign-in', $isSet('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET')],
