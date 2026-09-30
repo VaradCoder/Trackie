@@ -8,6 +8,6 @@
 --  Additive + idempotent; safe on the live database.
 -- ============================================================
 ALTER TABLE goals
-    ADD COLUMN IF NOT EXISTS source       VARCHAR(20) DEFAULT NULL AFTER kind,
+    ADD COLUMN IF NOT EXISTS source       VARCHAR(20) DEFAULT NULL,
     ADD COLUMN IF NOT EXISTS source_ref   INT DEFAULT NULL AFTER source,
     ADD COLUMN IF NOT EXISTS source_since DATE DEFAULT NULL AFTER source_ref;
