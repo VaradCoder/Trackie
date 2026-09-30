@@ -10,6 +10,12 @@ $uid         = currentUserId();
 $pageTitle   = 'Goals';
 $currentPage = 'goals';
 
+// Linked goals fill themselves from logged activity — bring them up to date first.
+require_once '../includes/goal_sources.php';
+syncLinkedGoals($uid);
+$goalSources = availableGoalSources();
+$userHabits  = array_column(fetchAll("SELECT id, name FROM habits WHERE user_id=? ORDER BY name", [$uid]), 'name', 'id');
+
 $statusFilter = in_array($_GET['status'] ?? '', ['all','active','completed']) ? $_GET['status'] : 'all';
 
 $sql = "SELECT * FROM goals WHERE user_id=?";
@@ -118,6 +124,9 @@ require_once '../includes/head.php';
             <?php if ($g['description']): ?>
               <div style="font-size:.8125rem;color:var(--muted);margin-top:var(--sp-1)"><?= h($g['description']) ?></div>
             <?php endif; ?>
+            <?php if (!empty($g['source'])): ?>
+              <div class="goal-source"><i class="fas fa-link" aria-hidden="true"></i> <?= h(goalSourceLabel($g, $userHabits)) ?></div>
+            <?php endif; ?>
           </div>
           <button class="btn btn-icon btn-ghost btn-sm" style="flex-shrink:0" onclick="openEditGoal(<?= $g['id'] ?>)" aria-label="Edit goal" title="Edit"><i class="fas fa-pen"></i></button>
           <button aria-label="Delete goal" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent);flex-shrink:0"
@@ -128,7 +137,7 @@ require_once '../includes/head.php';
 
         <div style="margin-bottom:var(--sp-3)">
           <div style="display:flex;justify-content:space-between;font-size:.8125rem;margin-bottom:.375rem">
-            <span style="color:var(--muted)"><?= $g['progress'] ?> / <?= $g['target_value'] ?></span>
+            <span style="color:var(--muted)"><?= (int)$g['progress'] ?> / <?= (int)$g['target_value'] ?><?= !empty($g['source']) ? ' ' . h(GOAL_SOURCES[$g['source']][1] ?? '') : '' ?></span>
             <strong style="color:<?= $done ? 'var(--ok)' : 'var(--text)' ?>"><?= $pct ?>%</strong>
           </div>
           <div class="progress-track">
@@ -142,7 +151,7 @@ require_once '../includes/head.php';
           </div>
         <?php endif; ?>
 
-        <?php if (!$done): ?>
+        <?php if (!$done && empty($g['source'])): ?>
           <div style="display:flex;gap:var(--sp-2);align-items:center">
             <input type="number" id="prog-<?= $g['id'] ?>"
                    min="0" max="<?= $g['target_value'] ?>"
@@ -197,7 +206,7 @@ require_once '../includes/head.php';
           <label for="goalTarget" class="form-label">Target value</label>
           <input id="goalTarget" class="form-input" type="number" min="1" value="100">
         </div>
-        <div class="form-group">
+        <div class="form-group" id="goalProgressWrap">
           <label for="goalProgress" class="form-label">Starting progress</label>
           <input id="goalProgress" class="form-input" type="number" min="0" value="0">
         </div>
@@ -207,8 +216,28 @@ require_once '../includes/head.php';
         <input id="goalDeadline" class="form-input" type="date">
       </div>
       <div class="form-group">
-        <label class="goal-kind"><input type="checkbox" id="goalSavings"> <span>Savings goal <small>— track it in Finance (amounts in your currency)</small></span></label>
+        <label for="goalSource" class="form-label">Progress comes from</label>
+        <select id="goalSource" class="form-input">
+          <option value="manual">I'll update it myself</option>
+          <option value="savings">Savings in Finance (amounts in your currency)</option>
+          <?php foreach ($goalSources as $key => [$label]): if ($key === 'habit' && !$userHabits) continue; ?>
+            <option value="<?= h($key) ?>"><?= h($label) ?> (automatic)</option>
+          <?php endforeach; ?>
+        </select>
       </div>
+      <div class="form-grid-2 hidden" id="goalSourceOpts">
+        <div class="form-group hidden" id="goalHabitWrap">
+          <label for="goalSourceRef" class="form-label">Habit</label>
+          <select id="goalSourceRef" class="form-input">
+            <?php foreach ($userHabits as $hid => $hname): ?><option value="<?= (int)$hid ?>"><?= h($hname) ?></option><?php endforeach; ?>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="goalSince" class="form-label">Count from</label>
+          <input id="goalSince" class="form-input" type="date" max="<?= date('Y-m-d') ?>">
+        </div>
+      </div>
+      <p class="form-hint hidden" id="goalSourceHint" style="margin-top:-.25rem">Progress fills in by itself from what you log. Set the target in the same unit.</p>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" data-close-modal="goalModal">Cancel</button>
@@ -228,7 +257,9 @@ const API_BASE = '<?= APP_BASE ?>/api';
 function openNewGoal() {
   ['goalId', 'goalName', 'goalDesc', 'goalDeadline'].forEach(i => document.getElementById(i).value = '');
   document.getElementById('goalTarget').value = 100;
-  document.getElementById('goalSavings').checked = false;
+  document.getElementById('goalSource').value = 'manual';
+  document.getElementById('goalSince').value = new Date().toLocaleDateString('en-CA');
+  goalSourceUI();
   document.getElementById('goalProgress').value = 0;
   const t = document.querySelector('#goalModal .modal-title'); if (t) t.textContent = 'New Goal';
   Trackie.openModal('goalModal');
@@ -244,7 +275,10 @@ async function openEditGoal(id) {
     document.getElementById('goalTarget').value = g.target_value;
     document.getElementById('goalProgress').value = g.progress;
     document.getElementById('goalDeadline').value = g.deadline || '';
-    document.getElementById('goalSavings').checked = g.kind === 'savings';
+    document.getElementById('goalSource').value = g.kind === 'savings' ? 'savings' : (g.source || 'manual');
+    if (g.source_ref) document.getElementById('goalSourceRef').value = g.source_ref;
+    document.getElementById('goalSince').value = g.source_since || new Date().toLocaleDateString('en-CA');
+    goalSourceUI();
     const t = document.querySelector('#goalModal .modal-title'); if (t) t.textContent = 'Edit Goal';
     Trackie.openModal('goalModal');
   } catch { Trackie.Toast.error('Network error.'); }
@@ -255,7 +289,11 @@ async function saveGoal() {
   try {
     const editId = document.getElementById('goalId').value;
     const res = await Trackie.API.post(`${API_BASE}/goals.php`, {
-      action: editId ? 'edit' : 'add', goal_id: editId, goal_name: name, kind: document.getElementById('goalSavings').checked ? 'savings' : 'general',
+      action: editId ? 'edit' : 'add', goal_id: editId, goal_name: name,
+      kind: document.getElementById('goalSource').value === 'savings' ? 'savings' : 'general',
+      source: ['manual', 'savings'].includes(document.getElementById('goalSource').value) ? '' : document.getElementById('goalSource').value,
+      source_ref: document.getElementById('goalSourceRef')?.value || '',
+      source_since: document.getElementById('goalSince').value,
       description:  document.getElementById('goalDesc').value,
       target_value: document.getElementById('goalTarget').value,
       progress:     document.getElementById('goalProgress').value,
@@ -269,6 +307,17 @@ async function saveGoal() {
     else Trackie.Toast.error(res.error || 'Failed.');
   } catch { Trackie.Toast.error('Network error.'); }
 }
+
+// Show the fields that matter for the chosen progress source.
+function goalSourceUI() {
+  const v = document.getElementById('goalSource').value;
+  const auto = !['manual', 'savings'].includes(v);
+  document.getElementById('goalSourceOpts').classList.toggle('hidden', !auto);
+  document.getElementById('goalHabitWrap').classList.toggle('hidden', v !== 'habit');
+  document.getElementById('goalSourceHint').classList.toggle('hidden', !auto);
+  document.getElementById('goalProgressWrap').classList.toggle('hidden', auto);
+}
+document.getElementById('goalSource').addEventListener('change', goalSourceUI);
 
 async function updateProgress(id, max) {
   const inp = document.getElementById(`prog-${id}`);

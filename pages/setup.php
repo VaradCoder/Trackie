@@ -695,6 +695,10 @@ $migrations = [
 
     'habits.schedule_days' => "ALTER TABLE habits ADD COLUMN IF NOT EXISTS schedule_days VARCHAR(13) DEFAULT NULL AFTER frequency",
     'routines.schedule_days' => "ALTER TABLE routines ADD COLUMN IF NOT EXISTS schedule_days VARCHAR(13) DEFAULT NULL AFTER time_slot",
+    'goals linked source' => "ALTER TABLE goals
+        ADD COLUMN IF NOT EXISTS source       VARCHAR(20) DEFAULT NULL AFTER kind,
+        ADD COLUMN IF NOT EXISTS source_ref   INT DEFAULT NULL AFTER source,
+        ADD COLUMN IF NOT EXISTS source_since DATE DEFAULT NULL AFTER source_ref",
 
     // Notification preferences: per-user time zone + quiet hours.
     'user_settings timezone/quiet hours' => "ALTER TABLE user_settings

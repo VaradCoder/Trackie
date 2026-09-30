@@ -10,6 +10,27 @@ verify_csrf();
 $uid    = currentUserId();
 $action = sanitizeInput($_POST['action'] ?? '');
 
+require_once '../includes/goal_sources.php';
+/**
+ * Linked progress source from the request: [source|null, ref|null, since|null].
+ * Exits 422 on an unknown source or a habit that isn't the user's.
+ */
+function goalSourceInput(int $uid): array {
+    $src = trim((string)($_POST['source'] ?? ''));
+    if ($src === '' || $src === 'manual') return [null, null, null];
+    if (!isset(availableGoalSources()[$src])) json_out(['success' => false, 'error' => 'Unknown progress source.'], 422);
+    $ref = null;
+    if ($src === 'habit') {
+        $ref = (int)($_POST['source_ref'] ?? 0);
+        if (!$ref || !fetchOne("SELECT id FROM habits WHERE id=? AND user_id=?", [$ref, $uid])) {
+            json_out(['success' => false, 'error' => 'Pick one of your habits to track.'], 422);
+        }
+    }
+    $since = (string)($_POST['source_since'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $since) || $since > date('Y-m-d')) $since = date('Y-m-d');
+    return [$src, $ref, $since];
+}
+
 switch ($action) {
 
     case 'add':
@@ -23,11 +44,14 @@ switch ($action) {
         if (!$name) json_out(['success' => false, 'error' => 'Goal name is required.'], 422);
 
         $kind = ($_POST['kind'] ?? '') === 'savings' ? 'savings' : 'general';
+        [$src, $ref, $since] = $kind === 'savings' ? [null, null, null] : goalSourceInput($uid);
+        if ($src) $prog = 0;   // filled from activity, never typed in
         $id = insert(
-            "INSERT INTO goals (user_id,goal_name,kind,description,progress,target_value,deadline)
-             VALUES (?,?,?,?,?,?,?)",
-            [$uid, $name, $kind, $desc, $prog, $target, $dead]
+            "INSERT INTO goals (user_id,goal_name,kind,source,source_ref,source_since,description,progress,target_value,deadline)
+             VALUES (?,?,?,?,?,?,?,?,?,?)",
+            [$uid, $name, $kind, $src, $ref, $since, $desc, $prog, $target, $dead]
         );
+        if ($src) syncLinkedGoals($uid);
         json_out(['success' => true, 'id' => $id]);
 
     case 'update_progress':
@@ -35,8 +59,9 @@ switch ($action) {
         $prog = (int)($_POST['progress'] ?? 0);
         if (!$id) json_out(['success' => false, 'error' => 'Invalid ID.'], 422);
 
-        $goal = fetchOne("SELECT target_value FROM goals WHERE id=? AND user_id=?", [$id, $uid]);
+        $goal = fetchOne("SELECT target_value, source FROM goals WHERE id=? AND user_id=?", [$id, $uid]);
         if (!$goal) json_out(['success' => false, 'error' => 'Not found.'], 404);
+        if (!empty($goal['source'])) json_out(['success' => false, 'error' => 'This goal fills in from your logged activity, so its progress can\'t be edited by hand.'], 422);
 
         $prog = max(0, min($prog, (int)$goal['target_value']));
         update("UPDATE goals SET progress=? WHERE id=? AND user_id=?", [$prog, $id, $uid]);
@@ -49,7 +74,7 @@ switch ($action) {
         json_out(['success' => true, 'progress' => $prog, 'xp' => $xp]);
 
     case 'get':
-        $g = fetchOne("SELECT id, goal_name, kind, description, progress, target_value, deadline FROM goals WHERE id=? AND user_id=?", [(int)($_POST['goal_id'] ?? 0), $uid]);
+        $g = fetchOne("SELECT id, goal_name, kind, source, source_ref, source_since, description, progress, target_value, deadline FROM goals WHERE id=? AND user_id=?", [(int)($_POST['goal_id'] ?? 0), $uid]);
         if (!$g) json_out(['success' => false, 'error' => 'Goal not found.'], 404);
         json_out(['success' => true, 'goal' => $g]);
 
@@ -63,10 +88,16 @@ switch ($action) {
         if (!$name) json_out(['success' => false, 'error' => 'Goal name is required.'], 422);
         if (!fetchOne("SELECT id FROM goals WHERE id=? AND user_id=?", [$id, $uid])) json_out(['success' => false, 'error' => 'Goal not found.'], 404);
         $kind = ($_POST['kind'] ?? '') === 'savings' ? 'savings' : 'general';
-        update("UPDATE goals SET goal_name=?, kind=?, description=?, progress=?, target_value=?, deadline=? WHERE id=? AND user_id=?",
-               [$name, $kind, $desc, $prog, $target, $dead, $id, $uid]);
+        [$src, $ref, $since] = $kind === 'savings' ? [null, null, null] : goalSourceInput($uid);
+        update("UPDATE goals SET goal_name=?, kind=?, source=?, source_ref=?, source_since=?, description=?, progress=?, target_value=?, deadline=? WHERE id=? AND user_id=?",
+               [$name, $kind, $src, $ref, $since, $desc, $src ? 0 : $prog, $target, $dead, $id, $uid]);
         $xp = null;
-        if ($prog >= $target) { require_once '../includes/activity.php'; $xp = recordActivity($uid, 'goal', 'goal', $id); }
+        if ($src) {
+            syncLinkedGoals($uid);
+        } elseif ($prog >= $target) {
+            require_once '../includes/activity.php';
+            $xp = recordActivity($uid, 'goal', 'goal', $id);
+        }
         json_out(['success' => true, 'xp' => $xp]);
 
     case 'delete':

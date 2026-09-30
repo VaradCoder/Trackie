@@ -107,6 +107,9 @@ function recordActivity(int $uid, string $action, string $refType, ?int $refId, 
     if (!empty($checkAfter)) {
         try {
             awardStreakMilestones($uid);
+            // Goals linked to a source (pages read, focus minutes, …) move now.
+            require_once __DIR__ . '/goal_sources.php';
+            syncLinkedGoals($uid);
             achievementBuffer(checkAchievements($uid));
         } catch (Throwable $e) {
             error_log('recordActivity checks: ' . $e->getMessage());

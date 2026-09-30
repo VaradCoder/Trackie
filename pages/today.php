@@ -70,6 +70,8 @@ $habits = array_values(array_filter($habits, function ($h) use ($today, $hLogs, 
 $habitsDone = count(array_filter($habits, fn($h) => (bool)$h['logged_today']));
 
 // ── Goal snapshot: nearest deadline / most recently moved, not complete ──
+require_once '../includes/goal_sources.php';
+syncLinkedGoals($uid);
 $goals = fetchAll(
     "SELECT id, goal_name, progress, target_value, deadline
      FROM goals

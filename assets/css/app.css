@@ -4602,3 +4602,7 @@ button:not(.btn).is-loading { opacity: .55; }
 .focus-task { display: flex; align-items: center; gap: .625rem; justify-content: center; margin: 0 auto 1.25rem; max-width: 420px; }
 .focus-task .form-input { flex: 1; min-width: 0; }
 @media (max-width: 480px) { .focus-task { flex-direction: column; align-items: stretch; } }
+
+/* Goals: linked progress source */
+.goal-source { font-size: .75rem; color: var(--muted); margin-top: .25rem; display: flex; align-items: center; gap: .375rem; }
+.goal-source i { color: var(--accent); font-size: .6875rem; }
