@@ -2382,9 +2382,8 @@ async function quitSession() {
   // SpaNav removes this listener when you leave the page and the script adds
   // it again on the next visit, so it never stacks. (Idempotent either way.)
   {
-    window.addEventListener('popstate', () => {
+    const teardownLiveWorkout = () => {
       const stale = document.querySelectorAll('body > .workout-overlay');
-      if (!stale.length) return;
       // Sets already logged are saved server-side; only the live UI is lost.
       const live = window.__woActive;
       if (live) {
@@ -2393,10 +2392,15 @@ async function quitSession() {
         live.dead = true;
         window.__woActive = null;
       }
+      if (!stale.length) return;
       stale.forEach(el => el.remove());
       document.body.classList.remove('workout-open');
       document.body.style.overflow = '';
-    });
+    };
+    window.addEventListener('popstate', teardownLiveWorkout);
+    // Leaving through any link / command palette: same cleanup, so no
+    // session or rest timer keeps running against a page that's gone.
+    Trackie.SpaNav?.onLeave?.(teardownLiveWorkout);
   }
   const root = woEl('workoutSession');
   if (!root) return;

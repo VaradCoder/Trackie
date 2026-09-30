@@ -6,7 +6,7 @@
 /* ── NProgress (top loading bar) ──────────────────────────────── */
 const NProgress = (() => {
   let _status = null;
-  let _trickleTimer = null;
+  let _trickleTimer = null, _hideTimer = null, _removeTimer = null;
   let bar, peg;
 
   function _render() {
@@ -38,6 +38,7 @@ const NProgress = (() => {
 
   return {
     start() {
+      clearTimeout(_hideTimer); clearTimeout(_removeTimer);   // a new request cancels a pending hide
       _render();
       _status = _status === null ? 0.05 : Math.min(_status, 0.984);
       _setWidth(_status);
@@ -50,13 +51,17 @@ const NProgress = (() => {
       _status = 1;
       _setWidth(1);
       bar.style.transition = 'width .3s ease';
-      setTimeout(() => {
-        bar.style.opacity = '0';
-        setTimeout(() => {
+      // Two requests finishing together used to call done() twice; the first
+      // cleanup nulled `bar` and the second threw on bar.style. Each run now
+      // works on its own reference and replaces any pending hide.
+      const b = bar;
+      clearTimeout(_hideTimer); clearTimeout(_removeTimer);
+      _hideTimer = setTimeout(() => {
+        b.style.opacity = '0';
+        _removeTimer = setTimeout(() => {
           const el = document.getElementById('nprogress');
           if (el) el.remove();
-          bar = peg = null;
-          _status = null;
+          if (bar === b) { bar = peg = null; _status = null; }
         }, 300);
       }, 200);
     },
@@ -2026,9 +2031,13 @@ const SpaNav = (() => {
 
     // Scripts that live after #page-main in the source (per-page data
     // injection + script blocks some pages place after the shared footer).
+    // Shell scripts (splash, sidebar guard, service-worker registration —
+    // marked data-spa-skip in head.php) belong to the full page load only;
+    // re-running them on every navigation threw and did redundant work.
+    const pageScript = s => !s.hasAttribute('data-spa-skip');
     const trailingScripts = Array.from(doc.body.querySelectorAll('script'))
-      .filter(s => !freshMain.contains(s));
-    const mainScripts = Array.from(freshMain.querySelectorAll('script'));
+      .filter(s => !freshMain.contains(s) && pageScript(s));
+    const mainScripts = Array.from(freshMain.querySelectorAll('script')).filter(pageScript);
 
     const u = new URL(url, location.href);
     syncStylesheets(doc);
@@ -2039,7 +2048,15 @@ const SpaNav = (() => {
     // the browser cross-fades the old content out / new content in instead of
     // the old dimmed node just popping straight to the new full-opacity one.
     // See the `#page-main { view-transition-name }` rule in app.css.
+    // Leaving the old page: run its cleanup (listeners, intervals, onLeave
+    // hooks) NOW, while its DOM still exists — cleanup that touches the page
+    // (e.g. pausing the Focus timer) failed when it ran after the swap.
+    releasePage();
+
+    let applied = false;
     const applyDom = () => {
+      if (applied) return;           // never swap twice (transition + fallback)
+      applied = true;
       document.getElementById('page-main').replaceWith(freshMain);
       freshMain.id = 'page-main';
       syncChrome(doc, u.pathname);
@@ -2048,12 +2065,25 @@ const SpaNav = (() => {
     };
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (!opts.refresh && !reduceMotion && document.startViewTransition) {
-      document.startViewTransition(applyDom);
+      // startViewTransition() runs applyDom ASYNCHRONOUSLY (after the next
+      // frame). The page's scripts must run against the NEW markup, so wait
+      // for the DOM update before running them — otherwise every
+      // getElementById() in the page script returns null, it throws on the
+      // first addEventListener, and the page's controls are left dead.
+      try {
+        // Capped: a backgrounded tab may not render the frame the transition
+        // waits for; never let that stall navigation.
+        await Promise.race([
+          document.startViewTransition(applyDom).updateCallbackDone,
+          new Promise(r => setTimeout(r, 1500)),
+        ]);
+      } catch { /* transition skipped/aborted (e.g. hidden tab) — apply below */ }
+      applyDom();                    // no-op if the transition already did it
     } else {
       applyDom();
     }
+    if (ctrl !== navCtrl) return;    // a newer navigation took over meanwhile
 
-    releasePage();
     await runScripts(mainScripts);
     await runScripts(trailingScripts);
 
@@ -2076,7 +2106,12 @@ const SpaNav = (() => {
     if (keepY !== null) window.scrollTo({ top: keepY, behavior: 'auto' });
     else window.scrollTo({ top: opts.scrollY || 0, behavior: 'auto' });
     if (push) history.pushState({ spa: true, scrollY: 0 }, '', url);
-    try { document.dispatchEvent(new CustomEvent('trackie:navigated', { detail: { url, refresh: !!opts.refresh } })); } catch {}
+    // Page lifecycle: fired after the new #page-main is in the DOM AND its
+    // scripts have run. Listen to this (not DOMContentLoaded, which fires only
+    // on a full load) for anything that must re-initialise per page.
+    const page = u.pathname.split('/').pop().replace(/\.php$/, '');
+    try { document.dispatchEvent(new CustomEvent('trackie:page-loaded', { detail: { url, page, refresh: !!opts.refresh } })); } catch {}
+    try { document.dispatchEvent(new CustomEvent('trackie:navigated', { detail: { url, page, refresh: !!opts.refresh } })); } catch {}
   }
 
   // Remember where the user was on each history entry so Back returns there.
@@ -2117,7 +2152,15 @@ const SpaNav = (() => {
   /** Re-render the current page's content in place (no reload, scroll kept). */
   function refresh() { return swap(location.href, false, { refresh: true }); }
 
-  return { swap, refresh };
+  /**
+   * Page lifecycle: register cleanup to run when the user leaves this page
+   * (SPA navigation or an in-place refresh) — for timers, observers or
+   * AbortControllers a page starts LATER (on a click), which the automatic
+   * per-page listener/interval release can't see. Runs once, then forgotten.
+   */
+  function onLeave(fn) { if (typeof fn === 'function') pageResources.push(fn); }
+
+  return { swap, refresh, onLeave };
 })();
 
 /* ── Viewport: on-screen keyboard handling ─────────────────────────

@@ -94,7 +94,7 @@
   <?php endif; ?>
 </head>
 <body<?= !empty($bodyClass) ? ' class="' . h($bodyClass) . '"' : '' ?>>
-<script>
+<script data-spa-skip>
   /* Sidebar docked-state guard — same idea as the theme guard above, but it
      has to run here because it writes to <body>, which does not exist yet in
      <head>. Sidebar.init() applied this class on DOMContentLoaded, so on a
@@ -118,10 +118,11 @@
     <div class="tk-splash-ring"></div>
   </div>
 </div>
-<script>
+<script data-spa-skip>
 (function () {
   var seen = sessionStorage.getItem('tk_splash_seen');
   var el = document.getElementById('tk-splash');
+  if (!el) return;
   if (seen) { el.remove(); return; }
   sessionStorage.setItem('tk_splash_seen', '1');
   el.classList.add('is-visible');
@@ -142,7 +143,7 @@
 <div id="toast-container"></div>
 
 <!-- Service worker registration (scope derived from app base) -->
-<script>
+<script data-spa-skip>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
     var base = document.querySelector('meta[name="app-base"]').content || '';

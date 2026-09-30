@@ -244,7 +244,7 @@ async function complete() {
             sel.value = '';
           } catch (e) { Trackie.Toast.error(e.message || 'Could not complete that task.'); }
         }, 12000);
-        try { new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==').play(); } catch(e){}
+        try { new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==').play()?.catch(() => {}); } catch (e) {}
         loadFocusBreakdown();
       } else {
         // Server reached us and refused. Never report this as success — that
@@ -294,6 +294,14 @@ bStart.addEventListener('click', start);
 bPause.addEventListener('click', pause);
 document.getElementById('btnReset').addEventListener('click', reset);
 window.addEventListener('beforeunload', () => { if (timer) document.title = 'Trackie'; });
+// Leaving the page (SPA navigation): stop the countdown so it can't keep
+// ticking against the detached page, rewrite the tab title, or post a
+// session later. Say so rather than silently dropping a running session.
+Trackie.SpaNav?.onLeave?.(() => {
+  if (!timer) return;
+  pause();
+  Trackie.Toast.info('Focus timer stopped because you left the Focus page.');
+});
 render();
 loadFocusBreakdown();
 
