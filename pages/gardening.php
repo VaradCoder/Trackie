@@ -133,11 +133,11 @@ async function savePlant() {
   const id = document.getElementById('plId').value;
   const res = await gPost({ action: id ? 'edit' : 'add', item_id: id, name: document.getElementById('plName').value, species: document.getElementById('plSpecies').value,
     location: document.getElementById('plLoc').value, water_frequency_days: document.getElementById('plFreq').value, notes: document.getElementById('plNotes').value });
-  if (res.success) { Trackie.Toast.success('Saved.'); location.reload(); } else Trackie.Toast.error(res.error || 'Failed.');
+  if (res.success) { Trackie.Toast.success('Saved.'); Trackie.SpaNav.refresh(); } else Trackie.Toast.error(res.error || 'Failed.');
 }
 async function care(id, kind, note = '') {
   const res = await gPost({ action: 'care', item_id: id, kind, note });
-  if (res.success) { Trackie.Toast.success(`${CARE[kind][0]} logged` + (res.xp?.ok ? ` · +${res.xp.gained} XP` : '')); location.reload(); }
+  if (res.success) { Trackie.Toast.success(`${CARE[kind][0]} logged` + (res.xp?.ok ? ` · +${res.xp.gained} XP` : '')); Trackie.SpaNav.refresh(); }
   else Trackie.Toast.error(res.error || 'Failed.');
 }
 async function setPlantStatus(id, status) { const r = await gPost({ action: 'update_status', item_id: id, status }); if (r.success) Trackie.Toast.success('Updated.'); }
@@ -170,6 +170,6 @@ function editPlant() {
 }
 async function deletePlant(id) {
   if (!await Trackie.confirmDialog('Delete this plant and its care log?', { confirmText: 'Delete', danger: true })) return;
-  const r = await gPost({ action: 'delete', item_id: id }); if (r.success) location.reload();
+  const r = await gPost({ action: 'delete', item_id: id }); if (r.success) Trackie.SpaNav.refresh();
 }
 </script>

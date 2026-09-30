@@ -266,7 +266,7 @@ async function calQuickAdd() {
   const base = document.querySelector('meta[name="app-base"]')?.content || '';
   try {
     const res = await Trackie.API.post(base + '/api/todos.php', { action: 'add', title, due_date: calDayOpen, priority: 'medium' });
-    if (res.success) { Trackie.Toast.success('Todo added.'); location.reload(); } else Trackie.Toast.error(res.error || 'Failed.');
+    if (res.success) { Trackie.Toast.success('Todo added.'); Trackie.SpaNav.refresh(); } else Trackie.Toast.error(res.error || 'Failed.');
   } catch { Trackie.Toast.error('Network error.'); }
 }
 function closeDayDetail() { document.getElementById('dayDetailModal').classList.add('hidden'); }
@@ -278,7 +278,7 @@ async function toggleCalendarTask(id, source, completed) {
                                      : { action: 'toggle', todo_id: id, completed: completed ? 1 : 0 };
   const res = await Trackie.API.post(endpoint, params);
   if (res && res.success) {
-    location.reload();
+    Trackie.SpaNav.refresh();
   } else {
     Trackie.Toast.error('Could not update task');
   }

@@ -163,7 +163,7 @@ document.getElementById('edText').addEventListener('input', () => {
   clearTimeout(edTimer); edTimer = setTimeout(saveNow, 1500);
 });
 document.getElementById('edTitle').addEventListener('change', saveNow);
-async function closeEditor() { await saveNow(); Trackie.closeModal('editorModal'); location.reload(); }
+async function closeEditor() { await saveNow(); Trackie.closeModal('editorModal'); Trackie.SpaNav.refresh(); }
 window.addEventListener('beforeunload', e => { if (edDirty) { e.preventDefault(); e.returnValue = ''; } });
 async function setStatus(id, status) { const r = await wPost({ action: 'update_status', item_id: id, status }); if (r.success) Trackie.Toast.success('Status updated.'); }
 async function deletePiece(id) {
@@ -172,6 +172,6 @@ async function deletePiece(id) {
 }
 async function saveGoal() {
   const r = await wPost({ action: 'goal_save', writing_goal: document.getElementById('wGoal').value });
-  if (r.success) location.reload(); else Trackie.Toast.error(r.error || 'Failed.');
+  if (r.success) Trackie.SpaNav.refresh(); else Trackie.Toast.error(r.error || 'Failed.');
 }
 </script>

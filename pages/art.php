@@ -172,19 +172,19 @@ async function saveArt() {
   try {
     if (f) { const blob = window.PhotoExif ? await PhotoExif.prepare(f) : f; fd.append('image', blob, 'art.jpg'); }
     const res = await Trackie.API.post(`${API_BASE}/art.php`, fd);
-    if (res.success) { Trackie.Toast.success('Saved.'); location.reload(); } else Trackie.Toast.error(res.error || 'Failed.');
+    if (res.success) { Trackie.Toast.success('Saved.'); Trackie.SpaNav.refresh(); } else Trackie.Toast.error(res.error || 'Failed.');
   } catch { Trackie.Toast.error('Upload failed.'); } finally { btn.disabled = false; }
 }
 async function deleteArt() {
   if (!await Trackie.confirmDialog('Delete this piece and its image?', { confirmText: 'Delete', danger: true })) return;
   const r = await Trackie.API.post(`${API_BASE}/art.php`, { action: 'delete', item_id: document.getElementById('arId').value });
-  if (r.success) location.reload();
+  if (r.success) Trackie.SpaNav.refresh();
 }
 function openPractice() { document.getElementById('apDate').value = '<?= $today ?>'; document.getElementById('apNotes').value = ''; Trackie.openModal('practiceModal'); }
 async function savePractice() {
   const res = await Trackie.API.post(`${API_BASE}/art.php`, { action: 'session_log', minutes: document.getElementById('apMin').value,
     session_date: document.getElementById('apDate').value, artwork_id: document.getElementById('apArt').value, notes: document.getElementById('apNotes').value });
-  if (res.success) { Trackie.Toast.success('Practice logged' + (res.xp?.ok ? ` · +${res.xp.gained} XP` : '')); location.reload(); } else Trackie.Toast.error(res.error || 'Failed.');
+  if (res.success) { Trackie.Toast.success('Practice logged' + (res.xp?.ok ? ` · +${res.xp.gained} XP` : '')); Trackie.SpaNav.refresh(); } else Trackie.Toast.error(res.error || 'Failed.');
 }
 async function deletePractice(id) { const r = await Trackie.API.post(`${API_BASE}/art.php`, { action: 'session_delete', session_id: id }); if (r.success) document.getElementById(`asess-${id}`)?.remove(); }
 </script>

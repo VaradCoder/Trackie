@@ -61,6 +61,15 @@ function tryRememberLogin(): bool {
 function requireAuth(): void {
     if (tryRememberLogin()) return;
 
+    // fetch()/XHR callers get a JSON 401 instead of a redirect to the login
+    // HTML (which fetch follows silently, leaving the UI parsing a web page).
+    if (strcasecmp($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '', 'XMLHttpRequest') === 0) {
+        http_response_code(401);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'auth' => false, 'error' => 'Your session has expired. Please sign in again.']);
+        exit;
+    }
+
     flash('error', 'Please log in to continue.');
     redirect(APP_BASE . '/pages/auth.php');
 }

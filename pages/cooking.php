@@ -222,7 +222,7 @@ async function saveRecipe() {
   Object.entries(RC_FIELDS).forEach(([i, k]) => data[k] = document.getElementById(i).value);
   if (!data.title.trim()) { Trackie.Toast.warning('Title is required.'); return; }
   const res = await ckPost(data);
-  if (res.success) { Trackie.Toast.success(id ? 'Recipe updated.' : 'Recipe added!'); location.reload(); } else Trackie.Toast.error(res.error || 'Failed.');
+  if (res.success) { Trackie.Toast.success(id ? 'Recipe updated.' : 'Recipe added!'); Trackie.SpaNav.refresh(); } else Trackie.Toast.error(res.error || 'Failed.');
 }
 async function viewRecipe(id) {
   const res = await ckPost({ action: 'get', item_id: id });
@@ -250,7 +250,7 @@ async function rateRecipe(id, rating) {
 }
 async function deleteRecipe(id) {
   if (!await Trackie.confirmDialog('Delete this recipe and its cooking history?', { confirmText: 'Delete', danger: true })) return;
-  const r = await ckPost({ action: 'delete', item_id: id }); if (r.success) location.reload();
+  const r = await ckPost({ action: 'delete', item_id: id }); if (r.success) Trackie.SpaNav.refresh();
 }
 function openCook(id) {
   document.getElementById('ckId').value = id; document.getElementById('ckDate').value = '<?= $today ?>';
@@ -260,7 +260,7 @@ function openCook(id) {
 async function saveCook() {
   const res = await ckPost({ action: 'cook', item_id: document.getElementById('ckId').value, cooked_on: document.getElementById('ckDate').value,
                              rating: document.getElementById('ckRating').value, notes: document.getElementById('ckNotes').value });
-  if (res.success) { Trackie.Toast.success('Logged' + (res.xp?.ok ? ` · +${res.xp.gained} XP` : '')); location.reload(); } else Trackie.Toast.error(res.error || 'Failed.');
+  if (res.success) { Trackie.Toast.success('Logged' + (res.xp?.ok ? ` · +${res.xp.gained} XP` : '')); Trackie.SpaNav.refresh(); } else Trackie.Toast.error(res.error || 'Failed.');
 }
 async function deleteCook(id) { const r = await ckPost({ action: 'cook_delete', log_id: id }); if (r.success) document.getElementById(`cook-${id}`)?.remove(); }
 function openPlan(date, meal) {
@@ -274,7 +274,7 @@ function openPlan(date, meal) {
 async function savePlan() {
   const res = await ckPost({ action: 'plan_set', plan_date: document.getElementById('plDate').value, meal: document.getElementById('plMeal').value,
                              recipe_id: document.getElementById('plRecipe').value, note: document.getElementById('plNote').value });
-  if (res.success) location.reload(); else Trackie.Toast.error(res.error || 'Failed.');
+  if (res.success) Trackie.SpaNav.refresh(); else Trackie.Toast.error(res.error || 'Failed.');
 }
 function clearPlan() { document.getElementById('plRecipe').value = ''; document.getElementById('plNote').value = ''; savePlan(); }
 </script>

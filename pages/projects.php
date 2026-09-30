@@ -277,7 +277,7 @@ async function saveCodeSession() {
     const res = await Trackie.API.post(`${API_BASE}/projects.php`, { action: 'session_log', minutes: document.getElementById('csMin').value,
       session_date: document.getElementById('csDate').value, language: document.getElementById('csLang').value,
       project_id: document.getElementById('csProject').value, notes: document.getElementById('csNotes').value });
-    if (res.success) { Trackie.Toast.success('Session logged' + (res.xp?.ok ? ` · +${res.xp.gained} XP` : '')); location.reload(); }
+    if (res.success) { Trackie.Toast.success('Session logged' + (res.xp?.ok ? ` · +${res.xp.gained} XP` : '')); Trackie.SpaNav.refresh(); }
     else Trackie.Toast.error(res.error || 'Failed.');
   } catch { Trackie.Toast.error('Network error.'); }
 }
@@ -317,7 +317,7 @@ async function saveProject() {
     const res = await Trackie.API.post(`${API_BASE}/projects.php`, { action: id ? 'edit' : 'add', project_id: id, name,
       description: document.getElementById('projDesc').value.trim(), github_url: document.getElementById('projGithub').value.trim(),
       status: document.getElementById('projStatus').value });
-    if (res.success) { Trackie.Toast.success(id ? 'Project updated.' : 'Project created!'); Trackie.closeModal('addProjectModal'); location.reload(); }
+    if (res.success) { Trackie.Toast.success(id ? 'Project updated.' : 'Project created!'); Trackie.closeModal('addProjectModal'); Trackie.SpaNav.refresh(); }
     else Trackie.Toast.error(res.error || 'Failed.');
   } catch { Trackie.Toast.error('Network error.'); }
 }

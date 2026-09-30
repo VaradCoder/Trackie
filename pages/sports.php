@@ -192,7 +192,7 @@ async function saveSession() {
     if (res.success) {
       Trackie.closeModal('logSessionModal');
       Trackie.Toast.success(id ? 'Session updated.' : 'Session logged!' + (res.xp?.ok ? ` +${res.xp.gained} XP` : ''));
-      location.reload();
+      Trackie.SpaNav.refresh();
     } else Trackie.Toast.error(res.error || 'Failed.');
   } catch { Trackie.Toast.error('Network error.'); }
 }

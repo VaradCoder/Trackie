@@ -4566,3 +4566,17 @@ html { overflow-x: clip; }
 .lp-final h2 { font-size: clamp(1.25rem, 3.5vw, 1.75rem); font-weight: 800; margin-bottom: 1.25rem; }
 .lp-foot { display: flex; gap: 1.25rem; justify-content: center; flex-wrap: wrap; margin-top: 2.5rem; font-size: .8125rem; color: var(--muted); }
 .lp-foot a { color: var(--muted); }
+
+/* ── Busy state (Trackie.API marks the button that started a request) ── */
+@keyframes tk-spin { to { transform: rotate(360deg); } }
+.is-loading { position: relative; pointer-events: none; cursor: progress; }
+.btn.is-loading { color: transparent !important; }
+.btn.is-loading > * { visibility: hidden; }
+.btn.is-loading::after {
+  content: ""; position: absolute; inset: 0; margin: auto; width: 1em; height: 1em;
+  border: 2px solid currentColor; border-radius: 50%; border-right-color: transparent;
+  color: var(--text); animation: tk-spin .6s linear infinite;
+}
+.btn-primary.is-loading::after, .btn-danger.is-loading::after { color: #fff; }
+button:not(.btn).is-loading { opacity: .55; }
+@media (prefers-reduced-motion: reduce) { .btn.is-loading::after { animation-duration: 1.5s; } }

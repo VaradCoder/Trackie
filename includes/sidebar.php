@@ -32,9 +32,10 @@ if (isLoggedIn() && function_exists('maybeRecordSnapshot')) {
 $sb_streak = null;
 if (isLoggedIn()) {
     try {
-        // habitStreaks() is the single definition of a habit streak, so the
-        // number in the sidebar can never disagree with the dashboard's.
-        $sb_streak = habitStreaks(currentUserId())['current'] ?? null;
+        // The Trackie streak (any logged activity) — the same number as
+        // Progress/Analytics and api/me.php, which live-updates it.
+        require_once __DIR__ . '/activity.php';
+        $sb_streak = activityReady() ? activityStreak(currentUserId())['current'] : (habitStreaks(currentUserId())['current'] ?? null);
     } catch (Throwable $e) { $sb_streak = null; }
 }
 
@@ -62,10 +63,10 @@ $sb_pic = ($sb_pic && file_exists(ROOT_PATH . '/' . $sb_pic))
         <div class="sidebar-identity-name"><?= h($_SESSION['user_name'] ?? 'You') ?></div>
         <div class="sidebar-identity-meta">
           <?php if ($sb_xp): ?>
-            <span><i class="fas fa-bolt" style="color:var(--accent)" aria-hidden="true"></i>Level <?= (int)$sb_xp['level'] ?></span>
+            <span><i class="fas fa-bolt" style="color:var(--accent)" aria-hidden="true"></i>Level <b data-live="level" style="font-weight:inherit"><?= (int)$sb_xp['level'] ?></b></span>
           <?php endif; ?>
           <?php if ($sb_streak !== null): ?>
-            <span><i class="fas fa-fire" style="color:#f59e0b" aria-hidden="true"></i><?= (int)$sb_streak ?>d</span>
+            <span title="Trackie streak"><i class="fas fa-fire" style="color:#f59e0b" aria-hidden="true"></i><b data-live="streak" style="font-weight:inherit"><?= (int)$sb_streak ?></b>d</span>
           <?php endif; ?>
         </div>
       </div>

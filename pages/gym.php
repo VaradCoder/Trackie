@@ -2379,10 +2379,9 @@ async function quitSession() {
 // SpaNav replaces it on every visit, so listeners never stack up.
 (function wireWorkoutControls() {
   // Browser Back mid-workout swaps the page under a <body>-level overlay.
-  // One window listener for the app's lifetime (this script re-runs on every
-  // SpaNav visit, so guard against stacking it).
-  if (!window.__woPopstateBound) {
-    window.__woPopstateBound = true;
+  // SpaNav removes this listener when you leave the page and the script adds
+  // it again on the next visit, so it never stacks. (Idempotent either way.)
+  {
     window.addEventListener('popstate', () => {
       const stale = document.querySelectorAll('body > .workout-overlay');
       if (!stale.length) return;
