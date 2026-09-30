@@ -25,6 +25,22 @@ storage/         private uploads (photos, art) — denied to the web, served by 
 | `includes/habit_schedule.php` | Habits on chosen weekdays; schedule-aware due checks and streaks. |
 | `includes/providers.php` + `includes/oauth.php` | GitHub / Google / Spotify OAuth, token storage encrypted with AES-256-GCM (`includes/crypto.php`, fails closed without the key), refresh. |
 | `includes/mailer.php` | Brevo HTTP API or SMTP (hosts without `mail()`). |
+| `includes/notify.php` | **Reminder engine** — the one place reminders fire. `fireDueReminders()` is called by `cron/dispatch.php` (all users) and the in-tab poll (one user). Each fire is claimed with a conditional `UPDATE`, so concurrent runs deliver exactly once. Judges "due" in each user's zone, respects `notify_reminders` + quiet hours, writes the bell entry and sends Web Push (`includes/webpush.php`, VAPID + aes128gcm). |
+| `includes/goal_sources.php` | Goals that fill themselves from activity (`goals.source`): habit check-ins, todos, focus minutes, workouts, pages, words, meditation, coding. `syncLinkedGoals()` runs after every new activity and writes `goals.progress`. |
+| `api/me.php` | Live app-shell state (level, Trackie streak, unread count) for the sidebar/bell after changes. |
+
+## Frontend (assets/js/app.js)
+
+| Module | Responsibility |
+| --- | --- |
+| `SpaNav` | PJAX-style navigation: swaps `#page-main`, keeps the shell, restores scroll on Back, cancels superseded loads, handles GET forms, `SpaNav.refresh()` re-renders in place after a save (no `location.reload()` anywhere). Page scripts' `document`/`window` listeners and intervals are released between pages. |
+| `Trackie.API` / `trackieFetch()` | One request helper: CSRF, JSON, timeouts, readable errors, session expiry (401 → sign-in), double-submit dedupe, automatic loading state on the clicked button, offline write queue. Error JSON (`{success:false,error}`) is returned, not thrown. |
+| `Live` | After any successful change, refreshes sidebar level/streak and the bell (`api/me.php`); fires `trackie:changed`. |
+| `Push` | Web Push on this device (Settings → This device). Not offered inside the native app. |
+| `Updates` | Offers "A new version is ready · Reload" after a deploy (new service worker, or a newer `app.js` build seen during navigation). |
+| `Toast` | The only notification UI (`success/error/info/warning/action`). |
+
+API responses: `{ "success": bool, "error"?: string, …fields }`, with a matching HTTP status on errors (401 session, 403/404 ownership, 409 conflict, 422 validation, 503 not configured).
 
 ## Adding a tracked action
 
@@ -45,7 +61,9 @@ EXISTS`). Admin → Migrations verifies them against `information_schema`.
 
 ## Security model
 
-- Sessions + remember-me tokens (hashed); rate-limited login; CSRF token on every POST.
+- Sessions + remember-me tokens (hashed); rate-limited login (per IP and per account), registration and password reset; CSRF token on every POST (the one exception, `push.php?action=resubscribe` from the service worker, proves ownership of the old subscription instead).
+- XP can't be farmed: completions are unique per item/day in `activity_log`, future-dated routine completions are rejected, and focus sessions can't overlap in time.
+- `setup.php` is admin-only once any user exists.
 - Every query is scoped by `user_id`; ownership is checked before updates.
 - CSP (`config/app.php`): script origins allowlisted, `object-src 'none'`,
   `base-uri 'self'`, `frame-ancestors 'self'`, `form-action` limited to Trackie

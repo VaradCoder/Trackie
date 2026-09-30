@@ -14,7 +14,7 @@ $clientId     = env('SPOTIFY_CLIENT_ID');
 $clientSecret = env('SPOTIFY_CLIENT_SECRET');
 
 if (!$clientId || !$clientSecret) {
-    json_out(['connected' => false, 'reason' => 'not_configured']);
+    json_out(['success' => false, 'connected' => false, 'reason' => 'not_configured', 'error' => 'Spotify is not set up on this server.'], 503);
 }
 
 // Tokens live encrypted in user_integrations (provider 'spotify') and are

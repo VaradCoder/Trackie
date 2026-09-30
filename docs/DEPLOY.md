@@ -43,6 +43,11 @@ only. `config/env.php.example` lists every key with where to get it.
 | `GITHUB_*`, `GOOGLE_*`, `SPOTIFY_*`, `STRAVA_*` | Optional sign-in / sync. Each provider's redirect URI must be `APP_URL` + `/pages/<provider>_callback.php`. |
 | `CRON_TOKEN` | `cron/dispatch.php?token=…` for an external scheduler |
 
+**Web Push keys** are a file, not an env key: run `php cron/generate_vapid.php`
+once on your own machine and upload the resulting `keys/vapid.php` to the same
+path on the server (`keys/` is web-blocked and git-ignored). Regenerating the
+keys invalidates every existing push subscription.
+
 **Admin → Configuration** shows which keys are set (never their values).
 
 ## 4. After deploying
@@ -50,6 +55,12 @@ only. `config/env.php.example` lists every key with where to get it.
 - Hard-refresh once: the service worker version (`sw.js` → `VERSION`) was
   bumped, so installed PWAs pick up the new shell on next launch.
 - Smoke test: sign in, tick a habit, open Analytics and the Weekly Review.
+
+## Never upload
+
+- A full-site `.zip` into `htdocs/` — it would contain `config/env.php`.
+  (`.htaccess` now refuses to serve archives, but delete any that exist.)
+- `dist/`, `keys/` other than `vapid.php`, `logs/`, `.git/`.
 
 ## Known host limits (InfinityFree)
 

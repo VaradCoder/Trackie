@@ -33,7 +33,7 @@ if (!$force && !empty($_SESSION[$cacheKey]) && ($_SESSION[$cacheKey]['date'] ?? 
 $geminiKey = env('GEMINI_API_KEY');
 $openaiKey = env('OPENAI_API_KEY');
 if (!$geminiKey && !$openaiKey) {
-    json_out(['success' => false, 'error' => 'not_configured']);
+    json_out(['success' => false, 'reason' => 'not_configured', 'error' => 'AI insights are not set up on this server.'], 503);
 }
 
 // ── Build a compact, data-grounded prompt from the user's real stats ──
