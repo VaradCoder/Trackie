@@ -15,9 +15,18 @@ if (!tableExists('focus_sessions')) renderSetupNeeded('Focus');
 
 $stats = focusStats($uid);
 $history = fetchAll(
-    "SELECT duration_min, type, started_at FROM focus_sessions
-     WHERE user_id=? AND completed=1 ORDER BY id DESC LIMIT 10", [$uid]
+    "SELECT f.duration_min, f.type, f.mode, f.started_at, t.title AS task
+       FROM focus_sessions f
+       LEFT JOIN todos t ON t.id = f.todo_id AND t.user_id = f.user_id
+      WHERE f.user_id=? AND f.completed=1 ORDER BY f.id DESC LIMIT 10", [$uid]
 );
+// Tasks you can focus on: open top-level todos, due soonest first.
+$openTodos = fetchAll(
+    "SELECT id, title, due_date FROM todos
+      WHERE user_id=? AND completed=0 AND deleted_at IS NULL AND parent_id IS NULL
+      ORDER BY (due_date IS NULL), due_date, id DESC LIMIT 40", [$uid]
+);
+$preselectTodo = (int)($_GET['todo'] ?? 0);   // e.g. a "Focus on this" link from Todos
 $fmt = fn($m) => $m >= 60 ? floor($m/60).'h '.($m%60).'m' : $m.'m';
 
 // Single toggle for the optional Lottie break-ring animation. Empty by
@@ -66,6 +75,16 @@ require_once '../includes/head.php';
     <button class="btn btn-primary" id="btnApplyCustom" style="padding:var(--sp-2) 1rem"><i class="fas fa-check"></i> Set</button>
   </div>
 
+  <div class="focus-task">
+    <label for="focusTodo" class="form-label" style="margin:0">Working on</label>
+    <select id="focusTodo" class="form-input">
+      <option value="">Nothing specific</option>
+      <?php foreach ($openTodos as $t): ?>
+        <option value="<?= (int)$t['id'] ?>" <?= $preselectTodo === (int)$t['id'] ? 'selected' : '' ?>><?= h($t['title']) ?><?= $t['due_date'] ? ' · ' . h(date('j M', strtotime($t['due_date']))) : '' ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+
   <div id="timerRing" class="timer-ring">
     <!-- Set FOCUS_LOTTIE_SRC below to a .lottie/.json URL from lottiefiles.com to
          replace this CSS ring with a real animation. Falls back gracefully if empty
@@ -95,7 +114,7 @@ require_once '../includes/head.php';
         <i class="fas <?= $h['type']==='focus'?'fa-bolt':'fa-mug-hot' ?>" style="font-size:.8125rem"></i>
       </div>
       <div style="flex:1;min-width:0">
-        <span class="todo-title"><?= $h['type']==='focus'?'Focus session':'Break' ?></span>
+        <span class="todo-title"><?= $h['type'] === 'focus' ? ($h['task'] ? h($h['task']) : ($h['mode'] ? h($h['mode']) . ' focus' : 'Focus session')) : 'Break' ?></span>
         <div class="todo-meta"><?= (int)$h['duration_min'] ?> min · <?= timeAgo($h['started_at']) ?></div>
       </div>
       <?php if ($h['type']==='focus'): ?><strong style="color:#f59e0b">+20 XP</strong><?php endif; ?>
@@ -106,7 +125,7 @@ require_once '../includes/head.php';
   <!-- Category breakdown -->
   <div style="font-size:.9375rem;font-weight:600;margin:var(--sp-5) 0 .75rem">Time by category (last 30 days)</div>
   <div class="card" id="focusBreakdown">
-    <div style="font-size:.8125rem;color:var(--muted)"><i class="fas fa-spinner fa-spin"></i> Loading\u2026</div>
+    <div style="font-size:.8125rem;color:var(--muted)"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
   </div>
 </div>
 <?php include '../includes/footer.php'; ?>
@@ -197,8 +216,12 @@ async function complete() {
   const wasFocus = phase === 'focus';
   if (wasFocus) {
     try {
+      const sel = document.getElementById('focusTodo');
+      const todoId = sel?.value || '';
+      const todoTitle = todoId ? sel.options[sel.selectedIndex].text.replace(/ · [^·]+$/, '') : '';
       const res = await Trackie.API.post(`${API_BASE}/focus.php`, {
-        action:'complete', type:'focus', duration: FOCUS_MIN, mode
+        action:'complete', type:'focus', duration: FOCUS_MIN, mode,
+        todo_id: todoId, ended_at: Math.floor(Date.now() / 1000),   // real end time survives an offline replay
       });
       // API.post() queues mutating calls while offline and returns
       // {success:true, queued:true}. That is the ONLY case where it is true to
@@ -210,7 +233,17 @@ async function complete() {
           res.stats.today >= 60 ? `${Math.floor(res.stats.today/60)}h ${res.stats.today%60}m` : `${res.stats.today}m`;
         res.xp?.leveledUp
           ? Trackie.Toast.success(`⚡ Level up! Level ${res.xp.level}`, 5000)
-          : Trackie.Toast.success('Focus complete! +20 XP 🎉');
+          : Trackie.Toast.success(res.xp?.gained ? `Focus complete! +${res.xp.gained} XP 🎉` : 'Focus complete! 🎉');
+        // Session was for a task → offer to tick it off right here.
+        if (todoId) Trackie.Toast.action(`Finished "${todoTitle}"?`, 'Mark done', async () => {
+          try {
+            const r = await Trackie.API.post(`${API_BASE}/todos.php`, { action: 'toggle', todo_id: todoId, completed: 1 }, { button: null });
+            if (!r.success) { Trackie.Toast.error(r.error || 'Could not complete that task.'); return; }
+            Trackie.Toast.success(r.xp?.gained ? `Task done · +${r.xp.gained} XP` : 'Task done.');
+            sel.querySelector(`option[value="${CSS.escape(todoId)}"]`)?.remove();
+            sel.value = '';
+          } catch (e) { Trackie.Toast.error(e.message || 'Could not complete that task.'); }
+        }, 12000);
         try { new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==').play(); } catch(e){}
         loadFocusBreakdown();
       } else {
@@ -218,10 +251,10 @@ async function complete() {
         // is how a broken `mode` column silently destroyed every session.
         Trackie.Toast.error(res.error || "Couldn't save this focus session.");
       }
-    } catch {
+    } catch (e) {
       // Online and the request still failed: a real error, not an offline
       // queue. Say so plainly rather than inventing a sync that won't happen.
-      Trackie.Toast.error("Couldn't save this focus session — please try again.");
+      Trackie.Toast.error(e.message || "Couldn't save this focus session — please try again.");
     }
     setPhase('break');
     Trackie.Toast.info('Time for a 5-minute break.');

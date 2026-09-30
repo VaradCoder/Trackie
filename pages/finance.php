@@ -204,10 +204,10 @@ require_once '../includes/head.php';
   <div style="display:flex;align-items:center;gap:.625rem">
     <h1 style="font-size:1.125rem;font-weight:600;margin:0;color:var(--text)"><i class="fas fa-wallet" style="color:var(--accent);margin-right:.375rem" aria-hidden="true"></i>Finance</h1>
     <div style="display:flex;align-items:center;gap:.25rem">
-      <a href="?m=<?= $prevM ?>" class="btn btn-icon btn-ghost btn-sm" title="Previous month"><i class="fas fa-chevron-left"></i></a>
+      <a aria-label="Previous month" href="?m=<?= $prevM ?>" class="btn btn-icon btn-ghost btn-sm" title="Previous month"><i class="fas fa-chevron-left"></i></a>
       <span style="font-size:.875rem;font-weight:600;color:var(--muted);min-width:7.5rem;text-align:center"><?= $monthLabel ?></span>
       <?php if (!$isCurrent): ?>
-        <a href="?m=<?= $nextM ?>" class="btn btn-icon btn-ghost btn-sm" title="Next month"><i class="fas fa-chevron-right"></i></a>
+        <a aria-label="Next month" href="?m=<?= $nextM ?>" class="btn btn-icon btn-ghost btn-sm" title="Next month"><i class="fas fa-chevron-right"></i></a>
       <?php endif; ?>
     </div>
   </div>
@@ -317,7 +317,7 @@ require_once '../includes/head.php';
                   <span class="badge badge-red">Over by <?= rupee($spent - $limit) ?></span>
                 <?php endif; ?>
                 <span style="color:var(--muted)"><?= rupee($spent) ?> / <?= rupee($limit) ?></span>
-                <button class="btn btn-icon btn-ghost btn-sm" style="width:1.5rem;height:1.5rem" title="Remove budget"
+                <button aria-label="Remove budget" class="btn btn-icon btn-ghost btn-sm" style="width:1.5rem;height:1.5rem" title="Remove budget"
                         onclick="deleteBudget(<?= $b['id'] ?>)"><i class="fas fa-times" style="font-size:.7rem"></i></button>
               </span>
             </div>
@@ -400,7 +400,7 @@ require_once '../includes/head.php';
                     aria-label="<?= $s['active'] ? 'Pause' : 'Resume' ?> subscription <?= h($s['name']) ?>"
                     onclick="toggleSub(<?= $s['id'] ?>)"><i class="fas <?= $s['active'] ? 'fa-pause' : 'fa-play' ?>"></i></button>
             <button class="btn btn-icon btn-ghost btn-sm" title="Edit" aria-label="Edit" onclick="editSub(<?= $s['id'] ?>)"><i class="fas fa-pen"></i></button>
-            <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" title="Delete"
+            <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" title="Delete"
                     onclick="deleteSub(<?= $s['id'] ?>)"><i class="fas fa-trash"></i></button>
           </div>
         <?php endforeach; ?>
@@ -482,7 +482,7 @@ require_once '../includes/head.php';
         </strong>
         <div class="todo-actions">
           <button class="btn btn-icon btn-ghost btn-sm" title="Edit" aria-label="Edit" onclick="editTx(<?= $t['id'] ?>)"><i class="fas fa-pen"></i></button>
-          <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" title="Delete"
+          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" title="Delete"
                   onclick="deleteTx(<?= $t['id'] ?>)"><i class="fas fa-trash"></i></button>
         </div>
       </div>

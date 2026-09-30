@@ -4597,3 +4597,8 @@ button:not(.btn).is-loading { opacity: .55; }
 .ob-map li { display: flex; gap: .625rem; align-items: baseline; font-size: .8125rem; color: var(--muted); line-height: 1.45; }
 .ob-map i { color: var(--accent); width: 1rem; text-align: center; flex-shrink: 0; }
 .ob-map b { color: var(--text); margin-right: .25rem; }
+
+/* Focus: task picker above the timer */
+.focus-task { display: flex; align-items: center; gap: .625rem; justify-content: center; margin: 0 auto 1.25rem; max-width: 420px; }
+.focus-task .form-input { flex: 1; min-width: 0; }
+@media (max-width: 480px) { .focus-task { flex-direction: column; align-items: stretch; } }

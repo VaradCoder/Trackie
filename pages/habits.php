@@ -163,7 +163,7 @@ if ($totalHabits > 0) {
             </div>
           </div>
           <button class="btn btn-icon btn-ghost btn-sm" onclick="openEditHabit(<?= $h['id'] ?>)" title="Edit" aria-label="Edit habit"><i class="fas fa-pen"></i></button>
-          <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)"
+          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)"
                   onclick="deleteHabit(<?= $h['id'] ?>)" title="Delete">
             <i class="fas fa-trash"></i>
           </button>

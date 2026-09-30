@@ -164,7 +164,7 @@ function renderTaskList(array $tasks, string $apiBase, string $today): void {
             </div>
           </div>
           <button class="btn btn-icon btn-ghost btn-sm" onclick="openEditStudy(<?= $t['id'] ?>)" aria-label="Edit task" title="Edit"><i class="fas fa-pen"></i></button>
-                <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)"
+                <button aria-label="Delete task" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)"
                   onclick="deleteStudy(<?= $t['id'] ?>)">
             <i class="fas fa-trash"></i>
           </button>

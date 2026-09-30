@@ -24,19 +24,37 @@ switch ($action) {
     case 'complete':
         $type     = in_array($_POST['type'] ?? '', ['focus','short_break','long_break'], true) ? $_POST['type'] : 'focus';
         $duration = max(1, min(180, (int)($_POST['duration'] ?? 25)));
-        $mode     = sanitizeInput($_POST['mode'] ?? '');  // Study/Work/Coding/Reading
-        $started  = date('Y-m-d H:i:s', time() - $duration * 60);
+        $mode     = mb_substr(sanitizeInput($_POST['mode'] ?? ''), 0, 40);  // Study/Work/Coding/Reading/custom label
+
+        // When the session ended. Sent by the client so an offline session
+        // replayed later keeps its real time; clamped to the last 7 days.
+        $endTs = (int)($_POST['ended_at'] ?? 0);
+        if ($endTs <= 0 || $endTs > time() + 60 || $endTs < time() - 7 * 86400) $endTs = time();
+        $endTs   = min($endTs, time());
+        $startTs = $endTs - $duration * 60;
+
+        // Sessions can't overlap in time (breaks included). Without this, a
+        // repeated or scripted 'complete' logged unlimited +20 XP sessions.
+        $clash = fetchOne(
+            "SELECT id FROM focus_sessions WHERE user_id=? AND completed=1 AND started_at < ? AND completed_at > ? LIMIT 1",
+            [$uid, date('Y-m-d H:i:s', $endTs - 30), date('Y-m-d H:i:s', $startTs + 30)]
+        );
+        if ($clash) json_out(['success' => false, 'error' => 'This session overlaps one that is already saved.'], 409);
+
+        // Optional: the task this session was for (must be the user's own).
+        $todoId = (int)($_POST['todo_id'] ?? 0) ?: null;
+        if ($todoId && !fetchOne("SELECT id FROM todos WHERE id=? AND user_id=? AND deleted_at IS NULL", [$todoId, $uid])) $todoId = null;
 
         $sessionId = insert(
-            "INSERT INTO focus_sessions (user_id, duration_min, type, mode, started_at, completed_at, completed)
-             VALUES (?,?,?,?,?,NOW(),1)",
-            [$uid, $duration, $type, $mode !== '' ? $mode : null, $started]
+            "INSERT INTO focus_sessions (user_id, todo_id, duration_min, type, mode, started_at, completed_at, completed)
+             VALUES (?,?,?,?,?,?,?,1)",
+            [$uid, $todoId, $duration, $type, $mode !== '' ? $mode : null, date('Y-m-d H:i:s', $startTs), date('Y-m-d H:i:s', $endTs)]
         );
 
         $xp = null;
         if ($type === 'focus') {
             require_once '../includes/activity.php';
-            $xp = recordActivity($uid, 'focus', 'focus_session', (int)$sessionId);   // +20 XP per focus session
+            $xp = recordActivity($uid, 'focus', 'focus_session', (int)$sessionId, ['date' => date('Y-m-d', $endTs)]);   // +20 XP per focus session
             checkAchievements($uid);                            // unlocks Focus Warrior at 10
         }
         $stats = focusStats($uid);

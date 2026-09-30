@@ -120,7 +120,7 @@ require_once '../includes/head.php';
             <?php endif; ?>
           </div>
           <button class="btn btn-icon btn-ghost btn-sm" style="flex-shrink:0" onclick="openEditGoal(<?= $g['id'] ?>)" aria-label="Edit goal" title="Edit"><i class="fas fa-pen"></i></button>
-          <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent);flex-shrink:0"
+          <button aria-label="Delete goal" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent);flex-shrink:0"
                   onclick="deleteGoal(<?= $g['id'] ?>)">
             <i class="fas fa-trash"></i>
           </button>

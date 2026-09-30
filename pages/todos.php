@@ -233,13 +233,19 @@ require_once '../includes/head.php';
                   onclick="toggleSubtasks(<?= $t['id'] ?>)"
                   id="sub-toggle-<?= $t['id'] ?>"
                   aria-label="Show/add subtasks">
-            <i class="fas fa-list-tree"></i>
+            <i class="fas fa-list-ul"></i>
           </button>
-          <button class="btn btn-icon btn-ghost btn-sm" title="Edit"
+          <?php if (!$t['completed']): ?>
+          <a class="btn btn-icon btn-ghost btn-sm" title="Focus on this" aria-label="Start a focus session on this task"
+             href="<?= APP_BASE ?>/pages/focus.php?todo=<?= (int)$t['id'] ?>">
+            <i class="fas fa-stopwatch"></i>
+          </a>
+          <?php endif; ?>
+          <button aria-label="Edit" class="btn btn-icon btn-ghost btn-sm" title="Edit"
                   onclick="editTodo(<?= $t['id'] ?>)">
             <i class="fas fa-pen"></i>
           </button>
-          <button class="btn btn-icon btn-ghost btn-sm" title="Delete" style="color:var(--accent)"
+          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm" title="Delete" style="color:var(--accent)"
                   onclick="deleteTodo(<?= $t['id'] ?>)">
             <i class="fas fa-trash"></i>
           </button>

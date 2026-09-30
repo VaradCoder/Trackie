@@ -111,7 +111,7 @@ require_once '../includes/head.php';
           <button class="btn btn-icon btn-ghost btn-sm" title="Edit" aria-label="Edit" onclick="editReminder(<?= $r['id'] ?>)">
             <i class="fas fa-pen"></i>
           </button>
-          <button class="btn btn-icon btn-ghost btn-sm" title="Delete" style="color:var(--accent)"
+          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm" title="Delete" style="color:var(--accent)"
                   onclick="deleteReminder(<?= $r['id'] ?>)">
             <i class="fas fa-trash"></i>
           </button>

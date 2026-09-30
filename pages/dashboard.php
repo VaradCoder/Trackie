@@ -266,7 +266,7 @@ require_once '../includes/head.php';
       "You're set up! " . ($todayPriority
         ? "Complete “{$todayPriority['title']}” below to earn your first XP."
         : "Log a habit or add a task below to earn your first XP."),
-      'fa-party-horn'
+      'fa-champagne-glasses'
     ) ?>
   <?php endif; ?>
 
