@@ -220,7 +220,7 @@ function switchCalView(view) {
 
 const CAL_SRC = <?= json_encode(array_map(fn($v) => ['label' => $v[0], 'icon' => $v[1], 'color' => $v[2]], CALENDAR_SOURCES)) ?>;
 let calHidden = new Set();
-try { calHidden = new Set(JSON.parse(localStorage.getItem('trackie.calHidden') || '[]')); } catch {}
+try { calHidden = new Set(JSON.parse(localStorage.getItem('trackie.calHidden') || '["routine"]')); } catch {}
 function applyCalFilters() {
   document.querySelectorAll('#calSources .cal-src').forEach(b => b.classList.toggle('active', !calHidden.has(b.dataset.src)));
   document.querySelectorAll('.cal-task-chip[data-src]').forEach(c => c.classList.toggle('hidden', calHidden.has(c.dataset.src)));

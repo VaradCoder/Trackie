@@ -10,6 +10,7 @@ const CALENDAR_SOURCES = [
     'todo'     => ['Todos',          'fa-check-square', '#ef4444'],
     'study'    => ['Study',          'fa-book-open',    '#8b5cf6'],
     'reminder' => ['Reminders',      'fa-bell',         '#f59e0b'],
+    'routine'  => ['Routines',       'fa-clock',        '#14b8a6'],   // off by default in the UI (repeats daily)
     'goal'     => ['Goal deadlines', 'fa-bullseye',     '#22c55e'],
     'workout'  => ['Workouts',       'fa-dumbbell',     '#0ea5e9'],
     'shoot'    => ['Photo shoots',   'fa-camera',       '#64748b'],
@@ -27,6 +28,27 @@ function calendarEvents(int $uid, string $from, string $to): array {
         try { return tableExists($table) ? fetchAll($sql, $p) : []; } catch (Throwable $e) { error_log("calendar {$table}: " . $e->getMessage()); return []; }
     };
     $base = APP_BASE . '/pages/';
+
+    // Routines: one entry per day they're due (schedule_days), done where logged.
+    // Capped at 62 days so a long range can't explode into thousands of rows.
+    $routines = $q('routines', "SELECT id, title, time_slot, schedule_days FROM routines WHERE user_id=?", [$uid]);
+    if ($routines && (strtotime($to) - strtotime($from)) <= 62 * 86400) {
+        require_once __DIR__ . '/habit_schedule.php';
+        $done = [];
+        foreach ($q('routine_logs', "SELECT routine_id, log_date FROM routine_logs WHERE user_id=? AND log_date BETWEEN ? AND ?", [$uid, $from, $to]) as $l) {
+            $done[$l['routine_id'] . '|' . $l['log_date']] = true;
+        }
+        for ($t = strtotime($from); $t <= strtotime($to); $t = strtotime('+1 day', $t)) {
+            $d = date('Y-m-d', $t); $dow = (int)date('w', $t);
+            foreach ($routines as $r) {
+                $days = habitDays(['frequency' => 'daily', 'schedule_days' => $r['schedule_days']]);
+                if ($days && !in_array($dow, $days, true)) continue;
+                $ev[] = ['uid' => "routine-{$r['id']}-$d", 'source' => 'routine', 'id' => (int)$r['id'], 'title' => $r['title'], 'date' => $d,
+                         'time' => substr($r['time_slot'], 0, 5), 'done' => isset($done[$r['id'] . '|' . $d]), 'actionable' => false,
+                         'priority' => null, 'link' => $base . 'routines.php'];
+            }
+        }
+    }
 
     foreach ($q('todos', "SELECT id,title,due_date,priority,completed FROM todos WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL AND due_date BETWEEN ? AND ?", [$uid, $from, $to]) as $r)
         $add('todo', $r['id'], $r['title'], $r['due_date'], null, ['done' => (bool)$r['completed'], 'actionable' => true, 'priority' => $r['priority'], 'link' => $base . 'todos.php']);

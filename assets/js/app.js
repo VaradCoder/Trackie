@@ -2238,8 +2238,8 @@ function createCrudModal(config) {
       }
       Toast.error(res.error || 'Save failed.');
       return false;
-    } catch {
-      Toast.error('Network error.');
+    } catch (e) {
+      Toast.error(e?.message || 'Network error.');
       return false;
     }
   }
@@ -2258,8 +2258,8 @@ function createCrudModal(config) {
       }
       Toast.error(res.error || 'Delete failed.');
       return false;
-    } catch {
-      Toast.error('Network error.');
+    } catch (e) {
+      Toast.error(e?.message || 'Network error.');
       return false;
     }
   }

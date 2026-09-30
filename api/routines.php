@@ -12,6 +12,12 @@ $action = sanitizeInput($_POST['action'] ?? '');
 
 $validCats = ['Fitness','Work','Study','Personal','Health','Break'];
 
+require_once '../includes/habit_schedule.php';
+/** Weekdays the routine is due ("1,3,5"), or null for every day — same rules as habits. */
+function routineDaysInput(): ?string {
+    return normalizeScheduleDays($_POST['schedule_days'] ?? '');
+}
+
 switch ($action) {
 
     case 'add':
@@ -24,8 +30,8 @@ switch ($action) {
         if (!in_array($category, $validCats, true)) $category = 'Personal';
 
         $id = insert(
-            "INSERT INTO routines (user_id,title,time_slot,category,description) VALUES (?,?,?,?,?)",
-            [$uid, $title, $time, $category, $desc]
+            "INSERT INTO routines (user_id,title,time_slot,schedule_days,category,description) VALUES (?,?,?,?,?,?)",
+            [$uid, $title, $time, routineDaysInput(), $category, $desc]
         );
         json_out(['success' => true, 'id' => $id]);
 
@@ -40,8 +46,8 @@ switch ($action) {
         if (!in_array($category, $validCats, true)) $category = 'Personal';
 
         update(
-            "UPDATE routines SET title=?,time_slot=?,category=?,description=? WHERE id=? AND user_id=?",
-            [$title, $time, $category, $desc, $id, $uid]
+            "UPDATE routines SET title=?,time_slot=?,schedule_days=?,category=?,description=? WHERE id=? AND user_id=?",
+            [$title, $time, routineDaysInput(), $category, $desc, $id, $uid]
         );
         json_out(['success' => true]);
 
@@ -65,6 +71,9 @@ switch ($action) {
         $date = sanitizeInput($_POST['date'] ?? date('Y-m-d'));
         if (!$id) json_out(['success' => false, 'error' => 'Invalid ID.'], 422);
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
+        // A routine can't be done in the future — each future date would
+        // otherwise be a fresh XP award (farmable).
+        if ($date > date('Y-m-d')) json_out(['success' => false, 'error' => "You can't complete a routine for a future day."], 422);
         if (!tableExists('routine_logs')) {
             json_out(['success' => false, 'error' => 'Routine tracking is not set up yet — run /pages/setup.php.'], 503);
         }

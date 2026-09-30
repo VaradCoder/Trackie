@@ -3,6 +3,7 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/habit_schedule.php';
 
 requireAuth();
 
@@ -24,6 +25,18 @@ $routines = tableExists('routine_logs')
           ORDER BY r.time_slot ASC",
         [$today, $uid])
     : fetchAll("SELECT *, 0 AS done_today FROM routines WHERE user_id=? ORDER BY time_slot ASC", [$uid]);
+
+// Routines can run on specific weekdays (schedule_days, same rules as habits).
+// Today's list — and its progress bar — only counts the ones due today.
+$routineSched = static fn(array $r) => ['frequency' => 'daily', 'schedule_days' => $r['schedule_days'] ?? null];
+$dow = (int)date('w');
+$notToday = [];
+$routines = array_values(array_filter($routines, static function ($r) use ($routineSched, $dow, &$notToday) {
+    $days = habitDays($routineSched($r));
+    if (!$days || in_array($dow, $days, true)) return true;
+    $notToday[] = $r;
+    return false;
+}));
 
 $doneCount  = 0;
 foreach ($routines as $r) if ((int)$r['done_today']) $doneCount++;
@@ -76,7 +89,11 @@ require_once '../includes/head.php';
   </div>
 <?php endif; ?>
 
-<?php if (empty($routines)): ?>
+<?php if (empty($routines) && $notToday): ?>
+  <div class="card card-body" style="margin-bottom:var(--sp-5)">
+    <p class="text-muted" style="margin:0;font-size:.875rem">Nothing scheduled for today. Your other routines are listed below.</p>
+  </div>
+<?php elseif (empty($routines)): ?>
   <div class="card">
     <div class="empty-state">
       <div class="empty-state-icon"><i class="fas fa-clock"></i></div>
@@ -121,6 +138,9 @@ require_once '../includes/head.php';
                      inline `flex:1` would win over the stylesheet. */ ?>
             <div class="routine-main">
               <div class="routine-title"><?= h($r['title']) ?></div>
+              <?php if (!empty($r['schedule_days'])): ?>
+                <div class="routine-desc"><i class="fas fa-calendar-day" aria-hidden="true"></i> <?= h(habitScheduleLabel($routineSched($r))) ?></div>
+              <?php endif; ?>
               <?php if ($r['description']): ?>
                 <div class="routine-desc"><?= h($r['description']) ?></div>
               <?php endif; ?>
@@ -129,11 +149,11 @@ require_once '../includes/head.php';
               <?= h($r['category']) ?>
             </span>
             <div style="display:flex;gap:var(--sp-1);flex-shrink:0">
-              <button class="btn btn-icon btn-ghost btn-sm" title="Edit"
+              <button class="btn btn-icon btn-ghost btn-sm" title="Edit" aria-label="Edit <?= h($r['title']) ?>"
                       onclick="editRoutine(<?= $r['id'] ?>)">
                 <i class="fas fa-pen"></i>
               </button>
-              <button class="btn btn-icon btn-ghost btn-sm" title="Delete" style="color:var(--accent)"
+              <button class="btn btn-icon btn-ghost btn-sm" title="Delete" aria-label="Delete <?= h($r['title']) ?>" style="color:var(--accent)"
                       onclick="deleteRoutine(<?= $r['id'] ?>)">
                 <i class="fas fa-trash"></i>
               </button>
@@ -143,6 +163,30 @@ require_once '../includes/head.php';
       </div>
     </div>
   <?php endforeach; ?>
+<?php endif; ?>
+
+<?php if ($notToday): ?>
+  <div style="margin-bottom:var(--sp-5)">
+    <div style="font-size:.8125rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--sp-3)">
+      Not today
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.625rem">
+      <?php foreach ($notToday as $r): $cc = $catColors[$r['category']] ?? '#64748b'; ?>
+        <div class="card card-body routine-off" style="display:flex;align-items:center;gap:var(--sp-4)">
+          <div style="width:52px;text-align:center;flex-shrink:0;color:var(--muted);font-size:.875rem;font-weight:600"><?= date('g:i A', strtotime($r['time_slot'])) ?></div>
+          <div class="routine-main">
+            <div class="routine-title"><?= h($r['title']) ?></div>
+            <div class="routine-desc"><i class="fas fa-calendar-day" aria-hidden="true"></i> <?= h(habitScheduleLabel($routineSched($r))) ?></div>
+          </div>
+          <span class="badge" style="background:<?= $cc ?>20;color:<?= $cc ?>;flex-shrink:0"><?= h($r['category']) ?></span>
+          <div style="display:flex;gap:var(--sp-1);flex-shrink:0">
+            <button class="btn btn-icon btn-ghost btn-sm" aria-label="Edit <?= h($r['title']) ?>" onclick="editRoutine(<?= $r['id'] ?>)"><i class="fas fa-pen"></i></button>
+            <button class="btn btn-icon btn-ghost btn-sm" aria-label="Delete <?= h($r['title']) ?>" style="color:var(--accent)" onclick="deleteRoutine(<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
 <?php endif; ?>
 </div>
 
@@ -174,6 +218,16 @@ require_once '../includes/head.php';
         </div>
       </div>
       <div class="form-group">
+        <span class="form-label" id="routineDaysLbl">Repeats on</span>
+        <div class="habit-days" id="routineDayPicker" role="group" aria-labelledby="routineDaysLbl">
+          <?php foreach ([1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 0 => 'Sun'] as $v => $l): ?>
+            <label class="habit-day"><input type="checkbox" value="<?= $v ?>" checked><span><?= $l ?></span></label>
+          <?php endforeach; ?>
+        </div>
+        <input type="hidden" id="routineDays" value="">
+        <p class="form-hint" style="margin-top:.375rem">All days selected = every day.</p>
+      </div>
+      <div class="form-group">
         <label for="routineDesc" class="form-label">Description</label>
         <textarea id="routineDesc" class="form-input" rows="2" placeholder="Optional notes"></textarea>
       </div>
@@ -199,7 +253,7 @@ const routineCrud = Trackie.createCrudModal({
   modalId:       'routineModal',
   idInputId:     'routineId',
   idParam:       'routine_id',
-  fields:        { title: 'routineTitle', time_slot: 'routineTime', category: 'routineCat', description: 'routineDesc' },
+  fields:        { title: 'routineTitle', time_slot: 'routineTime', category: 'routineCat', description: 'routineDesc', schedule_days: 'routineDays' },
   refreshIds:    ['routinesListWrap'],
   requiredFields:['title', 'time_slot'],
   rowIdPrefix:   'routine-',
@@ -210,7 +264,25 @@ const routineCrud = Trackie.createCrudModal({
   confirmDelete: 'Delete this routine?',
 });
 
+// Day picker ⇄ hidden "1,3,5" field (empty = every day).
+function setRoutineDays(csv) {
+  const on = new Set(String(csv || '').split(',').filter(Boolean));
+  document.querySelectorAll('#routineDayPicker input').forEach(cb => { cb.checked = !on.size || on.has(cb.value); });
+  syncRoutineDays();
+}
+function syncRoutineDays() {
+  const boxes = [...document.querySelectorAll('#routineDayPicker input')];
+  const on = boxes.filter(cb => cb.checked).map(cb => cb.value);
+  document.getElementById('routineDays').value = on.length === boxes.length ? '' : on.join(',');
+}
+document.getElementById('routineDayPicker').addEventListener('change', e => {
+  // At least one day — unticking the last one would mean "never".
+  if (!document.querySelector('#routineDayPicker input:checked')) { e.target.checked = true; Trackie.Toast.info('Pick at least one day.'); }
+  syncRoutineDays();
+});
+
 function openRoutineModal() {
+  setRoutineDays('');
   document.getElementById('routineCat').value = 'Personal';
   document.getElementById('routineModalTitle').textContent = 'New Routine';
   routineCrud.openAdd({ routineCat: 'Personal' });
@@ -226,6 +298,7 @@ async function editRoutine(id) {
       id: r.id, title: r.title, time_slot: r.time_slot?.slice(0,5) || '',
       category: r.category || 'Personal', description: r.description || '',
     });
+    setRoutineDays(r.schedule_days || '');
   } catch { Trackie.Toast.error('Network error.'); }
 }
 

@@ -694,6 +694,7 @@ $migrations = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
     'habits.schedule_days' => "ALTER TABLE habits ADD COLUMN IF NOT EXISTS schedule_days VARCHAR(13) DEFAULT NULL AFTER frequency",
+    'routines.schedule_days' => "ALTER TABLE routines ADD COLUMN IF NOT EXISTS schedule_days VARCHAR(13) DEFAULT NULL AFTER time_slot",
 
     // Notification preferences: per-user time zone + quiet hours.
     'user_settings timezone/quiet hours' => "ALTER TABLE user_settings
