@@ -326,7 +326,7 @@ document.getElementById('profileForm').addEventListener('submit', async function
       // Live-refresh the avatar card + the persistent topbar chip — no reload.
       await Trackie.refreshFragments(['profileAvatarCard', 'topbarUserChip']);
     } else {
-      msg.innerHTML = `<span style="color:var(--accent)">${data.error}</span>`;
+      msg.innerHTML = `<span style="color:var(--accent)">${escHtml(data.error || 'Something went wrong.')}</span>`;
     }
   } catch { Trackie.Toast.error('Network error.'); }
   btn.disabled = false;
@@ -348,7 +348,7 @@ document.getElementById('pwForm').addEventListener('submit', async function(e) {
       msg.innerHTML = '';
       this.reset();
     } else {
-      msg.innerHTML = `<span style="color:var(--accent)">${res.error}</span>`;
+      msg.innerHTML = `<span style="color:var(--accent)">${escHtml(res.error || 'Something went wrong.')}</span>`;
     }
   } catch { Trackie.Toast.error('Network error.'); }
 });

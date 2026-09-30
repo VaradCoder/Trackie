@@ -10,7 +10,7 @@ require_once '../includes/functions.php';
 require_once '../includes/auth.php';
 
 /*
- * Access guard: allowed only for a logged-in user, or on a fresh install
+ * Access guard: allowed only for an admin, or on a fresh install
  * (users table missing or empty). Blocks anonymous visitors from running
  * migrations on a live deployment.
  */
@@ -22,9 +22,11 @@ try {
     $freshInstall = true; // users table doesn't exist yet
 }
 
-if (!$freshInstall && !isLoggedIn()) {
+// Admins only once users exist: migrations change the schema and the runner
+// prints raw database errors, neither of which regular users should reach.
+if (!$freshInstall && !isAdmin()) {
     http_response_code(403);
-    exit('Forbidden — log in to run database migrations.');
+    exit(isLoggedIn() ? 'Forbidden — only an admin can run database migrations.' : 'Forbidden — log in as an admin to run database migrations.');
 }
 
 // Each migration is a label + SQL pair
@@ -896,9 +898,27 @@ $migrations = [
         FOREIGN KEY (routine_id) REFERENCES routines(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
+    // Goal check-ins (api/goals.php). Never created by any script before —
+    // the table was made by hand, without a primary key. See the repair
+    // step just above the runner loop.
+    'goal_checkins table' => "CREATE TABLE IF NOT EXISTS goal_checkins (
+        id                INT AUTO_INCREMENT PRIMARY KEY,
+        goal_id           INT NOT NULL,
+        user_id           INT NOT NULL,
+        note              TEXT DEFAULT NULL,
+        progress_snapshot INT DEFAULT NULL,
+        created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_user (user_id),
+        INDEX idx_goal (goal_id, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
     // Only user-scoped table left without a leading index on user_id.
     'goal_checkins.idx_user' => "ALTER TABLE goal_checkins
         ADD INDEX IF NOT EXISTS idx_user (user_id)",
+    'goal_checkins.idx_goal' => "ALTER TABLE goal_checkins
+        ADD INDEX IF NOT EXISTS idx_goal (goal_id, created_at)",
+    'focus_sessions.idx_user_mode' => "ALTER TABLE focus_sessions
+        ADD INDEX IF NOT EXISTS idx_user_mode (user_id, type, started_at)",
 
     // ── Focus: the session "mode" (Study / Work / Coding / Reading) ──
     // api/focus.php has always written and grouped by this column, but the
@@ -1205,6 +1225,18 @@ $migrations = [
 
 $results = [];
 $pdo     = db();
+
+// goal_checkins made by hand had no PRIMARY KEY/AUTO_INCREMENT (every row
+// id 0/1; inserts fail under strict SQL mode). Renumber, then add the key —
+// only when it's actually missing, so re-running setup is harmless.
+try {
+    $gcExists = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'goal_checkins'")->fetchColumn();
+    $gcHasPk  = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND table_name = 'goal_checkins' AND constraint_type = 'PRIMARY KEY'")->fetchColumn();
+    if ($gcExists && !$gcHasPk) {
+        $migrations['goal_checkins renumber ids'] = "UPDATE goal_checkins g JOIN (SELECT @gc_n := 0) init SET g.id = (@gc_n := @gc_n + 1)";
+        $migrations['goal_checkins primary key']  = "ALTER TABLE goal_checkins MODIFY id INT NOT NULL AUTO_INCREMENT PRIMARY KEY";
+    }
+} catch (PDOException $e) { /* reported by the runner if the table is unusable */ }
 
 foreach ($migrations as $label => $sql) {
     try {

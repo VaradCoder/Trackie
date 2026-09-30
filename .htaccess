@@ -11,6 +11,20 @@ AddDefaultCharset UTF-8
     Require all denied
 </FilesMatch>
 
+# Archives, backups and dumps. A full-site zip in the web root once contained
+# config/env.php — never let one be downloadable, even if uploaded by mistake.
+<FilesMatch "\.(zip|tar|gz|tgz|rar|7z|bak|old|orig|swp|dump|iml)$">
+    Require all denied
+</FilesMatch>
+
+# Package manifests and dotfiles (.env, .htpasswd, .DS_Store, …).
+<FilesMatch "^(package(-lock)?\.json|composer\.(json|lock)|\..+)$">
+    Require all denied
+</FilesMatch>
+
+# VCS / IDE directories — FilesMatch only sees file names, so match the path.
+RedirectMatch 404 /\.(git|idea|vscode|svn|hg)(/|$)
+
 # Security headers for STATIC assets only.
 # HTML responses get their headers from config/app.php instead — PHP is the
 # single authority there, so the two cannot drift and we don't emit each
