@@ -97,7 +97,10 @@ function applyUserTimezone(int $uid, bool $useSession = true): string {
         if ($useSession && session_status() === PHP_SESSION_ACTIVE) { $_SESSION['tz_uid'] = $uid; $_SESSION['tz'] = $tz; }
     }
     $zone = ($tz !== '' && validTimezone($tz)) ? $tz : serverTimezone();
-    if (date_default_timezone_get() !== $zone) date_default_timezone_set($zone);
+    // Already in this zone → the DB session matches too (config/database.php
+    // sets it from PHP's zone on connect). Saves a query on every request.
+    if (date_default_timezone_get() === $zone) return $zone;
+    date_default_timezone_set($zone);
     try { db()->exec("SET time_zone = '" . date('P') . "'"); } catch (Throwable $e) { error_log('applyUserTimezone: ' . $e->getMessage()); }
     return $zone;
 }

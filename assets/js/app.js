@@ -1457,11 +1457,15 @@ const Reminders = (() => {
 
   function notifyBrowser(r) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    // Already delivered as a push (the service worker shows it), or running in
+    // the native app (reminders are scheduled as OS notifications there):
+    // a second system notification would just be a duplicate.
+    if (r.pushed || window.Capacitor?.isNativePlatform?.()) return;
     try {
       const n = new Notification('⏰ ' + r.title, {
         body: r.message || 'Trackie reminder',
-        icon: `${BASE()}/assets/images/Logo.png`,
-        tag:  `trackie-reminder-${r.id}`,   // collapse duplicates across tabs
+        icon: `${BASE()}/assets/images/icon-192.png`,
+        tag:  `reminder-${r.id}`,   // same tag as the push → the two collapse into one
       });
       n.onclick = () => { window.focus(); n.close(); };
     } catch { /* some browsers restrict constructor — bell still shows it */ }
@@ -1492,7 +1496,11 @@ const Reminders = (() => {
     if (!document.getElementById('sidebar')) return;
     poll();
     _timer = setInterval(poll, 60000);
-    window.addEventListener('pagehide', () => clearInterval(_timer));
+    window.addEventListener('pagehide', () => { clearInterval(_timer); _timer = null; });
+    // Back/forward cache restore: pagehide stopped the poll — start it again.
+    window.addEventListener('pageshow', e => {
+      if (e.persisted && !_timer) { poll(); _timer = setInterval(poll, 60000); }
+    });
   }
 
   return { init, poll };
