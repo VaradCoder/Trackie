@@ -1652,6 +1652,38 @@ const PWA = (() => {
   return { init, canInstall, install };
 })();
 
+/* ── App updates ────────────────────────────────────────────────────
+   SPA navigation keeps the same app.js running for the whole session, so
+   after a deploy an open tab (or installed app) would mix old scripts with
+   new pages. Offer a reload — never force one mid-task. Triggered when a
+   new service worker takes control, or when a fetched page references a
+   newer app.js build than the one running. */
+const Updates = (() => {
+  let shown = false;
+  function notify() {
+    if (shown) return;
+    shown = true;
+    Toast.action('A new version of Trackie is ready.', 'Reload', () => location.reload(), 30000);
+  }
+  const appJsVersion = doc => {
+    const src = doc.querySelector('script[src*="/assets/js/app."]')?.getAttribute('src') || '';
+    try { return new URL(src, location.href).searchParams.get('v') || ''; } catch { return ''; }
+  };
+  const running = appJsVersion(document);
+  function checkDoc(doc) {
+    const v = appJsVersion(doc);
+    if (running && v && v !== running) notify();
+  }
+  if ('serviceWorker' in navigator) {
+    let hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController) notify();      // first install isn't an "update"
+      hadController = true;
+    });
+  }
+  return { notify, checkDoc };
+})();
+
 /* ── Animations (entrance stagger + count-up) ─────────────────── */
 const Animate = (() => {
   function reduceMotion() {
@@ -1992,6 +2024,7 @@ const SpaNav = (() => {
 
     const u = new URL(url, location.href);
     syncStylesheets(doc);
+    try { Updates.checkDoc(doc); } catch {}
 
     // Swap #page-main. Wrapped in the View Transitions API (feature-detected;
     // no-op to an instant swap where unsupported or reduced-motion is set) so

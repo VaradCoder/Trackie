@@ -127,6 +127,20 @@ require_once '../includes/head.php';
   </div>
 </div>
 
+<h3 class="settings-h3" style="margin-top:2rem">Getting started</h3>
+<div class="card card-body settings-prefs">
+  <div class="settings-row">
+    <div><span class="settings-label">Guided tour</span>
+      <p class="settings-help">A 30-second walk through the menu, search, quick add and reminders.</p></div>
+    <button type="button" class="btn btn-secondary btn-sm settings-control" onclick="Trackie.startTour ? Trackie.startTour() : Trackie.Toast.info('The tour is still loading. Try again in a moment.')">Replay tour</button>
+  </div>
+  <div class="settings-row">
+    <div><span class="settings-label">Setup</span>
+      <p class="settings-help">Pick hobbies, your focus and daily rhythm again. Nothing you already have is removed or duplicated.</p></div>
+    <a href="<?= APP_BASE ?>/pages/onboarding.php?again=1" class="btn btn-secondary btn-sm settings-control" data-no-spa>Redo setup</a>
+  </div>
+</div>
+
 <h3 class="settings-h3" style="margin-top:2rem">Integrations</h3>
 
 <div class="grid-stats" style="margin-bottom:1.5rem">

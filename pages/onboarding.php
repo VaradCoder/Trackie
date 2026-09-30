@@ -9,11 +9,15 @@ requireAuth();
 $uid  = currentUserId();
 $user = fetchOne("SELECT name, hobbies, onboarding_completed_at FROM users WHERE id=?", [$uid]);
 
-// Already onboarded — this page is a one-time flow, not a settings page.
-// (Hobbies can still be changed later from Profile.)
-if ($user['onboarding_completed_at']) {
+// Already onboarded → dashboard, unless the user chose to redo setup
+// (Settings → Getting started links here with ?again=1).
+$again = isset($_GET['again']);
+if ($user['onboarding_completed_at'] && !$again) {
     redirect(APP_BASE . '/pages/dashboard.php');
 }
+// A redo starts from what the user already has, so finishing it never
+// silently drops hobbies they had picked before.
+$currentHobbies = array_filter(array_map('trim', explode(',', (string)($user['hobbies'] ?? ''))));
 
 $pageTitle  = 'Welcome';
 $firstName  = trim(explode(' ', $user['name'] ?? '')[0] ?? 'there');
@@ -33,7 +37,12 @@ require_once '../includes/head.php';
       <h1 style="font-size:1.5rem;font-weight:800;color:var(--text);margin:.5rem 0 0">Trackie</h1>
     </div>
 
-    <div class="auth-card" style="padding:2rem">
+    <div class="auth-card" style="padding:2rem;position:relative">
+      <?php if ($again): ?>
+        <a href="<?= APP_BASE ?>/pages/settings.php" class="ob-skip">Cancel</a>
+      <?php else: ?>
+        <button type="button" class="ob-skip" onclick="obSkipAll()">Skip setup</button>
+      <?php endif; ?>
 
       <!-- Step dots -->
       <div id="obDots" style="display:flex;justify-content:center;gap:.4rem;margin-bottom:1.5rem">
@@ -101,7 +110,7 @@ require_once '../includes/head.php';
         </p>
         <div id="obHobbyChips" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1.75rem">
           <?php foreach ($allHobbies as $hb => $meta): ?>
-            <button type="button" class="hobby-chip" data-hobby="<?= h($hb) ?>">
+            <button type="button" class="hobby-chip<?= in_array($hb, $currentHobbies, true) ? ' is-active' : '' ?>" data-hobby="<?= h($hb) ?>" aria-pressed="<?= in_array($hb, $currentHobbies, true) ? 'true' : 'false' ?>">
               <i class="fas <?= h($meta['icon']) ?>" style="margin-right:.375rem;color:<?= h($meta['color']) ?>"></i><?= h($hb) ?>
             </button>
           <?php endforeach; ?>
@@ -204,7 +213,16 @@ require_once '../includes/head.php';
         <div style="text-align:center">
           <div style="font-size:2rem;margin-bottom:.5rem" aria-hidden="true">🎉</div>
           <h2 style="font-size:1.25rem;font-weight:700;margin:0 0 .5rem">You're all set</h2>
-          <div id="obSummary" style="color:var(--muted);font-size:.9375rem;max-width:38ch;margin:0 auto 1.75rem"></div>
+          <div id="obSummary" style="color:var(--muted);font-size:.9375rem;max-width:38ch;margin:0 auto 1.25rem"></div>
+          <ul class="ob-map" aria-label="Where things live">
+            <li><i class="fas fa-sun" aria-hidden="true"></i><span><b>Today</b> your day at a glance: due habits, tasks, reminders</span></li>
+            <li><i class="fas fa-check-square" aria-hidden="true"></i><span><b>Todos &amp; Habits</b> tasks with subtasks, habits on the days you choose</span></li>
+            <li><i class="fas fa-bullseye" aria-hidden="true"></i><span><b>Goals &amp; Focus</b> long-term targets and a focus timer</span></li>
+            <li><i class="fas fa-calendar" aria-hidden="true"></i><span><b>Calendar</b> everything with a date, in one place</span></li>
+            <li><i class="fas fa-star" aria-hidden="true"></i><span><b>Hobbies</b> the modules for the hobbies you picked</span></li>
+            <li><i class="fas fa-chart-line" aria-hidden="true"></i><span><b>Progress</b> streaks, XP, analytics and a weekly review</span></li>
+            <li><i class="fas fa-bell" aria-hidden="true"></i><span><b>Notifications</b> the bell, plus push in Settings → This device</span></li>
+          </ul>
           <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="obFinish()">
             Go to my dashboard <i class="fas fa-arrow-right"></i>
           </button>
@@ -278,7 +296,7 @@ function obGoto(step) {
 
 document.getElementById('obHobbyChips').addEventListener('click', e => {
   const chip = e.target.closest('.hobby-chip');
-  if (chip) chip.classList.toggle('is-active');
+  if (chip) chip.setAttribute('aria-pressed', chip.classList.toggle('is-active') ? 'true' : 'false');
 });
 
 /* Single-select card groups (focus, experience). role=radio means exactly one
@@ -348,6 +366,13 @@ async function obSubmit() {
     }
   } catch { Trackie.Toast.error('Network error.'); }
   if (btn) btn.disabled = false;
+}
+
+// Skip everything: finish with nothing chosen (every answer is optional).
+async function obSkipAll() {
+  obRhythmSkipped = true;
+  document.querySelectorAll('#obHobbyChips .hobby-chip.is-active').forEach(c => c.classList.remove('is-active'));
+  await obSubmit();
 }
 
 function obFinish() {
