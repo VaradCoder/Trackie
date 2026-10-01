@@ -61,7 +61,7 @@ if ($dirty !== '') {
 $exclude = [
     '#^config/env\.php$#', '#^config/env\.php\.example$#',
     '#^scripts/#', '#^database/#', '#^docs?/#', '#^MD/#', '#^tests?/#', '#^dist/#', '#^\.claude/#', '#^\.github/#',
-    '#^mobile/#', '#^node_modules/#',
+    '#^mobile/#', '#^node_modules/#', '#^capacitor.config.ts$#', '#(^|/).gitattributes$#',
     '#(^|/)\.gitignore$#', '#(^|/)\.gitkeep$#', '#\.md$#i', '#^package(-lock)?\.json$#', '#^composer\.(json|lock)$#',
 ];
 $changed = $deleted = [];
