@@ -49,7 +49,7 @@ jobs:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
       HAS_FIREBASE: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # versionCode must only ever increase. +100 keeps it above any APK built
       # before this workflow existed. (Workflow expressions can't add numbers.)
@@ -58,17 +58,17 @@ jobs:
           echo "VERSION_CODE=$((GITHUB_RUN_NUMBER + 100))" >> "$GITHUB_ENV"
           echo "VERSION_NAME=1.1.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21        # Capacitor 8 / AGP 8.13 need JDK 21
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Install Capacitor
         run: npm ci --no-audit --no-fund
@@ -108,15 +108,29 @@ jobs:
           ./gradlew assembleDebug --no-daemon -PtrackieVersionCode=$VERSION_CODE -PtrackieVersionName=$VERSION_NAME
           cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/Trackie-$VERSION_NAME-debug.apk"
 
+      # Findings are written as annotations (::notice::), which are visible on
+      # the run page without signing in. Fails only if the signature is bad.
       - name: Verify signature
         run: |
-          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/*/ 2>/dev/null | sort -V | tail -1)
+          SIGNER="${BT}apksigner"; [ -x "$SIGNER" ] || SIGNER=$(command -v apksigner || true)
+          AAPT="${BT}aapt2";      [ -x "$AAPT" ]   || AAPT=$(command -v aapt2 || true)
+          echo "::notice::build-tools: ${BT:-none} · apksigner: ${SIGNER:-missing} · aapt2: ${AAPT:-missing}"
           for apk in Trackie-*.apk; do
-            echo "== $apk"; "$BT/apksigner" verify --print-certs "$apk" | grep -E "Signer #1 certificate (DN|SHA-256)"
-            "$BT/aapt2" dump badging "$apk" | grep -E "^package:|^sdkVersion|^targetSdkVersion"
+            echo "::notice::$apk — $(du -h "$apk" | cut -f1)"
+            if [ -n "$SIGNER" ]; then
+              if out=$("$SIGNER" verify --print-certs "$apk" 2>&1); then
+                echo "::notice::$apk signature OK — $(echo "$out" | grep -m1 -i 'SHA-256' | sed 's/.*: //')"
+              else
+                echo "::error::$apk signature check failed: $(echo "$out" | head -3 | tr '\n' ' ')"; exit 1
+              fi
+            fi
+            if [ -n "$AAPT" ]; then
+              echo "::notice::$("$AAPT" dump badging "$apk" 2>/dev/null | grep -E '^package:|^sdkVersion|^targetSdkVersion' | tr '\n' ' ')"
+            fi
           done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Trackie-android-${{ env.VERSION_NAME }}
           path: Trackie-*.apk
@@ -124,7 +138,7 @@ jobs:
 
       - name: Publish GitHub Release
         if: env.HAS_KEYSTORE == 'true' && (github.event_name == 'push' || inputs.publish)
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: android-${{ env.VERSION_CODE }}
           target_commitish: ${{ github.sha }}
