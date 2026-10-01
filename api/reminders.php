@@ -172,22 +172,8 @@ switch ($action) {
         // logged by then, which can't be known in advance (the in-app check
         // still fires them). Quiet hours are skipped. Capped at 60 — iOS keeps at
         // most 64 pending.
-        require_once '../includes/settings.php';
-        if (!userSetting($uid, 'notify_reminders')) json_out(['success' => true, 'occurrences' => []]);
-        $until = time() + 7 * 86400;
-        $occ = [];
-        foreach (fetchAll("SELECT id, title, notes, type, repeat_every, repeat_unit, next_fire_at FROM reminders
-                           WHERE user_id=? AND active=1 AND type<>'smart' AND next_fire_at <= DATE_ADD(NOW(), INTERVAL 7 DAY)", [$uid]) as $r) {
-            $t = strtotime($r['next_fire_at']);
-            $step = '+' . max(1, (int)$r['repeat_every']) . ' ' . $r['repeat_unit'];
-            for ($n = 0; $t <= $until && $n < 200; $n++) {
-                if ($t > time() && !inQuietHours($uid, $t)) $occ[] = ['reminder_id' => (int)$r['id'], 'title' => $r['title'], 'body' => $r['notes'] ?: 'Trackie reminder', 'at' => date('c', $t)];
-                if ($r['type'] === 'once') break;
-                $t = strtotime($step, $t);
-            }
-        }
-        usort($occ, static fn($a, $b) => strcmp($a['at'], $b['at']));
-        json_out(['success' => true, 'occurrences' => array_slice($occ, 0, 60)]);
+        require_once '../includes/notify.php';
+        json_out(['success' => true, 'occurrences' => upcomingReminderOccurrences($uid, 168, 60)]);
 
     default:
         json_out(['success' => false, 'error' => 'Unknown action.'], 400);

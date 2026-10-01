@@ -800,6 +800,20 @@ function createNotification(
         "INSERT INTO notifications (user_id, type, title, message, link) VALUES (?,?,?,?,?)",
         [$userId, $type, $title, $message, $link]
     );
+
+    // Also to the phone (Android app via Firebase). Reminders are excluded: the
+    // app schedules those as alarms, so a push would duplicate them.
+    if ($type !== 'reminder') {
+        try {
+            require_once __DIR__ . '/native.php';
+            require_once __DIR__ . '/settings.php';
+            if (nativeReady() && fcmEnabled() && !inQuietHours($userId)) {
+                sendFcmToUser($userId, ['title' => $title, 'body' => $message, 'url' => $link ?: APP_BASE . '/pages/today.php', 'tag' => $type]);
+            }
+        } catch (Throwable $e) {
+            error_log('push: ' . $e->getMessage());   // the bell entry above still stands
+        }
+    }
 }
 
 /**

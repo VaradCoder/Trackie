@@ -32,6 +32,47 @@ function reminderNextFire(array $r, ?int $now = null): string {
 }
 
 /**
+ * Every reminder occurrence in the next $hours, for the native app to
+ * schedule as Android alarms (they fire even when the app is closed or the
+ * phone is offline). Used by the app itself and by its background sync.
+ *
+ *   - Smart reminders are left out: whether they fire depends on the habit
+ *     being logged by then, which can't be known ahead (the in-app check
+ *     still handles them).
+ *   - Quiet hours and the reminder-notification preference are respected.
+ *   - `id` is stable for a given reminder + time, so rescheduling replaces an
+ *     alarm instead of adding a duplicate.
+ *   - Capped (iOS keeps at most 64 pending).
+ */
+function upcomingReminderOccurrences(int $uid, int $hours = 168, int $limit = 60): array {
+    if (!tableExists('reminders') || !userSetting($uid, 'notify_reminders')) return [];
+    $until = time() + $hours * 3600;
+    $occ = [];
+    foreach (fetchAll("SELECT id, title, notes, type, repeat_every, repeat_unit, next_fire_at FROM reminders
+                        WHERE user_id = ? AND active = 1 AND type <> 'smart' AND next_fire_at <= ?",
+                      [$uid, date('Y-m-d H:i:s', $until)]) as $r) {
+        $t = strtotime($r['next_fire_at']);
+        $step = '+' . max(1, (int)$r['repeat_every']) . ' ' . $r['repeat_unit'];
+        for ($n = 0; $t <= $until && $n < 500; $n++) {
+            if ($t > time() && !inQuietHours($uid, $t)) {
+                $occ[] = [
+                    'id'          => crc32($r['id'] . '|' . $t) & 0x7fffffff,   // Android notification ids are 32-bit
+                    'reminder_id' => (int)$r['id'],
+                    'title'       => $r['title'],
+                    'body'        => (string)($r['notes'] ?: 'Trackie reminder'),
+                    'at'          => date('c', $t),
+                    'ts'          => $t,
+                ];
+            }
+            if ($r['type'] === 'once') break;
+            $t = strtotime($step, $t);
+        }
+    }
+    usort($occ, static fn($a, $b) => $a['ts'] <=> $b['ts']);
+    return array_slice($occ, 0, $limit);
+}
+
+/**
  * Fire every due reminder — for one user (in-tab poll) or everyone (cron).
  * Returns what fired: [['id','user_id','title','message','popup'=>bool,'pushed'=>int], …]
  */

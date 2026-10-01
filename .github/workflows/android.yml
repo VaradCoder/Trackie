@@ -1,0 +1,140 @@
+# Builds the Trackie Android app and publishes it as a GitHub Release.
+#
+# The app loads https://trackie.free.nf, so website changes never need a new
+# APK. A new APK is only needed when the native shell changes (plugins,
+# permissions, icons, capacitor.config.ts) — this workflow runs on exactly
+# those paths, or by hand from the Actions tab.
+#
+# Installed apps find new releases themselves (capacitor-bridge.js reads
+# /releases/latest; tag "android-<versionCode>") and offer the download.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+#   ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD   — release signing (same key
+#                                               forever, or updates won't install)
+# Optional:
+#   GOOGLE_SERVICES_JSON_BASE64               — Firebase push
+name: Android app
+
+on:
+  push:
+    branches: [main, phase-1-foundation]
+    paths:
+      - 'mobile/android/**'
+      - 'mobile/www/**'
+      - 'mobile/resources/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish as a GitHub Release (installed apps will offer it)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write          # create releases
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_FIREBASE: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # versionCode must only ever increase. +100 keeps it above any APK built
+      # before this workflow existed. (Workflow expressions can't add numbers.)
+      - name: Version
+        run: |
+          echo "VERSION_CODE=$((GITHUB_RUN_NUMBER + 100))" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=1.1.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21        # Capacitor 8 / AGP 8.13 need JDK 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Capacitor
+        run: npm ci --no-audit --no-fund
+
+      - name: Sync web assets + plugins into the Android project
+        run: npx cap sync android
+
+      - name: Firebase config (push notifications)
+        if: env.HAS_FIREBASE == 'true'
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > mobile/android/app/google-services.json
+
+      - name: Release signing key
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/trackie-release.p12"
+          echo "TRACKIE_KEYSTORE_FILE=$RUNNER_TEMP/trackie-release.p12" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: mobile/android
+        env:
+          TRACKIE_KEYSTORE_TYPE: pkcs12
+          TRACKIE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TRACKIE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TRACKIE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon -PtrackieVersionCode=$VERSION_CODE -PtrackieVersionName=$VERSION_NAME
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/Trackie-$VERSION_NAME.apk"
+
+      - name: Build debug APK (no signing key configured yet)
+        if: env.HAS_KEYSTORE != 'true'
+        working-directory: mobile/android
+        run: |
+          echo "::warning::ANDROID_KEYSTORE_BASE64 is not set — building a debug APK only (not published; can't be updated in place)."
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon -PtrackieVersionCode=$VERSION_CODE -PtrackieVersionName=$VERSION_NAME
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/Trackie-$VERSION_NAME-debug.apk"
+
+      - name: Verify signature
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          for apk in Trackie-*.apk; do
+            echo "== $apk"; "$BT/apksigner" verify --print-certs "$apk" | grep -E "Signer #1 certificate (DN|SHA-256)"
+            "$BT/aapt2" dump badging "$apk" | grep -E "^package:|^sdkVersion|^targetSdkVersion"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Trackie-android-${{ env.VERSION_NAME }}
+          path: Trackie-*.apk
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: env.HAS_KEYSTORE == 'true' && (github.event_name == 'push' || inputs.publish)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-${{ env.VERSION_CODE }}
+          target_commitish: ${{ github.sha }}
+          name: Trackie Android ${{ env.VERSION_NAME }}
+          make_latest: true
+          files: Trackie-${{ env.VERSION_NAME }}.apk
+          body: |
+            **Trackie for Android ${{ env.VERSION_NAME }}** (build ${{ env.VERSION_CODE }})
+
+            Install: download the APK on your phone and open it (allow "Install unknown apps" for your browser once).
+            Already installed? This installs over the top — your data lives on the server, nothing is lost.
+
+            Firebase push: ${{ env.HAS_FIREBASE == 'true' && 'included' || 'not configured (reminders still arrive as alarms)' }}

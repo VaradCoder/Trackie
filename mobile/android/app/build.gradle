@@ -1,0 +1,84 @@
+apply plugin: 'com.android.application'
+
+// ── Version ────────────────────────────────────────────────────────────
+// CI passes -PtrackieVersionCode=<run number> -PtrackieVersionName=<x.y.z>.
+// versionCode must only ever grow, or Android refuses to install the update.
+def trackieVersionCode = (project.findProperty('trackieVersionCode') ?: '1').toInteger()
+def trackieVersionName = (project.findProperty('trackieVersionName') ?: '1.0.0').toString()
+
+// ── Release signing ────────────────────────────────────────────────────
+// From environment variables (CI: GitHub secrets) or mobile/android/
+// keystore.properties (local; git-ignored). Every update must be signed with
+// the SAME key or it won't install over the previous version.
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) keystorePropsFile.withInputStream { keystoreProps.load(it) }
+def signingValue = { String env, String prop -> System.getenv(env) ?: keystoreProps.getProperty(prop) }
+def releaseStoreFile = signingValue('TRACKIE_KEYSTORE_FILE', 'storeFile')
+def hasReleaseSigning = releaseStoreFile && file(releaseStoreFile).exists()
+
+android {
+    namespace = "com.varad.trackie"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.varad.trackie"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode trackieVersionCode
+        versionName trackieVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStoreFile)
+                storeType signingValue('TRACKIE_KEYSTORE_TYPE', 'storeType') ?: 'pkcs12'
+                storePassword signingValue('TRACKIE_KEYSTORE_PASSWORD', 'storePassword')
+                keyAlias signingValue('TRACKIE_KEY_ALIAS', 'keyAlias')
+                keyPassword signingValue('TRACKIE_KEY_PASSWORD', 'keyPassword')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) signingConfig signingConfigs.release
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+        dirs '../../../node_modules/@capacitor/background-runner/android/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

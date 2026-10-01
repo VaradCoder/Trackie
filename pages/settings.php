@@ -127,6 +127,18 @@ require_once '../includes/head.php';
   </div>
 </div>
 
+<h3 class="settings-h3" style="margin-top:2rem">Phone app</h3>
+<div class="card card-body settings-prefs" id="phoneAppCard">
+  <div class="settings-row">
+    <div><span class="settings-label">Trackie for Android</span>
+      <p class="settings-help">Reminders arrive as phone notifications, even with the app closed. Website changes reach the app instantly; the app tells you when a new version is available.</p></div>
+    <a class="btn btn-secondary btn-sm settings-control" href="https://github.com/VaradCoder/Trackie/releases/latest" target="_blank" rel="noopener">
+      <i class="fab fa-android" aria-hidden="true"></i> Download
+    </a>
+  </div>
+  <div id="appDevices" aria-live="polite"><p class="settings-help" style="margin:0">Loading your devices…</p></div>
+</div>
+
 <h3 class="settings-h3" style="margin-top:2rem">Getting started</h3>
 <div class="card card-body settings-prefs">
   <div class="settings-row">
@@ -282,6 +294,33 @@ document.getElementById('prefsCard').addEventListener('change', e => {
   btn.textContent = `Use this device's zone (${dev.replace(/_/g, ' ')})`;
   btn.hidden = false;
   btn.addEventListener('click', () => { sel.value = dev; btn.hidden = true; savePrefs(); });
+})();
+
+/* ── Phone app installs (api/device.php) ───────────────────── */
+(function phoneDevices() {
+  const box = document.getElementById('appDevices');
+  const when = d => d ? new Date(d.replace(' ', 'T')).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'never';
+  async function load() {
+    try {
+      const r = await Trackie.API.post(`${API_BASE}/device.php`, { action: 'list' }, { button: null, quiet: true });
+      if (!r.success) { box.innerHTML = `<p class="settings-help" style="margin:0">${escHtml(r.error || 'Could not load devices.')}</p>`; return; }
+      if (!r.devices.length) { box.innerHTML = '<p class="settings-help" style="margin:0">No phones signed in yet. Install the app and sign in to get reminder notifications.</p>'; return; }
+      box.innerHTML = r.devices.map(d => `
+        <div class="settings-row">
+          <div><span class="settings-label"><i class="fas fa-mobile-screen" aria-hidden="true"></i> ${escHtml(d.name || 'Phone')}</span>
+            <p class="settings-help">App ${escHtml(d.version || '')} · last synced ${escHtml(when(d.last_seen))}${d.push ? ' · push on' : ''}</p></div>
+          <button type="button" class="btn btn-secondary btn-sm settings-control" data-revoke="${+d.id}">Sign out</button>
+        </div>`).join('');
+    } catch (e) { box.innerHTML = `<p class="settings-help" style="margin:0">${escHtml(e.message || 'Could not load devices.')}</p>`; }
+  }
+  box.addEventListener('click', async e => {
+    const b = e.target.closest('[data-revoke]');
+    if (!b) return;
+    if (!await Trackie.confirmDialog('Sign this phone out? It stops receiving reminders until you sign in on it again.', { confirmText: 'Sign out', danger: true })) return;
+    const r = await Trackie.API.post(`${API_BASE}/device.php`, { action: 'revoke', device_id: b.dataset.revoke }).catch(e => ({ success: false, error: e.message }));
+    r.success ? (Trackie.Toast.success('Phone signed out.'), load()) : Trackie.Toast.error(r.error || 'Could not sign it out.');
+  });
+  load();
 })();
 
 /* ── This device: theme + push ─────────────────────────────── */

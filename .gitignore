@@ -38,3 +38,24 @@ dist/
 # Server-generated secrets (cron token, VAPID keys) — never committed
 keys/*
 !keys/.htaccess
+
+# Node / Capacitor
+node_modules/
+
+# Android build outputs and local machine files (the project itself IS committed)
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/local.properties
+mobile/android/capacitor-cordova-android-plugins/build/
+mobile/android/app/src/main/assets/public/
+mobile/android/app/src/main/assets/capacitor.config.json
+mobile/android/app/src/main/assets/capacitor.plugins.json
+
+# Secrets — never commit (CI gets them from GitHub secrets)
+*.jks
+*.keystore
+*.p12
+keystore.properties
+mobile/android/app/google-services.json
+keys/fcm-service-account.json
