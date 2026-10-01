@@ -138,7 +138,7 @@ require_once '../includes/head.php';
                      inline `flex:1` would win over the stylesheet. */ ?>
             <div class="routine-main">
               <div class="routine-title"><?= h($r['title']) ?></div>
-              <?php if (!empty($r['schedule_days'])): ?>
+              <?php if ((string)($r['schedule_days'] ?? '') !== ''): ?>
                 <div class="routine-desc"><i class="fas fa-calendar-day" aria-hidden="true"></i> <?= h(habitScheduleLabel($routineSched($r))) ?></div>
               <?php endif; ?>
               <?php if ($r['description']): ?>

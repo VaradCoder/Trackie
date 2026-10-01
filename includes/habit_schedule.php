@@ -13,7 +13,9 @@ const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /** Parsed weekday list, or [] for "every day". */
 function habitDays(array $h): array {
-    if (($h['frequency'] ?? 'daily') !== 'daily' || empty($h['schedule_days'])) return [];
+    // Not empty(): "0" (Sunday only) is a real schedule, but empty('0') is true in PHP.
+    $raw = (string)($h['schedule_days'] ?? '');
+    if (($h['frequency'] ?? 'daily') !== 'daily' || $raw === '') return [];
     $d = array_values(array_unique(array_filter(array_map('intval', explode(',', (string)$h['schedule_days'])), static fn($x) => $x >= 0 && $x <= 6)));
     sort($d);
     return count($d) === 7 ? [] : $d;
