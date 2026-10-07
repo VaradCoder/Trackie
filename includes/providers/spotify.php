@@ -24,6 +24,8 @@ class TrackieSpotifyProvider extends TrackieProvider
             'user-read-private', 'user-read-email',
             'user-read-currently-playing', 'user-read-playback-state', 'user-modify-playback-state',
             'user-read-recently-played', 'user-top-read', 'playlist-read-private', 'streaming',
+            // Liked Songs: read (Favorites tab) + save/unsave (the heart button).
+            'user-library-read', 'user-library-modify',
         ];
     }
 

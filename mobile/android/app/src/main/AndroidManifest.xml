@@ -18,6 +18,15 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- "Continue with Google" finishes in the phone's browser (Google blocks
+                 sign-in inside app WebViews) and hands back com.varad.trackie://auth?code=…;
+                 capacitor-bridge.js redeems the one-time code. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.varad.trackie" android:host="auth" />
+            </intent-filter>
         </activity>
 
 

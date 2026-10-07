@@ -33,15 +33,48 @@ $sessions = $hasSessions ? fetchAll(
 $weekMin = $hasSessions ? (int)fetchOne("SELECT COALESCE(SUM(minutes),0) m FROM coding_sessions WHERE user_id=? AND session_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)", [$uid])['m'] : 0;
 $langMin = $hasSessions ? fetchAll("SELECT language, SUM(minutes) m FROM coding_sessions WHERE user_id=? AND language IS NOT NULL GROUP BY language ORDER BY m DESC LIMIT 6", [$uid]) : [];
 $gh = provider('github');
-$ghConnected = $gh && $gh->isConnected($uid);
-$repos = $ghConnected ? syncedData($uid, 'github', 'repo', 100) : [];
-$pushes = $ghConnected ? syncedData($uid, 'github', 'push', 30) : [];
+$ghConfigured = $gh && $gh->isConfigured();
+$ghConnected = $ghConfigured && $gh->isConnected($uid);
+$ghStatus    = $ghConnected ? $gh->status($uid) : null;
+$ghStale     = $ghConnected && $gh->isStale($uid, 6);
+$ghPrivate   = $ghConnected && $gh->hasPrivateAccess($uid);
+$ghProfile   = $ghConnected ? (syncedData($uid, 'github', 'profile', 1)[0]['data'] ?? null) : null;
+$repos  = $ghConnected ? syncedData($uid, 'github', 'repo', 500) : [];
+$pushes = $ghConnected ? syncedData($uid, 'github', 'push', 60) : [];
+$ghEvents = $ghConnected ? syncedData($uid, 'github', 'event', 30) : [];
 usort($repos, static fn($a, $b) => strcmp($b['data']['pushed_at'] ?? '', $a['data']['pushed_at'] ?? ''));
 $repoLangs = [];
 foreach ($repos as $r) if (!empty($r['data']['language'])) $repoLangs[$r['data']['language']] = ($repoLangs[$r['data']['language']] ?? 0) + 1;
 arsort($repoLangs);
 $commits7 = 0;
 foreach ($pushes as $p) if ($p['occurred_at'] && strtotime($p['occurred_at']) >= strtotime('-7 days')) $commits7 += (int)($p['data']['commits'] ?? 0);
+
+// Repo <-> project links (by URL), both directions.
+$normUrl = static fn(?string $u) => strtolower(rtrim((string)$u, '/'));
+$repoByUrl = [];
+foreach ($repos as $r) if (!empty($r['data']['html_url'])) $repoByUrl[$normUrl($r['data']['html_url'])] = $r['data'];
+$trackedUrls = [];
+foreach ($projects as $pr) if ($pr['github_url']) $trackedUrls[$normUrl($pr['github_url'])] = (int)$pr['id'];
+$ghActivity = ['active' => 0, 'recent' => 0, 'dormant' => 0, 'archived' => 0];
+foreach ($repos as $r) $ghActivity[TrackieGithubProvider::activity($r['data'])]++;
+$activityMeta = [
+    'active'   => ['Active',   'badge-green',  'Pushed in the last 14 days'],
+    'recent'   => ['Recent',   'badge-blue',   'Pushed in the last 90 days'],
+    'dormant'  => ['Dormant',  'badge-gray',   'No pushes for 90+ days'],
+    'archived' => ['Archived', 'badge-yellow', 'Read-only on GitHub'],
+];
+$ago = static function (?string $iso): string {
+    if (!$iso) return '—';
+    $d = (int)floor((time() - strtotime($iso)) / 86400);
+    return $d <= 0 ? 'today' : ($d === 1 ? 'yesterday' : ($d < 30 ? "{$d} days ago" : ($d < 365 ? floor($d / 30) . ' mo ago' : floor($d / 365) . ' yr ago')));
+};
+// Activity feed: pushes + PRs/issues/releases, newest first.
+$feed = array_merge(
+    array_map(static fn($p) => ['at' => $p['occurred_at'], 'kind' => 'push'] + $p['data'], $pushes),
+    array_map(static fn($e) => ['at' => $e['occurred_at'], 'kind' => 'event'] + $e['data'], $ghEvents)
+);
+usort($feed, static fn($a, $b) => strcmp((string)$b['at'], (string)$a['at']));
+$initialTab = in_array($_GET['tab'] ?? '', ['projects', 'sessions', 'github'], true) ? $_GET['tab'] : 'projects';
 $fmtMin = static fn(int $m) => $m >= 60 ? intdiv($m, 60) . 'h' . ($m % 60 ? ' ' . ($m % 60) . 'm' : '') : $m . 'm';
 
 $statusMeta = [
@@ -73,11 +106,11 @@ require_once '../includes/head.php';
   <div class="stat-card"><div class="stat-val"><?= $ghConnected ? $commits7 : '—' ?></div><div class="stat-label"><?= $ghConnected ? 'Commits pushed · 7 days' : 'GitHub not connected' ?></div></div>
 </div>
 <div class="filter-tabs" style="margin-bottom:1.25rem" id="codeTabs" role="tablist">
-  <button class="filter-tab active" data-tab="projects" role="tab" aria-selected="true">Projects</button>
-  <button class="filter-tab" data-tab="sessions" role="tab" aria-selected="false" tabindex="-1">Sessions</button>
-  <button class="filter-tab" data-tab="github" role="tab" aria-selected="false" tabindex="-1"><i class="fab fa-github"></i> GitHub</button>
+  <?php foreach (['projects' => 'Projects', 'sessions' => 'Sessions', 'github' => '<i class="fab fa-github"></i> GitHub' . ($repos ? ' <span class="cd-count">' . count($repos) . '</span>' : '')] as $t => $label): ?>
+    <button class="filter-tab<?= $initialTab === $t ? ' active' : '' ?>" data-tab="<?= $t ?>" role="tab" aria-selected="<?= $initialTab === $t ? 'true' : 'false' ?>"<?= $initialTab === $t ? '' : ' tabindex="-1"' ?>><?= $label ?></button>
+  <?php endforeach; ?>
 </div>
-<div id="ctab-projects">
+<div id="ctab-projects"<?= $initialTab === 'projects' ? '' : ' class="hidden"' ?>>
 
 <div id="projectsListWrap">
 <?php if (empty($projects)): ?>
@@ -118,6 +151,15 @@ require_once '../includes/head.php';
             </a>
           <?php endif; ?>
         </div>
+        <?php if ($p['github_url'] && ($lr = $repoByUrl[$normUrl($p['github_url'])] ?? null)): $la = TrackieGithubProvider::activity($lr); ?>
+          <div class="cd-linked">
+            <span class="badge <?= $activityMeta[$la][1] ?>"><?= $activityMeta[$la][0] ?></span>
+            <span title="Last push"><i class="fas fa-code-commit"></i> <?= h($ago($lr['pushed_at'] ?? null)) ?></span>
+            <?php if (!empty($lr['language'])): ?><span><?= h($lr['language']) ?></span><?php endif; ?>
+            <span title="Stars">★ <?= (int)($lr['stars'] ?? 0) ?></span>
+            <?php if ((int)($lr['open_issues'] ?? 0) > 0): ?><span title="Open issues + pull requests"><i class="far fa-circle-dot"></i> <?= (int)$lr['open_issues'] ?></span><?php endif; ?>
+          </div>
+        <?php endif; ?>
 
         <?php if ($p['total_tasks'] > 0): ?>
           <div style="margin-bottom:.75rem">
@@ -140,7 +182,7 @@ require_once '../includes/head.php';
 
 </div>
 
-<div id="ctab-sessions" class="hidden">
+<div id="ctab-sessions"<?= $initialTab === 'sessions' ? '' : ' class="hidden"' ?>>
   <?php if ($langMin): ?>
     <div class="hb-chips"><span class="hb-chips-label">Time by language</span>
       <?php foreach ($langMin as $l): ?><span class="hb-chip"><?= h($l['language']) ?> · <?= $fmtMin((int)$l['m']) ?></span><?php endforeach; ?></div>
@@ -166,35 +208,122 @@ require_once '../includes/head.php';
   <?php endif; ?>
 </div>
 
-<div id="ctab-github" class="hidden">
-  <?php if (!$ghConnected): ?>
+<div id="ctab-github"<?= $initialTab === 'github' ? '' : ' class="hidden"' ?>>
+  <?php if (!$ghConfigured): ?>
+    <div class="card card-body hb-empty-line">GitHub isn't set up on this server yet (GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET in config/env.php).</div>
+  <?php elseif (!$ghConnected): ?>
     <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fab fa-github"></i></div>
-      <div class="empty-state-title">Connect GitHub</div><p>See your repositories, languages and recent pushes here. Trackie only reads public data.</p>
-      <a class="btn btn-primary" style="margin-top:.75rem" href="<?= APP_BASE ?>/pages/settings.php"><i class="fas fa-plug"></i> Connect in Settings</a></div></div>
-  <?php elseif (!$repos): ?>
-    <div class="card card-body hb-empty-line">GitHub is connected but nothing has synced yet — use "Sync now" in Settings.</div>
+      <div class="empty-state-title">Connect GitHub</div>
+      <p>Trackie finds every repository you can access — yours, collaborations and organisations — with languages, stars, issues and recent activity.</p>
+      <label class="cd-private"><input type="checkbox" id="ghWantPrivate"> Include private repositories
+        <small>GitHub only offers this as read <em>and</em> write access. Trackie only ever reads.</small></label>
+      <a class="btn btn-primary" style="margin-top:.75rem" id="ghConnectBtn" data-no-spa href="<?= APP_BASE ?>/pages/github_callback.php?from=projects"><i class="fab fa-github"></i> Connect GitHub</a></div></div>
   <?php else: ?>
-    <?php if ($repoLangs): ?>
-      <div class="hb-chips"><span class="hb-chips-label">Languages (by repo)</span>
-        <?php foreach (array_slice($repoLangs, 0, 8, true) as $l => $n): ?><span class="hb-chip"><?= h($l) ?> · <?= (int)$n ?></span><?php endforeach; ?></div>
-    <?php endif; ?>
-    <div class="hb-grid2">
-      <div class="card card-body"><div class="fit-card-label">Repositories · recently pushed</div>
-        <?php foreach (array_slice($repos, 0, 12) as $r): $d = $r['data']; ?>
-          <div class="hb-row"><span><a href="<?= h(preg_match('#^https://github\.com/#', $d['html_url'] ?? '') ? $d['html_url'] : '#') ?>" target="_blank" rel="noopener"><?= h($d['name'] ?? '') ?></a>
-            <?php if (!empty($d['language'])): ?><small class="rd-author"> · <?= h($d['language']) ?></small><?php endif; ?></span>
-            <b title="Stars">★ <?= (int)($d['stars'] ?? 0) ?></b></div>
-        <?php endforeach; ?>
+    <div class="card card-body cd-gh-head">
+      <?php if (!empty($ghProfile['avatar']) && preg_match('#^https://#', $ghProfile['avatar'])): ?><img src="<?= h($ghProfile['avatar']) ?>" alt="" width="44" height="44" class="cd-avatar"><?php endif; ?>
+      <div style="flex:1;min-width:0">
+        <div class="cd-gh-name"><?= h($ghProfile['name'] ?? $ghProfile['login'] ?? 'GitHub') ?>
+          <?php if (!empty($ghProfile['login'])): ?><a href="https://github.com/<?= h(rawurlencode($ghProfile['login'])) ?>" target="_blank" rel="noopener" class="cd-login">@<?= h($ghProfile['login']) ?></a><?php endif; ?></div>
+        <div class="cd-gh-sub" id="ghSyncLine">
+          <?= count($repos) ?> repositories · <?= $ghPrivate ? 'public + private' : 'public only' ?>
+          · <?= $ghStatus['lastSync'] ? 'synced ' . h($ago(date('c', strtotime($ghStatus['lastSync'])))) : 'never synced' ?>
+        </div>
+        <?php if ($ghStatus['syncStatus'] === 'error' && $ghStatus['lastError']): ?><div class="cd-gh-err"><i class="fas fa-triangle-exclamation"></i> <?= h($ghStatus['lastError']) ?></div><?php endif; ?>
       </div>
-      <div class="card card-body"><div class="fit-card-label">Recent pushes</div>
-        <?php if (!$pushes): ?><p class="hb-empty-line">No recent public pushes.</p><?php endif; ?>
-        <?php foreach (array_slice($pushes, 0, 10) as $p): $d = $p['data']; ?>
-          <div class="hb-row"><span><?= h($d['repo'] ?? '') ?><small class="rd-author" style="display:block"><?= h(mb_strimwidth((string)($d['messages'][0] ?? ''), 0, 60, '…')) ?></small></span>
-            <b><?= (int)($d['commits'] ?? 0) ?> commit<?= (int)($d['commits'] ?? 0) === 1 ? '' : 's' ?></b></div>
-        <?php endforeach; ?>
+      <div class="cd-gh-actions">
+        <?php if (!$ghPrivate): ?><a class="btn btn-ghost btn-sm" data-no-spa href="<?= APP_BASE ?>/pages/github_callback.php?from=projects&amp;private=1" title="Reconnect with access to private repositories (GitHub grants read + write; Trackie only reads)"><i class="fas fa-lock"></i> Add private repos</a><?php endif; ?>
+        <button class="btn btn-secondary btn-sm" id="ghSyncBtn" onclick="ghSync(false)"><i class="fas fa-rotate"></i> Sync now</button>
       </div>
     </div>
-    <p class="hb-foot">From your last GitHub sync. Refresh with "Sync now" in Settings.</p>
+
+    <?php if (!$repos): ?>
+      <div class="card card-body hb-empty-line" id="ghEmpty"><?= $ghStatus['syncStatus'] === 'error' ? 'The last sync failed — see the message above, then try "Sync now".' : '<i class="fas fa-spinner fa-spin"></i> Fetching your repositories…' ?></div>
+    <?php else: ?>
+      <div class="grid-stats cd-gh-stats">
+        <?php foreach ($activityMeta as $k => [$label, $badge, $hint]): ?>
+          <button type="button" class="stat-card cd-stat" data-filter-activity="<?= $k ?>" title="<?= h($hint) ?>"><div class="stat-val"><?= (int)$ghActivity[$k] ?></div><div class="stat-label"><?= $label ?></div></button>
+        <?php endforeach; ?>
+      </div>
+      <?php if ($repoLangs): ?>
+        <div class="hb-chips"><span class="hb-chips-label">Languages</span>
+          <?php foreach (array_slice($repoLangs, 0, 10, true) as $l => $n): ?><button type="button" class="hb-chip cd-lang" data-lang="<?= h($l) ?>"><?= h($l) ?> · <?= (int)$n ?></button><?php endforeach; ?></div>
+      <?php endif; ?>
+
+      <div class="cd-filters">
+        <input type="search" class="form-input" id="ghSearch" placeholder="Search repositories, topics, descriptions…" aria-label="Search repositories">
+        <select class="form-input" id="ghActivity" aria-label="Activity">
+          <option value="">All activity</option><?php foreach ($activityMeta as $k => [$label]): ?><option value="<?= $k ?>"><?= $label ?></option><?php endforeach; ?>
+        </select>
+        <select class="form-input" id="ghOwner" aria-label="Owner">
+          <option value="">All owners</option><option value="mine">Mine</option><option value="shared">Collaborations &amp; orgs</option><option value="fork">Forks</option><option value="tracked">Tracked as projects</option>
+        </select>
+        <select class="form-input" id="ghSort" aria-label="Sort">
+          <option value="pushed">Last push</option><option value="stars">Stars</option><option value="issues">Open issues</option><option value="name">Name</option>
+        </select>
+      </div>
+
+      <div class="cd-repos" id="ghRepos">
+        <?php foreach ($repos as $r): $d = $r['data']; $act = TrackieGithubProvider::activity($d);
+              $url = preg_match('#^https://github\.com/#', $d['html_url'] ?? '') ? $d['html_url'] : null;
+              $tracked = $url ? ($trackedUrls[$normUrl($url)] ?? null) : null;
+              $vis = $d['visibility'] ?? (!empty($d['private']) ? 'private' : 'public');
+              $search = strtolower(implode(' ', [$d['full_name'] ?? '', $d['description'] ?? '', implode(' ', $d['topics'] ?? []), $d['language'] ?? ''])); ?>
+          <article class="card cd-repo" data-activity="<?= $act ?>" data-mine="<?= !empty($d['mine']) || !isset($d['mine']) ? 1 : 0 ?>" data-fork="<?= !empty($d['fork']) ? 1 : 0 ?>"
+                   data-tracked="<?= $tracked ? 1 : 0 ?>" data-lang="<?= h($d['language'] ?? '') ?>" data-search="<?= h($search) ?>"
+                   data-pushed="<?= h($d['pushed_at'] ?? '') ?>" data-stars="<?= (int)($d['stars'] ?? 0) ?>" data-issues="<?= (int)($d['open_issues'] ?? 0) ?>" data-name="<?= h(strtolower($d['name'] ?? '')) ?>">
+            <div class="cd-repo-top">
+              <div style="min-width:0">
+                <a class="cd-repo-name" href="<?= h($url ?? '#') ?>" target="_blank" rel="noopener"><?= isset($d['mine']) && empty($d['mine']) ? '<span class="cd-owner">' . h($d['owner'] ?? '') . '/</span>' : '' ?><?= h($d['name'] ?? '') ?></a>
+                <div class="cd-badges">
+                  <span class="badge <?= $activityMeta[$act][1] ?>" title="<?= h($activityMeta[$act][2]) ?>"><?= $activityMeta[$act][0] ?></span>
+                  <span class="badge <?= $vis === 'public' ? 'badge-gray' : 'badge-purple' ?>"><i class="fas <?= $vis === 'public' ? 'fa-globe' : 'fa-lock' ?>"></i> <?= h(ucfirst($vis)) ?></span>
+                  <?php if (!empty($d['fork'])): ?><span class="badge badge-gray"><i class="fas fa-code-fork"></i> Fork</span><?php endif; ?>
+                  <?php if (!empty($d['is_template'])): ?><span class="badge badge-gray">Template</span><?php endif; ?>
+                  <?php if (($d['owner_type'] ?? '') === 'Organization'): ?><span class="badge badge-blue"><i class="fas fa-building"></i> Org</span><?php endif; ?>
+                </div>
+              </div>
+              <?php if ($tracked): ?>
+                <a class="btn btn-ghost btn-sm cd-track" href="?tab=projects#project-<?= (int)$tracked ?>" title="Open the project"><i class="fas fa-check"></i> Tracked</a>
+              <?php elseif ($url): ?>
+                <button class="btn btn-secondary btn-sm cd-track" onclick="ghTrack('<?= h($r['external_id']) ?>', this)" title="Create a Trackie project for this repo (tasks, sessions, status)"><i class="fas fa-plus"></i> Track</button>
+              <?php endif; ?>
+            </div>
+            <?php if (!empty($d['description'])): ?><p class="cd-desc"><?= h($d['description']) ?></p><?php endif; ?>
+            <?php if (!empty($d['topics'])): ?><div class="cd-topics"><?php foreach ($d['topics'] as $t): ?><span class="gm-tag"><?= h($t) ?></span><?php endforeach; ?></div><?php endif; ?>
+            <div class="cd-meta">
+              <?php if (!empty($d['language'])): ?><span><i class="fas fa-circle cd-lang-dot" style="--h:<?= abs(crc32($d['language'])) % 360 ?>"></i><?= h($d['language']) ?></span><?php endif; ?>
+              <span title="Stars">★ <?= (int)($d['stars'] ?? 0) ?></span>
+              <span title="Forks"><i class="fas fa-code-fork"></i> <?= (int)($d['forks'] ?? 0) ?></span>
+              <?php if ((int)($d['open_issues'] ?? 0) > 0): ?><span title="Open issues + pull requests"><i class="far fa-circle-dot"></i> <?= (int)$d['open_issues'] ?></span><?php endif; ?>
+              <span title="Last push<?= !empty($d['default_branch']) ? ' · default branch ' . h($d['default_branch']) : '' ?>"><i class="fas fa-code-commit"></i> <?= h($ago($d['pushed_at'] ?? null)) ?></span>
+              <?php if (!empty($d['homepage']) && preg_match('#^https?://#', $d['homepage'])): ?><a href="<?= h($d['homepage']) ?>" target="_blank" rel="noopener" title="Homepage"><i class="fas fa-arrow-up-right-from-square"></i> Site</a><?php endif; ?>
+            </div>
+          </article>
+        <?php endforeach; ?>
+      </div>
+      <div class="card card-body hb-empty-line hidden" id="ghNoMatch">No repositories match these filters.</div>
+
+      <div class="fit-section-head" style="margin-top:1.5rem"><h2 class="hb-h2">Recent activity</h2></div>
+      <div class="card card-body">
+        <?php if (!$feed): ?><p class="hb-empty-line">No recent activity on GitHub.</p><?php endif; ?>
+        <?php foreach (array_slice($feed, 0, 15) as $f): ?>
+          <div class="hb-row cd-feed">
+            <?php if ($f['kind'] === 'push'): ?>
+              <i class="fas fa-code-commit cd-feed-ic"></i>
+              <span style="flex:1;min-width:0">Pushed <b><?= (int)($f['commits'] ?? 0) ?> commit<?= (int)($f['commits'] ?? 0) === 1 ? '' : 's' ?></b> to <?= h($f['repo'] ?? '') ?><?= !empty($f['branch']) ? ' <small class="rd-author">(' . h($f['branch']) . ')</small>' : '' ?>
+                <?php if (!empty($f['messages'][0])): ?><small class="rd-author" style="display:block"><?= h(mb_strimwidth((string)$f['messages'][0], 0, 90, '…')) ?></small><?php endif; ?></span>
+            <?php else: $icon = ['PullRequestEvent' => 'fa-code-pull-request', 'IssuesEvent' => 'fa-circle-dot', 'ReleaseEvent' => 'fa-tag', 'CreateEvent' => 'fa-plus'][$f['type']] ?? 'fa-bolt';
+                  $verb = $f['type'] === 'PullRequestEvent' && !empty($f['merged']) ? 'merged' : ($f['action'] ?? ''); ?>
+              <i class="fas <?= $icon ?> cd-feed-ic"></i>
+              <span style="flex:1;min-width:0"><?= h(ucfirst((string)$verb)) ?> <?= h(['PullRequestEvent' => 'pull request', 'IssuesEvent' => 'issue', 'ReleaseEvent' => 'release', 'CreateEvent' => ''][$f['type']] ?? '') ?>
+                <?php if (!empty($f['url']) && preg_match('#^https://github\.com/#', $f['url'])): ?><a href="<?= h($f['url']) ?>" target="_blank" rel="noopener"><?= h($f['title'] ?? '') ?></a><?php else: ?><?= h($f['title'] ?? '') ?><?php endif; ?>
+                <small class="rd-author" style="display:block"><?= h($f['repo'] ?? '') ?></small></span>
+            <?php endif; ?>
+            <small class="rd-author"><?= h($ago($f['at'] ? date('c', strtotime($f['at'])) : null)) ?></small>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
   <?php endif; ?>
 </div>
 
@@ -267,6 +396,71 @@ document.getElementById('codeTabs').addEventListener('click', e => {
   document.querySelectorAll('#codeTabs [data-tab]').forEach(x => { const on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-selected', on); });
   ['projects', 'sessions', 'github'].forEach(t => document.getElementById(`ctab-${t}`).classList.toggle('hidden', t !== b.dataset.tab));
 });
+
+/* ── GitHub: filters, track, sync ─────────────────────────────────── */
+(function ghFilters() {
+  const list = document.getElementById('ghRepos');
+  if (!list) return;
+  const $ = id => document.getElementById(id);
+  const cards = [...list.children];
+  function apply() {
+    const q = $('ghSearch').value.trim().toLowerCase(), act = $('ghActivity').value, own = $('ghOwner').value, sort = $('ghSort').value;
+    const lang = list.dataset.lang || '';
+    let shown = 0;
+    cards.forEach(c => {
+      const ok = (!q || c.dataset.search.includes(q)) && (!act || c.dataset.activity === act) && (!lang || c.dataset.lang === lang)
+        && (!own || (own === 'mine' && c.dataset.mine === '1') || (own === 'shared' && c.dataset.mine === '0')
+                 || (own === 'fork' && c.dataset.fork === '1') || (own === 'tracked' && c.dataset.tracked === '1'));
+      c.hidden = !ok; if (ok) shown++;
+    });
+    const key = { pushed: c => c.dataset.pushed, stars: c => +c.dataset.stars, issues: c => +c.dataset.issues, name: c => c.dataset.name }[sort];
+    cards.sort((a, b) => sort === 'name' ? key(a).localeCompare(key(b)) : (key(a) < key(b) ? 1 : key(a) > key(b) ? -1 : 0)).forEach(c => list.appendChild(c));
+    $('ghNoMatch').classList.toggle('hidden', shown > 0);
+    document.querySelectorAll('[data-filter-activity]').forEach(b => b.classList.toggle('active', b.dataset.filterActivity === act));
+    document.querySelectorAll('.cd-lang').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+  }
+  ['ghSearch', 'ghActivity', 'ghOwner', 'ghSort'].forEach(id => $(id).addEventListener(id === 'ghSearch' ? 'input' : 'change', apply));
+  document.querySelectorAll('[data-filter-activity]').forEach(b => b.addEventListener('click', () => {
+    $('ghActivity').value = $('ghActivity').value === b.dataset.filterActivity ? '' : b.dataset.filterActivity; apply();
+  }));
+  document.querySelectorAll('.cd-lang').forEach(b => b.addEventListener('click', () => {
+    list.dataset.lang = list.dataset.lang === b.dataset.lang ? '' : b.dataset.lang; apply();
+  }));
+})();
+document.getElementById('ghWantPrivate')?.addEventListener('change', e => {
+  const a = document.getElementById('ghConnectBtn');
+  a.href = a.href.replace(/&private=1$/, '') + (e.target.checked ? '&private=1' : '');
+});
+async function ghTrack(repoId, btn) {
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/projects.php`, { action: 'track_repo', repo_id: repoId }, { button: btn });
+    if (!res.success) { Trackie.Toast.error(res.error || 'Could not track that repository.'); return; }
+    Trackie.Toast.success(res.existing ? 'Already tracked as a project.' : 'Added to your projects.');
+    btn.closest('.cd-repo').dataset.tracked = '1';
+    btn.outerHTML = `<a class="btn btn-ghost btn-sm cd-track" href="?tab=projects#project-${+res.id}"><i class="fas fa-check"></i> Tracked</a>`;
+  } catch (e) { Trackie.Toast.error(e.message || 'Could not track that repository.'); }
+}
+async function ghSync(quiet) {
+  const btn = document.getElementById('ghSyncBtn');
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/integrations.php`, { action: 'sync', provider: 'github' }, { button: quiet ? null : btn, quiet });
+    if (res.success) {
+      if (!quiet) Trackie.Toast.success(`GitHub synced — ${res.records} records.`);
+      if (Trackie.SpaNav?.refresh) Trackie.SpaNav.refresh(); else location.reload();
+    } else if (!quiet) Trackie.Toast.error(res.error || 'GitHub sync failed.');
+    else if (res.error) {
+      const line = document.getElementById('ghSyncLine');
+      if (line) line.insertAdjacentHTML('afterend', `<div class="cd-gh-err"><i class="fas fa-triangle-exclamation"></i> ${escProj(res.error)}</div>`);
+      document.getElementById('ghEmpty')?.replaceChildren('The last sync failed — see the message above, then try "Sync now".');
+    }
+  } catch (e) { if (!quiet) Trackie.Toast.error(e.message || 'GitHub sync failed.'); }
+}
+<?php if ($ghStale): ?>
+// Data older than 6 h (or never synced): refresh in the background — the page
+// already shows the cached copy, so nothing waits on GitHub.
+ghSync(true);
+<?php endif; ?>
+
 function openCodeSession() {
   document.getElementById('csDate').value = '<?= date('Y-m-d') ?>';
   ['csLang', 'csNotes', 'csProject'].forEach(i => document.getElementById(i).value = '');

@@ -12,6 +12,16 @@ verify_csrf();
 $uid    = currentUserId();
 $action = sanitizeInput($_POST['action'] ?? '');
 
+// Sign-in methods (user_identities) — independent of user_settings.
+if ($action === 'unlink_google') {
+    require_once '../includes/identity.php';
+    if (!identitiesReady()) json_out(['success' => false, 'error' => 'Not available.'], 503);
+    $me = fetchOne("SELECT password FROM users WHERE id=?", [$uid]);
+    // Never strand an account with no way to sign in.
+    if (!$me || !userHasPassword($me)) json_out(['success' => false, 'error' => 'Set a password first, or you would be locked out.'], 409);
+    json_out(['success' => identityUnlink($uid, 'google')]);
+}
+
 if (!tableExists('user_settings')) {
     json_out(['success' => false, 'error' => 'Preferences need a database update — open Setup once.'], 503);
 }

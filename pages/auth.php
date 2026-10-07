@@ -11,6 +11,10 @@ $pageTitle = 'Sign in';
 $metaIndex = true;
 $metaDescription = 'Sign in to Trackie or create a free account to track habits, goals, fitness and hobbies.';
 $startTab  = ($_GET['tab'] ?? '') === 'register' ? 'register' : 'login';
+require_once '../includes/identity.php';
+// "Continue with Google": same Google OAuth client as Calendar/Tasks; needs the
+// user_identities table (migration 2026-10-07_integrations_v2).
+$googleSignIn = env('GOOGLE_CLIENT_ID') !== '' && env('GOOGLE_CLIENT_SECRET') !== '' && identitiesReady();
 require_once '../includes/head.php';
 ?>
 <style>body{overflow:hidden auto}</style>
@@ -34,6 +38,14 @@ require_once '../includes/head.php';
       </div>
 
       <div id="authError" class="alert alert-error" style="display:none"></div>
+
+      <?php if ($googleSignIn): ?>
+        <a class="btn btn-secondary auth-google" data-google-signin data-no-spa href="<?= APP_BASE ?>/pages/google_callback.php?mode=login">
+          <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.2C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 7.1-10.3 7.1-17.7z"/><path fill="#FBBC05" d="M10.6 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.2C1 16.6 0 20.2 0 24s1 7.4 2.7 10.9l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.5-5 2.3-8.2 2.3-6.2 0-11.5-4.1-13.4-9.8l-7.9 6.2C6.6 42.6 14.6 48 24 48z"/></svg>
+          Continue with Google
+        </a>
+        <div class="auth-or"><span>or use email</span></div>
+      <?php endif; ?>
 
       <!-- Sign In -->
       <form id="loginForm" class="auth-form <?= $startTab==='login'?'':'hidden' ?>" autocomplete="on">

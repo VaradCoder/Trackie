@@ -3,9 +3,8 @@
  * Gaming features built on the user's own data + their Steam link:
  *   sync()          library, last played, 2-week playtime, daily snapshot
  *   refreshAchievements()  a few games per call (one Steam request each)
- *   nextUp()        backlog ranking with the reasons shown
- *   wrapped()       year in review
- *   friends()/coop()  shared multiplayer games with Steam friends
+ *   shelves()       Most Played / Currently Playing / Completed / Dropped
+ *   wrapped()       Gaming Wrap for a year or a single month
  *
  * Honesty rules:
  *   - Steam keeps NO per-day playtime history. Day/weekday/month patterns come
@@ -185,95 +184,59 @@ final class GamingService
         return $g ? implode(', ', $g) : null;
     }
 
-    /* ── Next Up ─────────────────────────────────────────────────── */
+    /* ── Shelves ─────────────────────────────────────────────────── */
 
-    public function nextUp(int $limit = 6): array
+    /**
+     * The page's four lists, organised from what Steam reports plus the
+     * user's own status choices:
+     *   most_played — every game with playtime, by hours
+     *   playing     — not completed/dropped, AND played in the last 2 weeks or
+     *                 30 days (Steam), or marked Playing by hand (non-Steam games)
+     *   completed / dropped — the user's call; Steam can't know
+     */
+    public function shelves(): array
     {
         $games = fetchAll(
-            "SELECT id, title, platform, steam_appid, cover_url, status, hours_played, last_played,
-                    playtime_2weeks, ach_done, ach_total, rating
+            "SELECT id, title, platform, steam_appid, cover_url, status, hours_played, last_played, playtime_2weeks,
+                    ach_done, ach_total, rating, completed_at, dropped_at
                FROM games WHERE user_id=?", [$this->uid]
         );
-        $candidates = array_filter($games, static fn($g) => in_array($g['status'], ['backlog', 'playing'], true));
-        if (!$candidates) return ['items' => [], 'finished' => [], 'meta_pending' => 0, 'top_genres' => []];
-
-        // Metadata for candidates and the games that define taste.
-        $played = $games;
-        usort($played, static fn($a, $b) => $b['hours_played'] <=> $a['hours_played']);
-        $wanted = array_merge(
-            array_column(array_slice($played, 0, 15), 'steam_appid'),
-            array_column($candidates, 'steam_appid')
-        );
-        $meta = SteamClient::appMeta($wanted, 10);
-        $gh   = $this->genreHours($games, $meta);
-        $share = [];
-        foreach ($gh['genres'] as $genre => $h) $share[$genre] = $gh['covered'] > 0 ? $h / $gh['covered'] : 0;
-
         $now = time();
-        $items = $finished = [];
-        foreach ($candidates as $g) {
-            $score = 0.0;
-            $why   = [];
-            $hours = (float)$g['hours_played'];
-            $p2w   = (int)$g['playtime_2weeks'];
-            $days  = $g['last_played'] ? (int)floor(($now - strtotime($g['last_played'])) / 86400) : null;
-            $achT  = (int)$g['ach_total'];
-            $achD  = (int)$g['ach_done'];
-            $pct   = $achT > 0 ? (int)round($achD / $achT * 100) : null;
-
-            // All achievements unlocked: suggest closing it out instead.
-            if ($pct === 100) { $finished[] = self::card($g) + ['reason' => "All {$achT} achievements unlocked"]; continue; }
-
-            if ($p2w > 0) {
-                $score += 30 + min(20, $p2w / 60 * 2);
-                $why[] = 'Played ' . self::fmtMins($p2w) . ' in the last 2 weeks';
-            } elseif ($days !== null && $days <= 30) {
-                $score += 15;
-                $why[] = 'Last played ' . self::fmtDays($days);
-            }
-            if ($pct !== null && $pct > 0) {
-                $score += 20 * $pct / 100 + ($pct >= 50 ? 10 : 0);
-                $why[] = "{$achD}/{$achT} achievements ({$pct}%)";
-            }
-            if ($hours >= 2 && $days !== null && $days > 180) {
-                $score += 10;
-                $why[] = self::fmtHours($hours) . ' invested, untouched for ' . self::fmtDays($days, false);
-            }
-            if ((int)$g['rating'] >= 4) {
-                $score += 10;
-                $why[] = "You rated it {$g['rating']}★";
-            }
-            $m = $meta[(int)$g['steam_appid']] ?? null;
-            if ($m) {
-                $best = null;
-                foreach (self::genreList($m['genres']) as $genre) {
-                    if (($share[$genre] ?? 0) > ($best[1] ?? 0)) $best = [$genre, $share[$genre]];
-                }
-                if ($best && $best[1] >= 0.1) {
-                    $score += 40 * $best[1];
-                    $why[] = "{$best[0]} games are " . round($best[1] * 100) . '% of your playtime';
-                }
-            }
-            if ($g['status'] === 'playing') $score += 5;
-            if ($hours == 0.0) $why[] = $g['status'] === 'backlog' ? 'On your backlog, not started' : 'Not started yet';
-            if (!$why) continue;   // no real signal → don't pretend to recommend it
-
-            $items[] = self::card($g) + [
-                'score' => round($score, 1), 'reasons' => $why,
-                'genres' => self::genreLabel($m),
-                'ach_pct' => $pct,
+        // Genres from the cached Store metadata only — never a live call on render.
+        $meta = SteamClient::appMeta(array_column($games, 'steam_appid'), 0);
+        $playing = $most = $completed = $dropped = [];
+        foreach ($games as $g) {
+            $card = self::card($g) + [
+                'genres' => self::genreLabel($meta[(int)$g['steam_appid']] ?? null),
+                'platform' => $g['platform'], 'rating' => $g['rating'] !== null ? (int)$g['rating'] : null,
+                'last_played' => $g['last_played'] ? substr($g['last_played'], 0, 10) : null,
+                'mins_2weeks' => (int)$g['playtime_2weeks'],
+                'ach_done' => $g['ach_total'] !== null ? (int)$g['ach_done'] : null,
+                'ach_total' => $g['ach_total'] !== null ? (int)$g['ach_total'] : null,
+                'completed_at' => $g['completed_at'] ? substr($g['completed_at'], 0, 10) : null,
+                'dropped_at' => $g['dropped_at'] ? substr($g['dropped_at'], 0, 10) : null,
             ];
+            if ((float)$g['hours_played'] > 0) $most[] = $card;
+            if ($g['status'] === 'completed') { $completed[] = $card; continue; }
+            if ($g['status'] === 'dropped')   { $dropped[] = $card; continue; }
+            $recent = $g['last_played'] && strtotime($g['last_played']) >= $now - 30 * 86400;
+            $manualPlaying = !$g['steam_appid'] && $g['status'] === 'playing';
+            if ((int)$g['playtime_2weeks'] > 0 || $recent || $manualPlaying) $playing[] = $card;
         }
-        usort($items, static fn($a, $b) => $b['score'] <=> $a['score']);
-
+        usort($most, static fn($a, $b) => $b['hours'] <=> $a['hours']);
+        usort($playing, static fn($a, $b) => [$b['mins_2weeks'], (string)$b['last_played']] <=> [$a['mins_2weeks'], (string)$a['last_played']]);
+        usort($completed, static fn($a, $b) => strcmp((string)$b['completed_at'], (string)$a['completed_at']));
+        usort($dropped, static fn($a, $b) => strcmp((string)$b['dropped_at'], (string)$a['dropped_at']));
+        $total = array_sum(array_column($most, 'hours'));
+        foreach ($most as &$m) $m['share'] = $total > 0 ? round($m['hours'] / $total * 100, 1) : 0;
+        unset($m);
         return [
-            'items'        => array_slice($items, 0, $limit),
-            'finished'     => array_slice($finished, 0, 4),
-            'meta_pending' => SteamClient::metaPending(array_filter(array_column($candidates, 'steam_appid'))),
-            'top_genres'   => array_slice(array_map(
-                static fn($genre, $h) => ['genre' => $genre, 'pct' => $gh['covered'] > 0 ? (int)round($h / $gh['covered'] * 100) : 0],
-                array_keys($gh['genres']), $gh['genres']
-            ), 0, 3),
+            'most_played' => array_slice($most, 0, 60),
+            'playing'     => $playing,
+            'completed'   => $completed,
+            'dropped'     => $dropped,
+            'counts'      => ['games' => count($games), 'played' => count($most), 'playing' => count($playing),
+                              'completed' => count($completed), 'dropped' => count($dropped), 'hours' => round($total, 1)],
         ];
     }
 
@@ -292,8 +255,9 @@ final class GamingService
     {
         $years = array_map('intval', array_column(fetchAll(
             "SELECT DISTINCT YEAR(last_played) y FROM games WHERE user_id=? AND last_played IS NOT NULL
-             UNION SELECT DISTINCT YEAR(completed_at) FROM games WHERE user_id=? AND completed_at IS NOT NULL",
-            [$this->uid, $this->uid]
+             UNION SELECT DISTINCT YEAR(completed_at) FROM games WHERE user_id=? AND completed_at IS NOT NULL
+             UNION SELECT DISTINCT YEAR(dropped_at) FROM games WHERE user_id=? AND dropped_at IS NOT NULL",
+            [$this->uid, $this->uid, $this->uid]
         ), 'y'));
         $years[] = (int)date('Y');
         $years = array_values(array_unique(array_filter($years)));
@@ -301,10 +265,18 @@ final class GamingService
         return $years;
     }
 
-    public function wrapped(int $year): array
+    /**
+     * Gaming Wrap for a year, or one month of it ($month 1–12). Period stats
+     * use dates Trackie really has: Steam's last-played date, when you marked
+     * a game completed/dropped, and playtime from Trackie's own daily
+     * snapshots. Lifetime numbers are labelled as such.
+     */
+    public function wrapped(int $year, int $month = 0): array
     {
+        $month = $month >= 1 && $month <= 12 ? $month : 0;
+        $inPeriod = static fn(?string $d) => $d && (int)substr($d, 0, 4) === $year && (!$month || (int)substr($d, 5, 2) === $month);
         $games = fetchAll(
-            "SELECT id, title, steam_appid, cover_url, status, hours_played, last_played, completed_at
+            "SELECT id, title, steam_appid, cover_url, status, hours_played, last_played, completed_at, dropped_at, ach_done, ach_total
                FROM games WHERE user_id=?", [$this->uid]
         );
         $totalHours = array_sum(array_map(static fn($g) => (float)$g['hours_played'], $games));
@@ -315,9 +287,10 @@ final class GamingService
             'share' => $totalHours > 0 ? (int)round($g['hours_played'] / $totalHours * 100) : 0,
         ], array_slice($playedGames, 0, 5));
 
-        $lastInYear = array_values(array_filter($games, static fn($g) => $g['last_played'] && (int)substr($g['last_played'], 0, 4) === $year));
+        $lastInYear = array_values(array_filter($games, static fn($g) => $inPeriod($g['last_played'])));
         usort($lastInYear, static fn($a, $b) => strcmp($b['last_played'], $a['last_played']));
-        $completed = array_values(array_filter($games, static fn($g) => $g['completed_at'] && (int)substr($g['completed_at'], 0, 4) === $year));
+        $completed = array_values(array_filter($games, static fn($g) => $inPeriod($g['completed_at'])));
+        $dropped   = array_values(array_filter($games, static fn($g) => $inPeriod($g['dropped_at'])));
 
         $meta = SteamClient::appMeta(array_column(array_slice($playedGames, 0, 25), 'steam_appid'), 12);
         $gh   = $this->genreHours($games, $meta);
@@ -332,11 +305,27 @@ final class GamingService
             'played'       => count($playedGames),
             'never_played' => count($games) - count($playedGames),
         ];
-        $tracked = $this->trackedPlaytime($year);
-        $personality = $this->personality($library, $top, $genres, count($completed), $tracked);
+        $tracked = $this->trackedPlaytime($year, $month);
+        $personality = $this->personality($library, $top, $genres, count($completed), $tracked, $month ? 'this month' : 'this year');
+
+        // Games played in the period: tracked playtime in it, or last played in it.
+        $playedIds = array_flip(array_map('intval', array_column($tracked['top_all'], 'appid')));
+        $playedInPeriod = count(array_filter($games, static fn($g) =>
+            $inPeriod($g['last_played']) || ($g['steam_appid'] && isset($playedIds[(int)$g['steam_appid']]))));
+        $achDone = $achTotal = $perfect = 0;
+        foreach ($games as $g) {
+            if ($g['ach_total'] === null) continue;
+            $achDone += (int)$g['ach_done']; $achTotal += (int)$g['ach_total'];
+            if ((int)$g['ach_total'] > 0 && (int)$g['ach_done'] === (int)$g['ach_total']) $perfect++;
+        }
+        unset($tracked['top_all']);
 
         return [
             'year'          => $year,
+            'month'         => $month,
+            'played_in_period' => $playedInPeriod,
+            'dropped'       => array_map(static fn($g) => self::card($g) + ['dropped_at' => substr($g['dropped_at'], 0, 10)], $dropped),
+            'achievements'  => ['unlocked' => $achDone, 'total' => $achTotal, 'perfect' => $perfect],
             'library'       => $library,
             'top'           => $top,
             'last_played_in_year' => array_map(static fn($g) => self::card($g) + ['last_played' => substr($g['last_played'], 0, 10)], array_slice($lastInYear, 0, 8)),
@@ -349,12 +338,15 @@ final class GamingService
         ];
     }
 
-    /** Playtime measured from Trackie's own snapshots, for one calendar year. */
-    private function trackedPlaytime(int $year): array
+    /** Playtime measured from Trackie's own snapshots, for a year or one month of it. */
+    private function trackedPlaytime(int $year, int $month = 0): array
     {
+        $daysInMonth = $month ? (int)date('t', mktime(0, 0, 0, $month, 1, $year)) : 0;
         $empty = ['since' => null, 'sync_days' => 0, 'minutes' => 0, 'days_played' => 0,
                   'weekday' => array_fill(0, 7, 0), 'weekday_days' => 0, 'months' => array_fill(1, 12, 0),
-                  'best_day' => null, 'streak' => 0, 'top' => [], 'gap_minutes' => 0];
+                  'days' => $month ? array_fill(1, $daysInMonth, 0) : [],
+                  'best_day' => null, 'streak' => 0, 'top' => [], 'top_all' => [], 'gap_minutes' => 0];
+        $inPeriod = static fn(string $d) => (int)substr($d, 0, 4) === $year && (!$month || (int)substr($d, 5, 2) === $month);
         if (!tableExists('steam_playtime_snapshots')) return $empty;
 
         $first = fetchOne("SELECT MIN(snap_date) d FROM steam_playtime_snapshots WHERE user_id=? AND steam_appid=0", [$this->uid])['d'] ?? null;
@@ -371,7 +363,7 @@ final class GamingService
         );
         $out = $empty;
         $out['since'] = $first;
-        $out['sync_days'] = count(array_filter($markers, static fn($d) => (int)substr($d, 0, 4) === $year));
+        $out['sync_days'] = count(array_filter($markers, $inPeriod));
 
         $perDay = $perGame = [];
         $lastVal = [];
@@ -383,11 +375,12 @@ final class GamingService
             // A game's first row is always its baseline (see snapshot()).
             $delta = isset($lastVal[$app]) ? $v - $lastVal[$app] : 0;
             $lastVal[$app] = $v;
-            if ($delta <= 0 || (int)substr($d, 0, 4) !== $year) continue;
+            if ($delta <= 0 || !$inPeriod($d)) continue;
 
             $gap = $pm ? (int)round((strtotime($d) - strtotime($pm)) / 86400) : 0;
             $out['minutes'] += $delta;
             $out['months'][(int)substr($d, 5, 2)] += $delta;
+            if ($month) $out['days'][(int)substr($d, 8, 2)] += $delta;
             $perGame[$app] = ($perGame[$app] ?? 0) + $delta;
             if ($gap === 1) $perDay[$d] = ($perDay[$d] ?? 0) + $delta;
             else $out['gap_minutes'] += $delta;
@@ -407,14 +400,16 @@ final class GamingService
             "SELECT steam_appid, title FROM games WHERE user_id=? AND steam_appid IN (" . implode(',', array_map('intval', array_keys($perGame))) . ")",
             [$this->uid]
         ), 'title', 'steam_appid') : [];
-        foreach (array_slice($perGame, 0, 5, true) as $app => $m) {
-            $out['top'][] = ['title' => $titles[$app] ?? "App {$app}", 'minutes' => $m];
+        foreach ($perGame as $app => $m) {
+            $row = ['appid' => $app, 'title' => $titles[$app] ?? "App {$app}", 'minutes' => $m];
+            $out['top_all'][] = $row;
+            if (count($out['top']) < 5) $out['top'][] = $row;
         }
         return $out;
     }
 
     /** Rule-based label; every trait carries the numbers that triggered it. */
-    private function personality(array $lib, array $top, array $genres, int $completed, array $tracked): array
+    private function personality(array $lib, array $top, array $genres, int $completed, array $tracked, string $periodLabel = 'this year'): array
     {
         $traits = [];
         $t1 = $top[0] ?? null;
@@ -432,7 +427,7 @@ final class GamingService
         }
         if ($completed >= 3) {
             $traits[] = ['name' => 'The Finisher', 'icon' => 'fa-flag-checkered',
-                         'why' => "You marked {$completed} games completed this year."];
+                         'why' => "You marked {$completed} games completed {$periodLabel}."];
         }
         if (($genres[0]['pct'] ?? 0) >= 40) {
             $traits[] = ['name' => $genres[0]['genre'] . ' Specialist', 'icon' => 'fa-bullseye',
@@ -451,105 +446,5 @@ final class GamingService
                          'why' => 'No single pattern stands out in your library yet.'];
         }
         return ['primary' => $traits[0], 'traits' => $traits];
-    }
-
-    /* ── Co-op ───────────────────────────────────────────────────── */
-
-    public function friends(string $steamId): ?array
-    {
-        $f = $this->steam?->friendIds($steamId);
-        if ($f === null) return null;
-        if ($f['private']) return ['private' => true, 'friends' => []];
-        $sum = $this->steam->summaries($f['ids']);
-        $list = [];
-        foreach ($f['ids'] as $id) {
-            $s = $sum[$id] ?? null;
-            $list[] = ['steamid' => $id, 'name' => $s['name'] ?? 'Steam user',
-                       'avatar' => $s['avatar'] ?? '', 'public' => $s['public'] ?? false];
-        }
-        // Public profiles first (they're the ones that can be compared), then A–Z.
-        usort($list, static fn($a, $b) => [!$a['public'], strtolower($a['name'])] <=> [!$b['public'], strtolower($b['name'])]);
-        return ['private' => false, 'friends' => $list, 'total' => count($f['ids'])];
-    }
-
-    /** Games everyone in the group owns, tagged with Store multiplayer categories. */
-    public function coop(string $steamId, array $friendIds): array
-    {
-        // Only real friends of this account can be compared.
-        $known = $this->steam?->friendIds($steamId)['ids'] ?? [];
-        $friendIds = array_slice(array_values(array_intersect(array_unique($friendIds), $known)), 0, 5);
-
-        $mine = [];
-        foreach (fetchAll("SELECT steam_appid, title, cover_url, hours_played FROM games
-                            WHERE user_id=? AND steam_appid IS NOT NULL", [$this->uid]) as $g) {
-            $mine[(int)$g['steam_appid']] = $g;
-        }
-        $shared = array_keys($mine);
-        $sum = $this->steam->summaries($friendIds);
-        $members = $unavailable = [];
-        $libs = [];
-        foreach ($friendIds as $fid) {
-            $lib = $this->steam->friendLibrary($fid);
-            $name = $sum[$fid]['name'] ?? 'Steam user';
-            if ($lib === null || $lib['private']) {
-                $unavailable[] = ['steamid' => $fid, 'name' => $name,
-                                  'reason' => $lib === null ? "Couldn't reach Steam" : 'Game list is private'];
-                continue;
-            }
-            $libs[$fid] = $lib['games'];
-            $members[] = ['steamid' => $fid, 'name' => $name, 'avatar' => $sum[$fid]['avatar'] ?? '', 'owned' => count($lib['games'])];
-            $shared = array_values(array_intersect($shared, array_keys($lib['games'])));
-        }
-        if (!$members) return ['members' => [], 'unavailable' => $unavailable, 'games' => [], 'meta_pending' => 0];
-
-        // Most-played shared games first so their metadata arrives first.
-        usort($shared, static function ($a, $b) use ($mine, $libs) {
-            $ha = (float)$mine[$a]['hours_played']; $hb = (float)$mine[$b]['hours_played'];
-            foreach ($libs as $l) { $ha += ($l[$a] ?? 0) / 60; $hb += ($l[$b] ?? 0) / 60; }
-            return $hb <=> $ha;
-        });
-        $meta = SteamClient::appMeta($shared, 15);
-
-        $games = [];
-        foreach ($shared as $app) {
-            $m = $meta[$app] ?? null;
-            // A list, not a name-keyed map: two friends can share a display name.
-            $hours = [['name' => 'You', 'hours' => (float)$mine[$app]['hours_played']]];
-            foreach ($members as $mem) {
-                $hours[] = ['name' => $mem['name'], 'hours' => round(($libs[$mem['steamid']][$app] ?? 0) / 60, 1)];
-            }
-            $games[] = [
-                'appid' => $app, 'title' => $mine[$app]['title'], 'cover_url' => $mine[$app]['cover_url'],
-                'known' => (bool)$m,
-                'multiplayer' => (bool)($m['multiplayer'] ?? false), 'coop' => (bool)($m['coop'] ?? false),
-                'online_coop' => (bool)($m['online_coop'] ?? false), 'crossplay' => (bool)($m['crossplay'] ?? false),
-                'genres' => self::genreLabel($m),
-                'hours' => $hours,
-            ];
-        }
-        usort($games, static fn($a, $b) =>
-            [$b['online_coop'], $b['coop'], $b['multiplayer'], array_sum(array_column($b['hours'], 'hours'))]
-            <=> [$a['online_coop'], $a['coop'], $a['multiplayer'], array_sum(array_column($a['hours'], 'hours'))]);
-
-        return ['members' => $members, 'unavailable' => $unavailable, 'games' => $games,
-                'meta_pending' => SteamClient::metaPending($shared)];
-    }
-
-    /* ── Formatting ──────────────────────────────────────────────── */
-
-    private static function fmtMins(int $m): string
-    {
-        return $m >= 60 ? round($m / 60, 1) . 'h' : "{$m}m";
-    }
-
-    private static function fmtHours(float $h): string
-    {
-        return rtrim(rtrim(number_format($h, 1), '0'), '.') . 'h';
-    }
-
-    private static function fmtDays(int $d, bool $ago = true): string
-    {
-        $s = $d === 0 ? 'today' : ($d < 60 ? "{$d} day" . ($d === 1 ? '' : 's') : round($d / 30) . ' months');
-        return $ago && $d > 0 ? "{$s} ago" : $s;
     }
 }

@@ -54,7 +54,7 @@ const TRACKIE_CSP = "default-src 'self'; "
     . "connect-src 'self' https://cdn.jsdelivr.net https://*.spotify.com wss://*.spotify.com https://*.scdn.co https://api.github.com; "
     . "frame-src 'self' https://sdk.scdn.co https://*.spotify.com; "
     . "worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; "
-    . "form-action 'self' https://github.com https://accounts.google.com https://accounts.spotify.com https://www.strava.com";
+    . "form-action 'self' https://github.com https://accounts.google.com https://accounts.spotify.com";
 if (!headers_sent()) {
     header('Content-Security-Policy: ' . TRACKIE_CSP);
     header('X-Content-Type-Options: nosniff');

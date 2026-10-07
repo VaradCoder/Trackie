@@ -151,6 +151,13 @@ abstract class TrackieProvider
         return strtotime($row['expires_at']) <= (time() + $skewSeconds);
     }
 
+    /** Connected, and the last good sync is older than $hours (or never ran). */
+    final public function isStale(int $uid, int $hours = 6): bool {
+        $row = $this->connection($uid);
+        if (!$row || $row['sync_status'] === 'syncing') return false;
+        return !$row['last_sync'] || strtotime($row['last_sync']) < time() - $hours * 3600;
+    }
+
     /** Removes the connection. Synced data is dropped with it. */
     final public function disconnect(int $uid): void {
         delete("DELETE FROM user_integrations WHERE user_id=? AND provider=?", [$uid, $this->key()]);
@@ -199,6 +206,68 @@ abstract class TrackieProvider
              json_encode($payload, JSON_UNESCAPED_SLASHES), $occurredAt]
         );
     }
+}
+
+/**
+ * A provider hit its rate limit. `retryAfter` is seconds until it may be
+ * called again (from Retry-After / X-RateLimit-Reset), so callers can tell
+ * the user when, instead of a generic failure.
+ */
+class ProviderRateLimited extends RuntimeException
+{
+    public function __construct(string $label, public int $retryAfter)
+    {
+        $wait = $retryAfter >= 90 ? (int)ceil($retryAfter / 60) . ' min' : max(1, $retryAfter) . ' s';
+        parent::__construct("{$label} rate limit reached — try again in {$wait}.");
+    }
+}
+
+/**
+ * The one HTTP client every provider uses (GitHub, Google, Spotify).
+ * Returns ['code' => int, 'body' => decoded JSON or null, 'raw' => string,
+ * 'headers' => lower-cased name => value]. Throws ProviderRateLimited on
+ * 429 (and GitHub's 403 with X-RateLimit-Remaining: 0); transport errors
+ * throw RuntimeException. Other HTTP errors are returned for the caller to
+ * word — never echo the request URL or token in a message.
+ */
+function providerHttp(string $label, string $method, string $url, ?string $token, array $opts = []): array
+{
+    $headers = ['Accept: ' . ($opts['accept'] ?? 'application/json'), 'User-Agent: Trackie'];
+    if ($token !== null) $headers[] = 'Authorization: Bearer ' . $token;
+    foreach ($opts['headers'] ?? [] as $h) $headers[] = $h;
+    $body = null;
+    if (array_key_exists('json', $opts)) { $body = json_encode($opts['json'], JSON_UNESCAPED_SLASHES); $headers[] = 'Content-Type: application/json'; }
+    elseif (isset($opts['form']))       { $body = http_build_query($opts['form']); $headers[] = 'Content-Type: application/x-www-form-urlencoded'; }
+    elseif ($method !== 'GET')          { $headers[] = 'Content-Length: 0'; }
+
+    $resp = [];
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST  => $method,
+        CURLOPT_TIMEOUT        => $opts['timeout'] ?? 12,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_HEADERFUNCTION => static function ($ch, $line) use (&$resp) {
+            $p = strpos($line, ':');
+            if ($p !== false) $resp[strtolower(trim(substr($line, 0, $p)))] = trim(substr($line, $p + 1));
+            return strlen($line);
+        },
+    ]);
+    if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    $raw  = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    if ($raw === false) throw new RuntimeException("{$label} could not be reached ({$err}).");
+
+    $limited = $code === 429 || ($code === 403 && ($resp['x-ratelimit-remaining'] ?? '') === '0');
+    if ($limited) {
+        $retry = isset($resp['retry-after']) ? (int)$resp['retry-after']
+               : (isset($resp['x-ratelimit-reset']) ? max(1, (int)$resp['x-ratelimit-reset'] - time()) : 60);
+        throw new ProviderRateLimited($label, $retry);
+    }
+    $decoded = $raw !== '' ? json_decode($raw, true) : null;
+    return ['code' => $code, 'body' => is_array($decoded) ? $decoded : null, 'raw' => $raw, 'headers' => $resp];
 }
 
 /**

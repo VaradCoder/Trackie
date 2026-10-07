@@ -32,20 +32,22 @@ switch ($action) {
         if (!$title) json_out(['success' => false, 'error' => 'Title is required.'], 422);
         $id = insert(
             "INSERT INTO games (user_id,title,platform,status) VALUES (?,?,?,?)",
-            [$uid, $title, sanitizeInput($_POST['platform'] ?? '') ?: null, sanitizeInput($_POST['status'] ?? 'backlog')]
+            [$uid, mb_substr($title, 0, 150), mb_substr(sanitizeInput($_POST['platform'] ?? ''), 0, 60) ?: null,
+             in_array($_POST['status'] ?? '', ['backlog','playing','completed','dropped'], true) ? $_POST['status'] : 'playing']
         );
         json_out(['success' => true, 'id' => $id]);
 
     case 'update_status':
         $id = (int)($_POST['item_id'] ?? 0);
         $status = sanitizeInput($_POST['status'] ?? '');
-        if (!in_array($status, ['wishlist','backlog','playing','completed'], true)) json_out(['success' => false, 'error' => 'Invalid status.'], 422);
-        // completed_at records WHEN it was finished (Wrapped "completed this year").
+        if (!in_array($status, ['backlog','playing','completed','dropped'], true)) json_out(['success' => false, 'error' => 'Invalid status.'], 422);
+        // completed_at / dropped_at record WHEN (Gaming Wrap "completed / dropped this month").
         update(
             "UPDATE games SET status=?,
-                    completed_at = CASE WHEN ?='completed' THEN COALESCE(completed_at, NOW()) ELSE NULL END
+                    completed_at = CASE WHEN ?='completed' THEN COALESCE(completed_at, NOW()) ELSE NULL END,
+                    dropped_at   = CASE WHEN ?='dropped'   THEN COALESCE(dropped_at, NOW())   ELSE NULL END
               WHERE id=? AND user_id=?",
-            [$status, $status, $id, $uid]
+            [$status, $status, $status, $id, $uid]
         );
         $newAch = [];
         $xp = null;
@@ -132,7 +134,7 @@ switch ($action) {
         );
         json_out(['success' => true, 'synced' => $sync['count'], 'private' => $sync['private']]);
 
-    /* ── Gaming V2: achievements, Next Up, Wrapped, Co-op ─────────── */
+    /* ── Achievements, shelves, Gaming Wrap ─────────────────────── */
 
     case 'steam_achievements':
         // A few games per call (one Steam request each); the page calls again
@@ -140,31 +142,16 @@ switch ($action) {
         $steamId = requireSteamLink($uid);
         json_out(['success' => true] + gamingService($uid)->refreshAchievements($steamId, 5));
 
-    case 'next_up':
-        json_out(['success' => true] + gamingService($uid)->nextUp(6));
+    case 'shelves':
+        json_out(['success' => true] + gamingService($uid)->shelves());
 
     case 'wrapped':
         $svc   = gamingService($uid);
         $years = $svc->years();
         $year  = (int)($_POST['year'] ?? 0);
         if (!in_array($year, $years, true)) $year = $years[0];
-        json_out(['success' => true, 'years' => $years, 'wrapped' => $svc->wrapped($year)]);
-
-    case 'coop_friends':
-        $steamId = requireSteamLink($uid);
-        $res = gamingService($uid)->friends($steamId);
-        if ($res === null) json_out(['success' => false, 'error' => 'Could not reach Steam right now. Try again shortly.'], 502);
-        json_out(['success' => true] + $res);
-
-    case 'coop_match':
-        $steamId = requireSteamLink($uid);
-        $ids = array_values(array_filter(
-            array_map('trim', explode(',', (string)($_POST['friends'] ?? ''))),
-            static fn($id) => (bool)preg_match('/^\d{17}$/', $id)
-        ));
-        if (!$ids) json_out(['success' => false, 'error' => 'Pick at least one friend.'], 422);
-        if (count($ids) > 5) json_out(['success' => false, 'error' => 'Compare up to 5 friends at a time.'], 422);
-        json_out(['success' => true] + gamingService($uid)->coop($steamId, $ids));
+        $month = max(0, min(12, (int)($_POST['month'] ?? 0)));
+        json_out(['success' => true, 'years' => $years, 'wrapped' => $svc->wrapped($year, $month)]);
 
     case 'steam_disconnect':
         delete("DELETE FROM user_integrations WHERE user_id=? AND provider='steam'", [$uid]);

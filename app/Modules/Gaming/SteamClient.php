@@ -69,37 +69,6 @@ final class SteamClient
         return $data;
     }
 
-    /**
-     * Cached Web API GET via provider_cache. $trim reduces the response to what
-     * Trackie keeps; errors are cached briefly so a Steam outage isn't hammered.
-     */
-    private function cached(string $key, int $ttl, string $path, array $params, callable $trim): ?array
-    {
-        $useCache = tableExists('provider_cache');
-        if ($useCache) {
-            $row = fetchOne("SELECT status, payload, UNIX_TIMESTAMP(fetched_at) t FROM provider_cache WHERE cache_key=?", [$key]);
-            if ($row) {
-                $age = time() - (int)$row['t'];
-                if ($row['status'] === 'ok' && $age < $ttl)   return json_decode((string)$row['payload'], true);
-                if ($row['status'] === 'error' && $age < 300) return null;
-            }
-        }
-        $raw = $this->api($path, $params);
-        // 401 = the target profile hides this data: a real "private" answer.
-        if ($raw === null && $this->lastCode === 401) $raw = [];
-        $data = $raw === null ? null : $trim($raw);
-        if ($useCache) {
-            update(
-                "INSERT INTO provider_cache (cache_key, status, payload) VALUES (?,?,?)
-                 ON DUPLICATE KEY UPDATE status=VALUES(status), payload=VALUES(payload), fetched_at=CURRENT_TIMESTAMP",
-                [$key, $data === null ? 'error' : 'ok', $data === null ? null : json_encode($data, JSON_UNESCAPED_UNICODE)]
-            );
-        }
-        return $data;
-    }
-
-    /* ── Web API ──────────────────────────────────────────────────── */
-
     public function resolveVanity(string $vanity): ?string
     {
         $r = $this->api('ISteamUser/ResolveVanityURL/v1', ['vanityurl' => $vanity])['response'] ?? null;
@@ -119,59 +88,6 @@ final class SteamClient
         if ($res === null) return null;
         $resp = $res['response'] ?? [];
         return ['private' => !array_key_exists('games', $resp), 'games' => $resp['games'] ?? []];
-    }
-
-    /**
-     * A friend's library as appid => minutes, cached 6h.
-     * @return ?array{private:bool, games:array<int,int>}
-     */
-    public function friendLibrary(string $steamId): ?array
-    {
-        return $this->cached("steam:owned:{$steamId}", 6 * 3600, 'IPlayerService/GetOwnedGames/v1',
-            ['steamid' => $steamId, 'include_played_free_games' => 1],
-            static function (array $res): array {
-                $resp = $res['response'] ?? [];
-                $games = [];
-                foreach ($resp['games'] ?? [] as $g) $games[(int)$g['appid']] = (int)($g['playtime_forever'] ?? 0);
-                return ['private' => !array_key_exists('games', $resp), 'games' => $games];
-            });
-    }
-
-    /**
-     * Friend SteamIDs, cached 6h. ['private' => true] when the friends list
-     * is hidden (Steam answers 401 with an empty body in that case).
-     */
-    public function friendIds(string $steamId): ?array
-    {
-        return $this->cached("steam:friends:{$steamId}", 6 * 3600, 'ISteamUser/GetFriendList/v1',
-            ['steamid' => $steamId, 'relationship' => 'friend'],
-            static fn(array $res): array => [
-                'private' => !isset($res['friendslist']),
-                'ids'     => array_values(array_map(static fn($f) => (string)$f['steamid'], $res['friendslist']['friends'] ?? [])),
-            ]);
-    }
-
-    /** Player summaries (name, avatar, visibility), cached 6h, max 100 ids. */
-    public function summaries(array $steamIds): array
-    {
-        $steamIds = array_slice(array_values(array_unique($steamIds)), 0, 100);
-        if (!$steamIds) return [];
-        sort($steamIds);
-        $data = $this->cached('steam:summ:' . md5(implode(',', $steamIds)), 6 * 3600, 'ISteamUser/GetPlayerSummaries/v2',
-            ['steamids' => implode(',', $steamIds)],
-            static function (array $res): array {
-                $out = [];
-                foreach ($res['response']['players'] ?? [] as $p) {
-                    $out[(string)$p['steamid']] = [
-                        'name'   => (string)($p['personaname'] ?? 'Steam user'),
-                        'avatar' => (string)($p['avatarmedium'] ?? ''),
-                        // 3 = public profile; anything else hides the library.
-                        'public' => (int)($p['communityvisibilitystate'] ?? 1) === 3,
-                    ];
-                }
-                return $out;
-            });
-        return $data ?? [];
     }
 
     /**

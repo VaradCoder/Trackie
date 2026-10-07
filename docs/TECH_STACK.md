@@ -45,18 +45,21 @@ No framework, no build step, no bundler, no package manager. Every request runs 
 
 ## Third-party integrations (all credential-gated, registry-driven)
 
-| Provider | Purpose | Auth |
-|---|---|---|
-| Steam Web API | Game library, playtime, cover art | API key |
-| Spotify | Now Playing, playlists | OAuth |
-| Open-Meteo | Weather (free, no key) | none |
-| Google Gemini | AI Coach (natural-language coaching) | API key |
-| GitHub | Commits/repo/streak tracking | OAuth |
-| RAWG | Game metadata | API key |
-| Unsplash | Reference photography | API key (access key only) |
-| Google Calendar/Tasks/Books | Planned/stubbed | OAuth / API key |
-| Strava | Planned/stubbed | OAuth |
-| Chess.com | Planned/stubbed | public API, no key |
+| Provider | What Trackie uses it for | Auth | Endpoints |
+|---|---|---|---|
+| GitHub | Coding page: every accessible repo (owned, collaborator, org; paged), activity buckets, push/PR/issue/release feed, one-tap "Track as project" | OAuth (`read:user public_repo`; `repo` only if the user opts into private repos) | `/user`, `/user/repos`, `/users/{login}/events` |
+| Steam Web API | Gaming: library, playtime, 2-week playtime, achievements, genres; Most Played / Currently Playing / Completed / Dropped / Gaming Wrap (year or month) | App key + user's SteamID | `GetOwnedGames`, `GetPlayerAchievements`, `ResolveVanityURL`, Store `appdetails` |
+| Spotify | Music: remote control of the active device (play/pause, prev/next, seek, volume, shuffle, repeat, queue, device switch), Liked Songs + heart, recently played, top tracks/artists, playlists, Focus auto-play | OAuth | `/me/player/*`, `/me/tracks`, `/me/library` (Feb 2026), `/me/top/*`, `/me/playlists` |
+| Google | Sign-in ("Continue with Google", OpenID Connect) and Calendar + Tasks sync — one OAuth client, one callback | OAuth | token endpoint, Calendar v3, Tasks v1 |
+| Open-Meteo | Weather (free, no key) | none | forecast |
+| Google Gemini / OpenAI | AI Coach | API key | generateContent / chat |
+| WorkoutDB / ExerciseDB | Exercise demos | API key | — |
+| Firebase Cloud Messaging | Android push | service account | FCM HTTP v1 |
+| RAWG, Unsplash, Google Books, Strava, Chess.com | **Not built** — listed in the registry as roadmap only (`built => false`), hidden from Settings | — | — |
+
+All OAuth/HTTP calls go through one client, `providerHttp()` in `includes/providers.php` (rate limits → "try again in N min" from `Retry-After` / `X-RateLimit-Reset`). Tokens are encrypted at rest and never reach the browser — except Spotify's short-lived token for the Web Playback SDK, which Spotify requires client-side. Pages read synced data from Trackie's database (`integration_data`); stale data refreshes in the background, never during a page render.
+
+**Spotify (Feb 2026 rules):** Development-mode apps need the app owner on Premium and allow 5 users; playback control needs Premium and an open Spotify device. Accounts connected before Liked Songs existed must reconnect once (the page says so).
 
 All of the above are declared in one place — `includes/integrations.php` — which derives each provider's live status from whether its `config/env.php` credentials are actually set, rather than being hand-toggled.
 

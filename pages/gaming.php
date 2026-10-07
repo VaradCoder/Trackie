@@ -12,24 +12,29 @@ $currentPage = 'gaming';
 
 if (!tableExists('games')) renderSetupNeeded('Gaming');
 
-$shelf = in_array($_GET['shelf'] ?? '', ['wishlist','backlog','playing','completed']) ? $_GET['shelf'] : 'all';
-$sql = "SELECT * FROM games WHERE user_id=?";
-$params = [$uid];
-if ($shelf !== 'all') { $sql .= " AND status=?"; $params[] = $shelf; }
-$sql .= " ORDER BY created_at DESC";
-$games = fetchAll($sql, $params);
+// Five sections, organised automatically from Steam playtime + your statuses
+// (see GamingService::shelves()). Lists render client-side from one API call.
+$gmTabs = [
+    'most'      => ['Most Played', '🎮'],
+    'playing'   => ['Currently Playing', '🟢'],
+    'completed' => ['Completed', '✅'],
+    'dropped'   => ['Dropped', '❌'],
+    'wrap'      => ['Gaming Wrap', '📊'],
+];
+$initialTab = isset($gmTabs[$_GET['tab'] ?? '']) ? $_GET['tab'] : 'most';
 
 $counts = fetchOne(
-    "SELECT COUNT(*) total, SUM(status='backlog') backlog, SUM(status='playing') playing, SUM(status='completed') completed,
-            SUM(hours_played) hours
+    "SELECT COALESCE(SUM(hours_played),0) hours, SUM(hours_played > 0) played, SUM(status='completed') completed, SUM(status='dropped') dropped
      FROM games WHERE user_id=?", [$uid]
 );
 
+// What a user can set. 'wishlist' rows from before stay valid in the DB but
+// show as "Not started"; Steam can't know completed/dropped, so those are yours.
 $statusMeta = [
-    'wishlist'  => ['label' => 'Wishlist',  'icon' => 'fa-heart'],
-    'backlog'   => ['label' => 'Backlog',   'icon' => 'fa-layer-group'],
-    'playing'   => ['label' => 'Playing',   'icon' => 'fa-gamepad'],
-    'completed' => ['label' => 'Completed', 'icon' => 'fa-trophy'],
+    'playing'   => ['label' => 'Playing'],
+    'completed' => ['label' => 'Completed'],
+    'dropped'   => ['label' => 'Dropped'],
+    'backlog'   => ['label' => 'Not started'],
 ];
 
 // ── Steam connection state ───────────────────────────────────────
@@ -96,106 +101,43 @@ require_once '../includes/head.php';
 </div>
 
 <div class="grid-stats" style="margin-bottom:1.5rem" id="gamingStatsWrap">
-  <div class="stat-card"><div class="stat-val"><?= (int)$counts['total'] ?></div><div class="stat-label">Total games</div></div>
-  <div class="stat-card"><div class="stat-val"><?= (int)$counts['playing'] ?></div><div class="stat-label">Playing</div></div>
+  <div class="stat-card"><div class="stat-val"><?= round((float)$counts['hours'], 0) ?>h</div><div class="stat-label">Total playtime</div></div>
+  <div class="stat-card"><div class="stat-val"><?= (int)$counts['played'] ?></div><div class="stat-label">Games played</div></div>
   <div class="stat-card"><div class="stat-val"><?= (int)$counts['completed'] ?></div><div class="stat-label">Completed</div></div>
-  <div class="stat-card"><div class="stat-val"><?= round((float)$counts['hours'], 0) ?>h</div><div class="stat-label">Hours played</div></div>
+  <div class="stat-card"><div class="stat-val"><?= (int)$counts['dropped'] ?></div><div class="stat-label">Dropped</div></div>
 </div>
 
-<div class="filter-tabs" style="margin-bottom:1.25rem" id="gamingTabs" role="tablist" aria-label="Gaming sections">
-  <button class="filter-tab active" data-tab="library" role="tab" id="gmtab-library" aria-controls="gtab-library" aria-selected="true">Library</button>
-  <button class="filter-tab" data-tab="nextup" role="tab" id="gmtab-nextup" aria-controls="gtab-nextup" aria-selected="false" tabindex="-1">Next Up</button>
-  <button class="filter-tab" data-tab="wrapped" role="tab" id="gmtab-wrapped" aria-controls="gtab-wrapped" aria-selected="false" tabindex="-1">Wrapped</button>
-  <button class="filter-tab" data-tab="coop" role="tab" id="gmtab-coop" aria-controls="gtab-coop" aria-selected="false" tabindex="-1">Co-op</button>
+<div class="filter-tabs gm-tabs" style="margin-bottom:1.25rem" id="gamingTabs" role="tablist" aria-label="Gaming sections">
+  <?php foreach ($gmTabs as $k => [$label, $emoji]): ?>
+    <button class="filter-tab<?= $k === $initialTab ? ' active' : '' ?>" data-tab="<?= $k ?>" role="tab" id="gmtab-<?= $k ?>" aria-controls="gtab-<?= $k ?>"
+            aria-selected="<?= $k === $initialTab ? 'true' : 'false' ?>"<?= $k === $initialTab ? '' : ' tabindex="-1"' ?>><span aria-hidden="true"><?= $emoji ?></span> <?= $label ?><span class="cd-count" data-count="<?= $k ?>" hidden></span></button>
+  <?php endforeach; ?>
 </div>
 
-<div id="gtab-library" class="gym-tab-panel" role="tabpanel" aria-labelledby="gmtab-library">
-  <div class="filter-tabs" style="margin-bottom:1.25rem">
-    <a class="filter-tab <?= $shelf==='all'?'active':'' ?>" href="?shelf=all">All</a>
-    <?php foreach ($statusMeta as $k => $m): ?>
-      <a class="filter-tab <?= $shelf===$k?'active':'' ?>" href="?shelf=<?= $k ?>"><?= $m['label'] ?></a>
-    <?php endforeach; ?>
+<?php foreach (['most' => 'Ranked by total hours played.', 'playing' => 'Played in the last two weeks or 30 days on Steam, plus games you marked Playing.',
+                'completed' => 'Games you marked Completed, newest first.', 'dropped' => 'Games you gave up on, newest first.'] as $k => $hint): ?>
+  <div id="gtab-<?= $k ?>" class="gym-tab-panel<?= $k === $initialTab ? '' : ' hidden' ?>" role="tabpanel" aria-labelledby="gmtab-<?= $k ?>">
+    <p class="hb-foot gm-hint"><?= h($hint) ?></p>
+    <div data-shelf="<?= $k ?>"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading your games…</div></div>
   </div>
+<?php endforeach; ?>
 
-  <div id="gamingListWrap">
-  <?php if (empty($games)): ?>
-    <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-gamepad"></i></div><div class="empty-state-title">No games here yet</div><p>Track what you're playing, your backlog, and what you've finished.</p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openAddGame()"><i class="fas fa-plus"></i> Add your first game</button>
-    </div></div>
-  <?php else: ?>
-    <div class="grid-cards">
-      <?php foreach ($games as $g): $sm = $statusMeta[$g['status']]; ?>
-        <div class="habit-card" id="game-<?= $g['id'] ?>" style="<?= $g['cover_url'] ? 'padding-top:0;overflow:hidden' : '' ?>">
-          <?php if ($g['cover_url']): ?>
-            <img src="<?= h($g['cover_url']) ?>" alt="" loading="lazy"
-                 style="width:calc(100% + 2.25rem);margin:0 -1.125rem .75rem;display:block;aspect-ratio:460/215;object-fit:cover;background:var(--surface2)"
-                 onerror="this.style.display='none'">
-          <?php endif; ?>
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.5rem">
-            <div style="min-width:0">
-              <div style="font-weight:600;font-size:.9375rem;color:var(--text)"><?= h($g['title']) ?></div>
-              <?php if ($g['platform']): ?><div style="font-size:.8125rem;color:var(--muted)"><?= h($g['platform']) ?></div><?php endif; ?>
-            </div>
-            <button aria-label="Delete game" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent);flex-shrink:0" onclick="deleteGame(<?= $g['id'] ?>)"><i class="fas fa-trash"></i></button>
-          </div>
-          <div style="margin-bottom:.625rem" id="gstars-<?= $g['id'] ?>">
-            <?php for ($i = 1; $i <= 5; $i++): ?>
-              <i class="<?= $g['rating'] >= $i ? 'fas' : 'far' ?> fa-star" style="color:#f59e0b;cursor:pointer;font-size:.8125rem" onclick="rateGame(<?= $g['id'] ?>, <?= $i ?>)"></i>
-            <?php endfor; ?>
-            <?php if ($g['hours_played'] > 0): ?><span style="font-size:.75rem;color:var(--muted);margin-left:.5rem"><?= $g['hours_played'] ?>h</span><?php endif; ?>
-          </div>
-          <?php if ((int)($g['ach_total'] ?? 0) > 0 || !empty($g['last_played'])): ?>
-            <div class="gm-meta">
-              <?php if ((int)($g['ach_total'] ?? 0) > 0): ?>
-                <span title="Steam achievements"><i class="fas fa-trophy"></i> <?= (int)$g['ach_done'] ?>/<?= (int)$g['ach_total'] ?></span>
-              <?php endif; ?>
-              <?php if (!empty($g['last_played'])): ?>
-                <span title="Last played on Steam"><i class="far fa-clock"></i> <?= h(formatDate($g['last_played'])) ?></span>
-              <?php endif; ?>
-            </div>
-          <?php endif; ?>
-          <select class="form-input" style="width:100%;font-size:.8125rem;padding:.375rem .5rem" onchange="setGameStatus(<?= $g['id'] ?>, this.value)">
-            <?php foreach ($statusMeta as $k => $m): ?>
-              <option value="<?= $k ?>" <?= $g['status']===$k?'selected':'' ?>><?= $m['label'] ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-      <?php endforeach; ?>
-    </div>
-  <?php endif; ?>
-  </div>
+<div id="gtab-wrap" class="gym-tab-panel<?= $initialTab === 'wrap' ? '' : ' hidden' ?>" role="tabpanel" aria-labelledby="gmtab-wrap">
+  <div id="gmWrapped"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Building your Gaming Wrap…</div></div>
 </div>
 
-<div id="gtab-nextup" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gmtab-nextup">
-  <div class="hb-note"><i class="fas fa-circle-info"></i> Ranked from your own signals: recent playtime, achievement progress, your ratings and the genres you play most. Trackie has no game-length data, so it never guesses how long a game takes.</div>
-  <div id="gmNextUp"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Ranking your backlog…</div></div>
-</div>
-
-<div id="gtab-wrapped" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gmtab-wrapped">
-  <div id="gmWrapped"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Building your Wrapped…</div></div>
-</div>
-
-<div id="gtab-coop" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gmtab-coop">
-<?php if (!$steamLink): ?>
-  <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fa-brands fa-steam"></i></div><div class="empty-state-title">Connect Steam to find co-op games</div><p>Co-op compares your Steam library with your Steam friends' public libraries.</p></div></div>
-<?php else: ?>
-  <div class="hb-note"><i class="fas fa-circle-info"></i> Uses Steam friends only. A friend's games are visible only if their Steam profile and game details are public. Multiplayer, co-op and cross-platform tags come from each game's Steam Store page.</div>
-  <div id="gmFriends"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading your Steam friends…</div></div>
-  <div id="gmCoopResult"></div>
-<?php endif; ?>
-</div>
-
-<!-- Add game modal -->
+<!-- Add game modal (games Steam doesn't know about: consoles, other launchers) -->
 <div id="addGameModal" class="modal-backdrop hidden">
   <div class="modal-box">
     <div class="modal-header"><span class="modal-title">Add Game</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="addGameModal" aria-label="Close dialog">&times;</button></div>
     <div class="modal-body">
-      <div class="form-group"><label for="gameTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label><input id="gameTitle" class="form-input" placeholder="e.g. Elden Ring"></div>
-      <div class="form-group"><label for="gamePlatform" class="form-label">Platform</label><input id="gamePlatform" class="form-input" placeholder="e.g. PC, PS5"></div>
+      <p class="hb-foot" style="margin:0 0 .75rem"><?= $steamLink ? 'Steam games appear automatically — add games from consoles or other launchers here.' : 'Connect Steam above to import your library automatically, or add games by hand.' ?></p>
+      <div class="form-group"><label for="gameTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label><input id="gameTitle" class="form-input" maxlength="150" placeholder="e.g. Elden Ring"></div>
+      <div class="form-group"><label for="gamePlatform" class="form-label">Platform</label><input id="gamePlatform" class="form-input" maxlength="60" placeholder="e.g. PS5, Switch, Epic"></div>
       <div class="form-group">
-        <label for="gameStatus" class="form-label">Shelf</label>
+        <label for="gameStatus" class="form-label">Status</label>
         <select id="gameStatus" class="form-input">
-          <?php foreach ($statusMeta as $k => $m): ?><option value="<?= $k ?>"><?= $m['label'] ?></option><?php endforeach; ?>
+          <?php foreach ($statusMeta as $k => $m): ?><option value="<?= $k ?>"<?= $k === 'playing' ? ' selected' : '' ?>><?= $m['label'] ?></option><?php endforeach; ?>
         </select>
       </div>
     </div>
@@ -211,35 +153,26 @@ require_once '../includes/head.php';
 
 <script>
 const API_BASE = '<?= APP_BASE ?>/api';
+const GM_TABS = <?= json_encode(array_keys($gmTabs)) ?>;
+const GM_STATUS = <?= json_encode(array_map(fn($m) => $m['label'], $statusMeta)) ?>;
+let gmData = null, gmWrapLoaded = false;
 
-const GM_TABS = ['library', 'nextup', 'wrapped', 'coop'];
-const gmLoaded = {};
 function switchGamingTab(tab) {
-  if (!GM_TABS.includes(tab)) tab = 'library';
+  if (!GM_TABS.includes(tab)) tab = 'most';
   document.querySelectorAll('#gamingTabs [data-tab]').forEach(b => {
     const on = b.dataset.tab === tab;
-    b.classList.toggle('active', on);
-    b.setAttribute('aria-selected', on ? 'true' : 'false');
-    b.tabIndex = on ? 0 : -1;
+    b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1;
   });
   GM_TABS.forEach(t => document.getElementById(`gtab-${t}`)?.classList.toggle('hidden', t !== tab));
-  if (!gmLoaded[tab]) {
-    gmLoaded[tab] = true;
-    if (tab === 'nextup')  loadNextUp();
-    if (tab === 'wrapped') loadWrapped();
-    if (tab === 'coop')    loadCoopFriends();
-  }
+  if (tab === 'wrap' && !gmWrapLoaded) { gmWrapLoaded = true; loadWrapped(); }
+  try { history.replaceState(history.state, '', `?tab=${tab}`); } catch (e) {}
 }
-document.getElementById('gamingTabs').addEventListener('click', e => {
-  const btn = e.target.closest('[data-tab]');
-  if (btn) switchGamingTab(btn.dataset.tab);
-});
+document.getElementById('gamingTabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) switchGamingTab(b.dataset.tab); });
 document.getElementById('gamingTabs').addEventListener('keydown', e => {
   if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
   const cur = GM_TABS.indexOf(document.querySelector('#gamingTabs [aria-selected="true"]')?.dataset.tab);
   const next = GM_TABS[(cur + (e.key === 'ArrowRight' ? 1 : GM_TABS.length - 1)) % GM_TABS.length];
-  switchGamingTab(next);
-  document.getElementById(`gmtab-${next}`)?.focus();
+  switchGamingTab(next); document.getElementById(`gmtab-${next}`)?.focus();
 });
 
 /* ── Shared render helpers ────────────────────────────────────── */
@@ -259,298 +192,237 @@ function gmCover(url, cls = 'gm-cover') {
     ? `<img class="${cls}" src="${escHtml(url)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
     : `<div class="${cls} gm-cover-empty"><i class="fas fa-gamepad"></i></div>`;
 }
-function gmAvatar(url) {
-  return /^https:\/\/avatars\.(akamai\.)?steamstatic\.com\//.test(url || '')
-    ? `<img class="gm-avatar" src="${escHtml(url)}" alt="" loading="lazy">`
-    : `<span class="gm-avatar gm-avatar-empty"><i class="fas fa-user"></i></span>`;
-}
-function gmError(el, msg) {
-  el.innerHTML = `<div class="card card-body hb-error"><i class="fas fa-triangle-exclamation"></i> ${escHtml(msg)}</div>`;
-}
+function gmError(el, msg) { el.innerHTML = `<div class="card card-body hb-error"><i class="fas fa-triangle-exclamation"></i> ${escHtml(msg)}</div>`; }
 function gmEmpty(icon, title, text) {
   return `<div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas ${icon}"></i></div><div class="empty-state-title">${title}</div><p>${text}</p></div></div>`;
 }
 
-/* ── Next Up ──────────────────────────────────────────────────── */
-async function loadNextUp() {
-  const el = document.getElementById('gmNextUp');
-  try {
-    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'next_up' });
-    if (!res.success) return gmError(el, res.error || 'Could not rank your backlog.');
-    if (!res.items.length && !res.finished.length) {
-      el.innerHTML = gmEmpty('fa-list-ol', 'Nothing to rank yet', 'Next Up ranks games on your Backlog and Playing shelves. Add a game or sync Steam.');
-      return;
-    }
-    let html = '';
-    if (res.top_genres.length) {
-      html += `<div class="hb-chips"><span class="hb-chips-label">Your genres</span>${res.top_genres.map(g =>
-        `<span class="hb-chip">${escHtml(g.genre)} · ${g.pct}%</span>`).join('')}</div>`;
-    }
-    html += '<div class="gm-rank">';
-    res.items.forEach((g, i) => {
-      html += `<div class="gm-rank-row${i === 0 ? ' gm-rank-top' : ''}">
-        <div class="gm-rank-n">${i + 1}</div>
-        ${gmCover(g.cover_url)}
-        <div class="gm-rank-body">
-          <div class="gm-rank-title">${escHtml(g.title)}</div>
-          <div class="gm-rank-sub">${g.hours > 0 ? `${g.hours}h played` : 'Not started'}${g.genres ? ' · ' + escHtml(g.genres) : ''}</div>
-          ${g.ach_pct !== null ? `<div class="hb-progress" title="Achievements ${g.ach_pct}%"><span style="width:${Math.max(0, Math.min(100, g.ach_pct))}%"></span></div>` : ''}
-          <ul class="gm-reasons">${g.reasons.map(r => `<li>${escHtml(r)}</li>`).join('')}</ul>
-        </div>
-      </div>`;
-    });
-    html += '</div>';
-    if (res.finished.length) {
-      html += `<div class="fit-section-head" style="margin-top:1.5rem"><h2 class="hb-h2">Looks finished</h2></div><div class="gm-rank">`;
-      res.finished.forEach(g => {
-        html += `<div class="gm-rank-row">${gmCover(g.cover_url)}
-          <div class="gm-rank-body"><div class="gm-rank-title">${escHtml(g.title)}</div>
-          <div class="gm-rank-sub">${escHtml(g.reason)}</div></div>
-          <button class="btn btn-secondary btn-sm" data-complete="${+g.id}"><i class="fas fa-trophy"></i> Mark completed</button></div>`;
-      });
-      html += '</div>';
-    }
-    if (res.meta_pending > 0) {
-      html += `<p class="hb-foot">Genre info for ${res.meta_pending} game${res.meta_pending === 1 ? ' is' : 's are'} still loading from the Steam Store. Reopen this tab later for a sharper ranking.</p>`;
-    }
-    el.innerHTML = html;
-  } catch { gmError(el, 'Network error.'); }
+/* ── Shelves (Most Played / Currently Playing / Completed / Dropped) ── */
+function gmStatusSelect(g) {
+  return `<select class="form-input gm-status" data-status-for="${+g.id}" aria-label="Status of ${escHtml(g.title)}">
+    ${Object.entries(GM_STATUS).map(([k, l]) => `<option value="${k}"${(g.status === k || (k === 'backlog' && !GM_STATUS[g.status])) ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
 }
-document.getElementById('gmNextUp').addEventListener('click', async e => {
-  const btn = e.target.closest('[data-complete]');
-  if (!btn) return;
-  btn.disabled = true;
-  await setGameStatus(+btn.dataset.complete, 'completed');
-  loadNextUp();
+function gmStars(g) {
+  let s = '';
+  for (let i = 1; i <= 5; i++) s += `<button type="button" class="gm-star" data-rate="${+g.id}" data-n="${i}" aria-label="Rate ${i} of 5"><i class="${(g.rating || 0) >= i ? 'fas' : 'far'} fa-star"></i></button>`;
+  return `<div class="gm-stars">${s}</div>`;
+}
+function gmCard(g, opts = {}) {
+  const facts = [];
+  if (g.hours > 0) facts.push(`<span title="Total playtime"><i class="fas fa-hourglass-half"></i> ${g.hours}h</span>`);
+  if (g.mins_2weeks > 0) facts.push(`<span title="Played in the last 2 weeks (Steam)"><i class="fas fa-fire"></i> ${gmFmtMins(g.mins_2weeks)} · 2 wk</span>`);
+  if (g.last_played) facts.push(`<span title="Last played (Steam)"><i class="far fa-clock"></i> ${gmFmtDate(g.last_played)}</span>`);
+  if (g.ach_total > 0) facts.push(`<span title="Steam achievements"><i class="fas fa-trophy"></i> ${+g.ach_done}/${+g.ach_total}</span>`);
+  if (opts.date) facts.push(`<span><i class="fas ${opts.dateIcon}"></i> ${escHtml(opts.dateLabel)} ${gmFmtDate(opts.date)}</span>`);
+  return `<article class="habit-card gm-card" id="game-${+g.id}">
+    ${gmCover(g.cover_url, 'gm-card-cover')}
+    <div class="gm-card-body">
+      <div class="gm-card-top">
+        <div style="min-width:0"><div class="gm-rank-title" title="${escHtml(g.title)}">${escHtml(g.title)}</div>
+          <div class="gm-rank-sub">${escHtml([g.platform, g.genres].filter(Boolean).join(' · ') || (g.steam_appid ? 'Steam' : ''))}</div></div>
+        ${g.steam_appid ? '' : `<button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" data-delete="${+g.id}" aria-label="Delete ${escHtml(g.title)}"><i class="fas fa-trash"></i></button>`}
+      </div>
+      ${facts.length ? `<div class="gm-meta">${facts.join('')}</div>` : ''}
+      ${g.ach_total > 0 ? `<div class="hb-progress" title="Achievements ${Math.round(g.ach_done / g.ach_total * 100)}%"><span style="width:${Math.min(100, g.ach_done / g.ach_total * 100)}%"></span></div>` : ''}
+      <div class="gm-card-foot">${gmStars(g)}${gmStatusSelect(g)}</div>
+    </div>
+  </article>`;
+}
+function gmRenderShelves() {
+  const d = gmData;
+  document.querySelectorAll('[data-count]').forEach(el => {
+    const n = { most: d.counts.played, playing: d.counts.playing, completed: d.counts.completed, dropped: d.counts.dropped }[el.dataset.count];
+    el.hidden = !n; el.textContent = n || '';
+  });
+  const steam = <?= $steamLink ? 'true' : 'false' ?>;
+  const most = document.querySelector('[data-shelf="most"]');
+  if (!d.most_played.length) {
+    most.innerHTML = gmEmpty('fa-ranking-star', 'No playtime yet', steam ? 'Play something on Steam — it shows up here after the next sync.' : 'Connect Steam to rank your library by real playtime.');
+  } else {
+    const top = d.most_played[0];
+    most.innerHTML = `<div class="gm-rank">${d.most_played.map((g, i) => `
+      <div class="gm-rank-row${i === 0 ? ' gm-rank-top' : ''}" id="game-${+g.id}">
+        <div class="gm-rank-n">${i + 1}</div>${gmCover(g.cover_url, 'gm-cover-sm')}
+        <div class="gm-rank-body"><div class="gm-rank-title">${escHtml(g.title)}</div>
+          <div class="gm-rank-sub">${escHtml([g.genres, g.status === 'completed' ? 'Completed' : g.status === 'dropped' ? 'Dropped' : ''].filter(Boolean).join(' · '))}</div>
+          <div class="hb-progress"><span style="width:${top.hours ? g.hours / top.hours * 100 : 0}%"></span></div></div>
+        <div class="gm-top-val">${g.hours}h<small>${g.share}% of total</small></div>
+      </div>`).join('')}</div>
+      ${d.counts.played > d.most_played.length ? `<p class="hb-foot">Top ${d.most_played.length} of ${d.counts.played} played games.</p>` : ''}`;
+  }
+  const grid = (list, empty, opts) => list.length ? `<div class="grid-cards gm-grid">${list.map(g => gmCard(g, opts && opts(g))).join('')}</div>` : empty;
+  document.querySelector('[data-shelf="playing"]').innerHTML = grid(d.playing,
+    gmEmpty('fa-circle-play', 'Nothing in progress', steam ? 'Games you play on Steam appear here automatically. For other platforms, add a game as Playing.' : 'Add a game you\'re playing, or connect Steam to fill this in automatically.'));
+  document.querySelector('[data-shelf="completed"]').innerHTML = grid(d.completed,
+    gmEmpty('fa-trophy', 'No completed games yet', 'Finished a game? Set its status to Completed — it counts toward your Gaming Wrap.'),
+    g => ({ date: g.completed_at, dateIcon: 'fa-flag-checkered', dateLabel: 'Completed' }));
+  document.querySelector('[data-shelf="dropped"]').innerHTML = grid(d.dropped,
+    gmEmpty('fa-circle-xmark', 'Nothing dropped', 'Set a game to Dropped when you stop playing it for good. It leaves Currently Playing.'),
+    g => ({ date: g.dropped_at, dateIcon: 'fa-circle-xmark', dateLabel: 'Dropped' }));
+  const c = d.counts, stats = document.querySelectorAll('#gamingStatsWrap .stat-val');
+  if (stats.length === 4) [`${Math.round(c.hours)}h`, c.played, c.completed, c.dropped].forEach((v, i) => { stats[i].textContent = v; });
+}
+async function loadShelves() {
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'shelves' }, { quiet: true });
+    if (!res.success) { document.querySelectorAll('[data-shelf]').forEach(el => gmError(el, res.error || 'Could not load your games.')); return; }
+    gmData = res; gmRenderShelves();
+  } catch (e) { document.querySelectorAll('[data-shelf]').forEach(el => gmError(el, e.message || 'Network error.')); }
+}
+document.getElementById('page-main').addEventListener('change', e => {
+  const sel = e.target.closest('[data-status-for]');
+  if (sel) setGameStatus(+sel.dataset.statusFor, sel.value);
+});
+document.getElementById('page-main').addEventListener('click', e => {
+  const star = e.target.closest('[data-rate]');
+  if (star) return rateGame(+star.dataset.rate, +star.dataset.n);
+  const del = e.target.closest('[data-delete]');
+  if (del) deleteGame(+del.dataset.delete);
 });
 
-/* ── Wrapped ──────────────────────────────────────────────────── */
-async function loadWrapped(year) {
+/* ── Gaming Wrap (year or month) ───────────────────────────────── */
+const GM_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+async function loadWrapped(year, month) {
   const el = document.getElementById('gmWrapped');
   try {
-    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'wrapped', year: year || '' });
-    if (!res.success) return gmError(el, res.error || 'Could not build Wrapped.');
+    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'wrapped', year: year || '', month: month || 0 }, { quiet: true });
+    if (!res.success) return gmError(el, res.error || 'Could not build your Gaming Wrap.');
     const w = res.wrapped, lib = w.library, t = w.tracked, p = w.personality;
-    if (!lib.owned) {
-      el.innerHTML = gmEmpty('fa-gift', 'No games yet', 'Add games or connect Steam to see your Wrapped.');
-      return;
-    }
+    if (!lib.owned) { el.innerHTML = gmEmpty('fa-chart-pie', 'No games yet', 'Add games or connect Steam to see your Gaming Wrap.'); return; }
+    const period = w.month ? `${GM_MONTHS[w.month - 1]} ${+w.year}` : `${+w.year}`;
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const bars = (vals, labels) => {
       const max = Math.max(1, ...vals);
       return `<div class="hb-bars">${vals.map((v, i) => `<div class="hb-bar" title="${labels[i]}: ${gmFmtMins(v)}">
         <span style="height:${Math.round(v / max * 100)}%"></span><em>${labels[i]}</em></div>`).join('')}</div>`;
     };
     const row = (label, val) => `<div class="hb-row"><span>${escHtml(label)}</span><b>${val}</b></div>`;
+    const card = (label, inner) => `<div class="card card-body"><div class="fit-card-label">${label}</div>${inner}</div>`;
 
     let html = `<div class="gm-wrapped-head">
-      <h2 class="hb-h2"><i class="fas fa-gift" style="color:var(--accent)"></i> Game Wrapped ${+w.year}</h2>
-      ${res.years.length > 1 ? `<select class="form-input gm-year" id="gmYear" aria-label="Year">${res.years.map(y =>
-        `<option value="${+y}"${y === w.year ? ' selected' : ''}>${+y}</option>`).join('')}</select>` : ''}
-    </div>`;
+      <h2 class="hb-h2"><i class="fas fa-chart-pie" style="color:var(--accent)"></i> Gaming Wrap · ${period}</h2>
+      <div class="gm-period">
+        <select class="form-input gm-year" id="gmYear" aria-label="Year">${res.years.map(y => `<option value="${+y}"${y === w.year ? ' selected' : ''}>${+y}</option>`).join('')}</select>
+        <select class="form-input gm-year" id="gmMonth" aria-label="Month"><option value="0">Whole year</option>${GM_MONTHS.map((m, i) =>
+          `<option value="${i + 1}"${w.month === i + 1 ? ' selected' : ''}>${m}</option>`).join('')}</select>
+      </div></div>`;
 
-    html += `<div class="gm-persona card card-body">
+    if (!w.month) html += `<div class="gm-persona card card-body">
       <div class="gm-persona-icon"><i class="fas ${escHtml(p.primary.icon)}"></i></div>
-      <div><div class="gm-persona-kicker">Your gaming personality</div>
-      <div class="gm-persona-name">${escHtml(p.primary.name)}</div>
-      <ul class="gm-reasons">${p.traits.map(tr => `<li><strong>${escHtml(tr.name)}:</strong> ${escHtml(tr.why)}</li>`).join('')}</ul></div>
-    </div>`;
+      <div><div class="gm-persona-kicker">Your gaming personality</div><div class="gm-persona-name">${escHtml(p.primary.name)}</div>
+      <ul class="gm-reasons">${p.traits.map(tr => `<li><strong>${escHtml(tr.name)}:</strong> ${escHtml(tr.why)}</li>`).join('')}</ul></div></div>`;
 
     html += `<div class="grid-stats" style="margin:1rem 0">
-      <div class="stat-card"><div class="stat-val">${lib.hours}h</div><div class="stat-label">Lifetime playtime</div></div>
-      <div class="stat-card"><div class="stat-val">${w.last_played_in_year_count}</div><div class="stat-label">Last played in ${+w.year}</div></div>
-      <div class="stat-card"><div class="stat-val">${w.completed.length}</div><div class="stat-label">Completed in ${+w.year}</div></div>
-      <div class="stat-card"><div class="stat-val">${lib.never_played}</div><div class="stat-label">Never launched (of ${lib.owned})</div></div>
+      <div class="stat-card"><div class="stat-val">${w.played_in_period}</div><div class="stat-label">Games played in ${period}</div></div>
+      <div class="stat-card"><div class="stat-val">${t.since ? gmFmtMins(t.minutes) : '—'}</div><div class="stat-label">${t.since ? 'Playtime in ' + period : 'Playtime (not tracked yet)'}</div></div>
+      <div class="stat-card"><div class="stat-val">${w.completed.length}</div><div class="stat-label">Completed</div></div>
+      <div class="stat-card"><div class="stat-val">${w.dropped.length}</div><div class="stat-label">Dropped</div></div>
     </div>`;
 
+    // Most played: in the period when Trackie tracked it, else all time (labelled).
+    const periodTop = t.top.length ? t.top : null;
     html += '<div class="hb-grid2">';
-    html += `<div class="card card-body"><div class="fit-card-label">Most played · all time</div>
-      ${w.top.length ? w.top.map((g, i) => `<div class="gm-top-row">${gmCover(g.cover_url, 'gm-cover-sm')}
-        <div class="gm-top-body"><div class="gm-rank-title">${i + 1}. ${escHtml(g.title)}</div>
-        <div class="hb-progress"><span style="width:${g.share}%"></span></div></div>
-        <div class="gm-top-val">${g.hours}h<small>${g.share}%</small></div></div>`).join('')
-        : '<p class="hb-empty-line">No playtime recorded yet.</p>'}</div>`;
-    html += `<div class="card card-body"><div class="fit-card-label">Genres by playtime</div>
-      ${w.genres.length ? w.genres.map(g => `<div class="hb-row"><span>${escHtml(g.genre)}</span>
-        <div class="hb-progress"><span style="width:${g.pct}%"></span></div><b>${g.pct}%</b></div>`).join('')
-        + `<p class="hb-foot">From Steam Store genres, covering ${w.genre_coverage}% of your hours. A game can have several genres, so shares add up to more than 100%.</p>`
-        : '<p class="hb-empty-line">Genre data is still loading from the Steam Store.</p>'}</div>`;
+    html += card(periodTop ? `Most played · ${period}` : 'Most played · all time',
+      periodTop ? periodTop.map((g, i) => row(`${i + 1}. ${g.title}`, gmFmtMins(g.minutes))).join('')
+        : (w.top.length ? w.top.map((g, i) => `<div class="gm-top-row">${gmCover(g.cover_url, 'gm-cover-sm')}
+            <div class="gm-top-body"><div class="gm-rank-title">${i + 1}. ${escHtml(g.title)}</div><div class="hb-progress"><span style="width:${g.share}%"></span></div></div>
+            <div class="gm-top-val">${g.hours}h<small>${g.share}%</small></div></div>`).join('') : '<p class="hb-empty-line">No playtime recorded yet.</p>'));
+    html += card(`Recently played · ${period}`,
+      (w.last_played_in_year.length ? w.last_played_in_year.map(g => row(g.title, gmFmtDate(g.last_played))).join('') : '<p class="hb-empty-line">Nothing last played in this period.</p>')
+      + (w.last_played_in_year_count > w.last_played_in_year.length ? `<p class="hb-foot">+${w.last_played_in_year_count - w.last_played_in_year.length} more</p>` : '')
+      + '<p class="hb-foot">Steam only records the most recent time you played each game.</p>');
+    html += '</div><div class="hb-grid2" style="margin-top:1rem">';
+    html += card(`Completed · ${period}`, w.completed.length ? w.completed.map(g => row(g.title, gmFmtDate(g.completed_at))).join('') : '<p class="hb-empty-line">None — set a game to Completed and it counts here.</p>');
+    html += card(`Dropped · ${period}`, w.dropped.length ? w.dropped.map(g => row(g.title, gmFmtDate(g.dropped_at))).join('') : '<p class="hb-empty-line">Nothing dropped.</p>');
+    html += '</div><div class="hb-grid2" style="margin-top:1rem">';
+    html += card('Favourite genres · by playtime, all time', w.genres.length
+      ? w.genres.map(g => `<div class="hb-row"><span>${escHtml(g.genre)}</span><div class="hb-progress" style="flex:1"><span style="width:${g.pct}%"></span></div><b>${g.pct}%</b></div>`).join('')
+        + `<p class="hb-foot">From Steam Store genres, covering ${w.genre_coverage}% of your hours. A game can have several genres.</p>`
+      : '<p class="hb-empty-line">Genres come from the Steam Store and appear after a Steam sync.</p>');
+    const a = w.achievements;
+    html += card('Library · all time', row('Games owned', lib.owned) + row('Played', lib.played) + row('Never launched', lib.never_played)
+      + row('Lifetime playtime', `${lib.hours}h`)
+      + (a.total ? row('Achievements unlocked', `${a.unlocked} / ${a.total} (${Math.round(a.unlocked / a.total * 100)}%)`) + row('Perfect games (100%)', a.perfect) : ''));
     html += '</div>';
 
-    html += `<div class="card card-body" style="margin-top:1rem"><div class="fit-card-label">Time patterns · tracked by Trackie</div>`;
+    html += `<div class="card card-body" style="margin-top:1rem"><div class="fit-card-label">Time patterns · ${period}</div>`;
     if (!t.since) {
-      html += `<p class="hb-empty-line">Steam doesn't keep a day-by-day history, so Trackie records your playtime each time it syncs with Steam. Connect Steam to start.</p>`;
+      html += `<p class="hb-empty-line">Steam doesn't keep day-by-day history, so Trackie records your playtime every time it syncs. Connect Steam to start.</p>`;
     } else if (!t.minutes) {
-      html += `<p class="hb-empty-line">Tracking since ${gmFmtDate(t.since)}. Steam doesn't keep a day-by-day history, so your busiest days and weekday patterns build up from here as Trackie records your playtime each day you open Gaming.</p>`;
+      html += `<p class="hb-empty-line">Tracking since ${gmFmtDate(t.since)}. No playtime was recorded in ${period}${t.sync_days ? '' : ' (no syncs in this period)'}.</p>`;
     } else {
-      html += `<p class="hb-foot" style="margin-top:0">Since ${gmFmtDate(t.since)} · ${t.sync_days} day${t.sync_days === 1 ? '' : 's'} with a sync in ${+w.year}. A "day" is the playtime recorded since the previous day's sync.</p>
+      html += `<p class="hb-foot" style="margin-top:0">Tracked by Trackie since ${gmFmtDate(t.since)} · ${t.sync_days} day${t.sync_days === 1 ? '' : 's'} with a sync in ${period}.</p>
         <div class="grid-stats" style="margin:.75rem 0">
-          <div class="stat-card"><div class="stat-val">${gmFmtMins(t.minutes)}</div><div class="stat-label">Played since tracking began</div></div>
           <div class="stat-card"><div class="stat-val">${t.days_played}</div><div class="stat-label">Days with play</div></div>
           <div class="stat-card"><div class="stat-val">${t.best_day ? gmFmtMins(t.best_day.minutes) : '—'}</div><div class="stat-label">${t.best_day ? 'Biggest day · ' + gmFmtDate(t.best_day.date) : 'Biggest day'}</div></div>
           <div class="stat-card"><div class="stat-val">${t.streak}</div><div class="stat-label">Longest play streak (days)</div></div>
         </div>
         <div class="hb-grid2">
           <div><div class="hb-sub">By weekday</div>${bars(t.weekday, days)}</div>
-          <div><div class="hb-sub">By month</div>${bars(Object.values(t.months), months)}</div>
+          <div><div class="hb-sub">${w.month ? 'By day' : 'By month'}</div>${w.month
+            ? bars(Object.values(t.days), Object.keys(t.days).map(d => +d % 5 === 1 ? d : ''))
+            : bars(Object.values(t.months), GM_MONTHS.map(m => m.slice(0, 3)))}</div>
         </div>
-        ${t.gap_minutes ? `<p class="hb-foot">${gmFmtMins(t.gap_minutes)} was recorded across multi-day gaps between syncs. It counts in totals but not in the weekday chart.</p>` : ''}
-        ${t.top.length ? `<div class="hb-sub" style="margin-top:.75rem">Most played since tracking began</div>${t.top.map(g => row(g.title, gmFmtMins(g.minutes))).join('')}` : ''}`;
+        ${t.gap_minutes ? `<p class="hb-foot">${gmFmtMins(t.gap_minutes)} was recorded across multi-day gaps between syncs — counted in totals, not in the weekday chart.</p>` : ''}`;
     }
-    html += '</div>';
-
-    html += '<div class="hb-grid2" style="margin-top:1rem">';
-    html += `<div class="card card-body"><div class="fit-card-label">Last played in ${+w.year}</div>
-      ${w.last_played_in_year.length ? w.last_played_in_year.map(g => row(g.title, gmFmtDate(g.last_played))).join('') : '<p class="hb-empty-line">None.</p>'}
-      ${w.last_played_in_year_count > w.last_played_in_year.length ? `<p class="hb-foot">+${w.last_played_in_year_count - w.last_played_in_year.length} more</p>` : ''}
-      <p class="hb-foot">Steam only records the most recent time you played each game.</p></div>`;
-    html += `<div class="card card-body"><div class="fit-card-label">Completed in ${+w.year}</div>
-      ${w.completed.length ? w.completed.map(g => row(g.title, gmFmtDate(g.completed_at))).join('')
-        : '<p class="hb-empty-line">Move a game to the Completed shelf and it shows up here.</p>'}</div>`;
     html += '</div>';
 
     el.innerHTML = html;
-    document.getElementById('gmYear')?.addEventListener('change', e => loadWrapped(e.target.value));
-  } catch { gmError(el, 'Network error.'); }
+    const reload = () => loadWrapped(document.getElementById('gmYear').value, document.getElementById('gmMonth').value);
+    document.getElementById('gmYear').addEventListener('change', reload);
+    document.getElementById('gmMonth').addEventListener('change', reload);
+  } catch (e) { gmError(el, e.message || 'Network error.'); }
 }
 
-/* ── Co-op ────────────────────────────────────────────────────── */
-async function loadCoopFriends() {
-  const el = document.getElementById('gmFriends');
-  if (!el) return;
-  try {
-    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'coop_friends' });
-    if (!res.success) return gmError(el, res.error || 'Could not load friends.');
-    if (res.private) return gmError(el, "Your Steam friends list is private. Set it to public in Steam's privacy settings to use Co-op.");
-    if (!res.friends.length) {
-      el.innerHTML = `<div class="card card-body hb-empty-line">No Steam friends found on this account.</div>`;
-      return;
-    }
-    el.innerHTML = `<div class="card card-body">
-      <div class="fit-card-label">Pick up to 5 friends</div>
-      <div class="gm-friends">${res.friends.map(f => `<label class="gm-friend${f.public ? '' : ' gm-friend-off'}">
-        <input type="checkbox" value="${escHtml(f.steamid)}" ${f.public ? '' : 'disabled'}>
-        ${gmAvatar(f.avatar)}<span>${escHtml(f.name)}${f.public ? '' : "<small>Private profile, can't compare</small>"}</span></label>`).join('')}</div>
-      <button class="btn btn-primary btn-sm" id="gmCoopBtn" style="margin-top:.75rem"><i class="fas fa-users"></i> Find shared games</button>
-    </div>`;
-    document.getElementById('gmCoopBtn').addEventListener('click', runCoopMatch);
-  } catch { gmError(el, 'Network error.'); }
-}
-let gmCoopFilter = 'multi';
-let gmCoopData = null;
-async function runCoopMatch() {
-  const ids = [...document.querySelectorAll('#gmFriends input:checked')].map(i => i.value);
-  const out = document.getElementById('gmCoopResult');
-  if (!ids.length) { Trackie.Toast.warning('Pick at least one friend.'); return; }
-  if (ids.length > 5) { Trackie.Toast.warning('Compare up to 5 friends at a time.'); return; }
-  const btn = document.getElementById('gmCoopBtn');
-  btn.disabled = true;
-  out.innerHTML = `<div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Comparing libraries…</div>`;
-  try {
-    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'coop_match', friends: ids.join(',') });
-    if (!res.success) return gmError(out, res.error || 'Could not compare libraries.');
-    gmCoopData = res;
-    renderCoop();
-  } catch { gmError(out, 'Network error.'); }
-  finally { btn.disabled = false; }
-}
-function renderCoop() {
-  const res = gmCoopData, out = document.getElementById('gmCoopResult');
-  let html = '';
-  if (res.unavailable.length) {
-    html += `<div class="hb-note">${res.unavailable.map(u => `<div><i class="fas fa-lock"></i> ${escHtml(u.name)}: ${escHtml(u.reason)}</div>`).join('')}</div>`;
-  }
-  if (!res.members.length) { out.innerHTML = html; return; }
-  const filters = { multi: 'Multiplayer', coop: 'Co-op', online: 'Online co-op', cross: 'Cross-platform', all: 'All shared' };
-  const test = { multi: g => g.multiplayer, coop: g => g.coop, online: g => g.online_coop, cross: g => g.crossplay, all: () => true };
-  const games = res.games.filter(test[gmCoopFilter]);
-  html += `<div class="fit-section-head" style="margin-top:1.25rem"><h2 class="hb-h2">You + ${res.members.map(m => escHtml(m.name)).join(', ')}</h2>
-    <span class="hb-foot" style="margin:0">${res.games.length} shared game${res.games.length === 1 ? '' : 's'}</span></div>
-    <div class="filter-tabs" style="margin-bottom:1rem">${Object.entries(filters).map(([k, v]) =>
-      `<button class="filter-tab${k === gmCoopFilter ? ' active' : ''}" data-coopf="${k}">${v}</button>`).join('')}</div>`;
-  if (!games.length) {
-    html += `<div class="card card-body hb-empty-line">${res.games.length
-      ? `No shared games match "${filters[gmCoopFilter]}". Try "All shared".`
-      : "You don't own any of the same games on Steam."}</div>`;
-  } else {
-    html += '<div class="gm-coop-grid">' + games.map(g => {
-      const tags = [g.online_coop && 'Online co-op', g.coop && !g.online_coop && 'Co-op', g.multiplayer && !g.coop && 'Multiplayer',
-        g.crossplay && 'Cross-platform', !g.known && 'Tags loading'].filter(Boolean);
-      return `<div class="card gm-coop-card">${gmCover(g.cover_url, 'gm-coop-cover')}
-        <div class="card-body" style="padding:.75rem">
-          <div class="gm-rank-title">${escHtml(g.title)}</div>
-          ${g.genres ? `<div class="gm-rank-sub">${escHtml(g.genres)}</div>` : ''}
-          <div class="gm-tags">${tags.map(t => `<span class="gm-tag">${escHtml(t)}</span>`).join('')}</div>
-          <div class="gm-hours">${g.hours.map(h => `<span>${escHtml(h.name)} <b>${+h.hours}h</b></span>`).join('')}</div>
-        </div></div>`;
-    }).join('') + '</div>';
-  }
-  if (res.meta_pending > 0) {
-    html += `<p class="hb-foot">Store tags for ${res.meta_pending} shared game${res.meta_pending === 1 ? ' are' : 's are'} still loading. Run the comparison again in a minute.</p>`;
-  }
-  out.innerHTML = html;
-}
-document.getElementById('gmCoopResult')?.addEventListener('click', e => {
-  const b = e.target.closest('[data-coopf]');
-  if (!b) return;
-  gmCoopFilter = b.dataset.coopf;
-  renderCoop();
-});
-
+/* ── Actions ───────────────────────────────────────────────────── */
 function openAddGame() {
   document.getElementById('gameTitle').value = '';
   document.getElementById('gamePlatform').value = '';
-  document.getElementById('gameStatus').value = 'backlog';
+  document.getElementById('gameStatus').value = 'playing';
   Trackie.openModal('addGameModal');
 }
 async function saveGame() {
   const title = document.getElementById('gameTitle').value.trim();
   if (!title) { Trackie.Toast.warning('Title is required.'); return; }
   try {
-    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, {
-      action: 'add', title,
-      platform: document.getElementById('gamePlatform').value.trim(),
-      status: document.getElementById('gameStatus').value,
-    });
-    if (res.success) { Trackie.Toast.success('Game added!'); Trackie.closeModal('addGameModal'); await Trackie.refreshFragments(['gamingStatsWrap', 'gamingListWrap']); }
+    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'add', title,
+      platform: document.getElementById('gamePlatform').value.trim(), status: document.getElementById('gameStatus').value });
+    if (res.success) { Trackie.Toast.success('Game added!'); Trackie.closeModal('addGameModal'); gmChanged(); }
     else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
 }
 async function setGameStatus(id, status) {
   try {
-    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, {action:'update_status', item_id:id, status});
+    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'update_status', item_id: id, status });
     if (res.success) {
       if (res.xp?.leveledUp) Trackie.Toast.success(`⚡ Level up! Level ${res.xp.level} — ${res.xp.title}`, 5000);
       else if (res.xp?.ok) Trackie.Toast.success(`🏆 Completed! +${res.xp.gained} XP`);
-      else Trackie.Toast.success('Shelf updated.');
-      gmInvalidate();
-      await Trackie.refreshFragments(['gamingStatsWrap', 'gamingListWrap']);
-    }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
-}
-/** Shelf/playtime changed: Next Up + Wrapped re-fetch next time they're opened. */
-function gmInvalidate() {
-  delete gmLoaded.nextup; delete gmLoaded.wrapped;
-  const open = document.querySelector('#gamingTabs [aria-selected="true"]')?.dataset.tab;
-  if (open === 'nextup' || open === 'wrapped') { gmLoaded[open] = true; open === 'nextup' ? loadNextUp() : loadWrapped(); }
+      else Trackie.Toast.success(`Moved to ${GM_STATUS[status]}.`);
+      gmChanged();
+    } else Trackie.Toast.error(res.error || 'Failed.');
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
 }
 async function rateGame(id, rating) {
-  document.querySelectorAll(`#gstars-${id} i`).forEach((s, i) => s.className = (i < rating ? 'fas' : 'far') + ' fa-star');
+  document.querySelectorAll(`[data-rate="${id}"] i`).forEach((s, i) => { s.className = (i < rating ? 'fas' : 'far') + ' fa-star'; });
   try {
-    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, {action:'rate', item_id:id, rating});
+    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'rate', item_id: id, rating });
     if (!res.success) Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    else if (gmData) ['playing', 'completed', 'dropped', 'most_played'].forEach(k => gmData[k].forEach(g => { if (g.id === id) g.rating = rating; }));
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
 }
 async function deleteGame(id) {
-  const ok = await Trackie.confirmDialog('Delete this game?', {confirmText:'Delete', danger:true});
-  if (!ok) return;
+  if (!await Trackie.confirmDialog('Delete this game?', { confirmText: 'Delete', danger: true })) return;
   try {
-    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, {action:'delete', item_id:id});
-    if (res.success) { document.getElementById(`game-${id}`)?.remove(); Trackie.Toast.success('Deleted.'); }
+    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'delete', item_id: id });
+    if (res.success) { Trackie.Toast.success('Deleted.'); gmChanged(); }
     else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+}
+/** Library changed: re-read the shelves; the Wrap rebuilds next time it's opened. */
+function gmChanged() {
+  loadShelves();
+  gmWrapLoaded = false;
+  if (document.querySelector('#gamingTabs [aria-selected="true"]')?.dataset.tab === 'wrap') { gmWrapLoaded = true; loadWrapped(document.getElementById('gmYear')?.value, document.getElementById('gmMonth')?.value); }
 }
 
 /* ── Steam ────────────────────────────────────────────────────── */
@@ -560,19 +432,14 @@ async function connectSteam() {
   const btn = document.getElementById('steamConnectBtn');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting…';
   try {
-    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, {action:'steam_connect', steam_id: steamId});
+    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'steam_connect', steam_id: steamId });
     if (res.success) {
-      if (res.private) {
-        Trackie.Toast.warning(`Connected${res.persona ? ' as ' + res.persona : ''} — this profile's game list is private, so nothing could sync. Set it to public in Steam privacy settings, then hit Sync again.`, 8000);
-      } else {
-        Trackie.Toast.success(`Connected${res.persona ? ' as ' + res.persona : ''} — synced ${res.synced} game${res.synced===1?'':'s'}.`);
-        refreshSteamAchievements();
-      }
-      await Trackie.refreshFragments(['steamCardWrap', 'gamingStatsWrap', 'gamingListWrap']);
-    } else {
-      Trackie.Toast.error(res.error || 'Could not connect.');
-    }
-  } catch { Trackie.Toast.error('Network error.'); }
+      if (res.private) Trackie.Toast.warning(`Connected${res.persona ? ' as ' + res.persona : ''} — this profile's game list is private, so nothing could sync. Set "Game details" to public in Steam privacy settings, then sync again.`, 8000);
+      else { Trackie.Toast.success(`Connected${res.persona ? ' as ' + res.persona : ''} — synced ${res.synced} game${res.synced === 1 ? '' : 's'}.`); refreshSteamAchievements(); }
+      await Trackie.refreshFragments(['steamCardWrap']);
+      gmChanged();
+    } else Trackie.Toast.error(res.error || 'Could not connect.');
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
   finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-link"></i> Connect'; }
 }
 /* quiet = the automatic sync on page open: no toasts unless something is wrong. */
@@ -580,21 +447,14 @@ async function syncSteam(quiet = false) {
   const btn = document.getElementById('steamSyncBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing…'; }
   try {
-    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, {action:'steam_sync'});
+    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'steam_sync' }, { quiet });
     if (res.success) {
-      if (res.private) {
-        if (!quiet) Trackie.Toast.warning("This profile's game list is private, so nothing could sync. Set it to public in Steam privacy settings, then try again.", 8000);
-      } else {
-        if (!quiet) Trackie.Toast.success(`Synced ${res.synced} game${res.synced===1?'':'s'} from Steam.`);
-        refreshSteamAchievements();
-      }
-      gmInvalidate();
-      await Trackie.refreshFragments(['steamCardWrap', 'gamingStatsWrap', 'gamingListWrap']);
-    } else {
-      if (!quiet) Trackie.Toast.error(res.error || 'Sync failed.');
-      await Trackie.refreshFragments(['steamCardWrap']);
-    }
-  } catch { if (!quiet) Trackie.Toast.error('Network error.'); }
+      if (res.private) { if (!quiet) Trackie.Toast.warning("This profile's game list is private, so nothing could sync. Set it to public in Steam privacy settings, then try again.", 8000); }
+      else { if (!quiet) Trackie.Toast.success(`Synced ${res.synced} game${res.synced === 1 ? '' : 's'} from Steam.`); refreshSteamAchievements(); }
+      gmChanged();
+    } else if (!quiet) Trackie.Toast.error(res.error || 'Sync failed.');
+    await Trackie.refreshFragments(['steamCardWrap']);
+  } catch (e) { if (!quiet) Trackie.Toast.error(e.message || 'Network error.'); }
   finally {
     const b = document.getElementById('steamSyncBtn');
     if (b) { b.disabled = false; b.innerHTML = '<i class="fas fa-rotate"></i> Sync now'; }
@@ -605,24 +465,25 @@ async function refreshSteamAchievements(rounds = 3) {
   let changed = false;
   for (let i = 0; i < rounds; i++) {
     try {
-      const res = await Trackie.API.post(`${API_BASE}/gaming.php`, {action:'steam_achievements'});
+      const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'steam_achievements' }, { quiet: true });
       if (!res.success) break;
       if (res.updated) changed = true;
       if (!res.remaining) break;
     } catch { break; }
   }
-  if (changed) { gmInvalidate(); Trackie.refreshFragments(['gamingListWrap']); }
+  if (changed) gmChanged();
 }
 async function disconnectSteam() {
-  const ok = await Trackie.confirmDialog('Disconnect Steam? Your synced games stay in your library, but playtime will stop updating.', {confirmText:'Disconnect', danger:true});
-  if (!ok) return;
+  if (!await Trackie.confirmDialog('Disconnect Steam? Your synced games stay, but playtime stops updating.', { confirmText: 'Disconnect', danger: true })) return;
   try {
-    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, {action:'steam_disconnect'});
+    const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'steam_disconnect' });
     if (res.success) { Trackie.Toast.success('Steam disconnected.'); await Trackie.refreshFragments(['steamCardWrap']); }
     else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
 }
 
+loadShelves();
+if (<?= json_encode($initialTab) ?> === 'wrap') { gmWrapLoaded = true; loadWrapped(); }
 // Steam has no playtime history, so Trackie snapshots it: sync quietly when
 // the last sync is over 6 hours old (at most once per page open).
 <?php if ($steamStale): ?>syncSteam(true);<?php endif; ?>

@@ -361,6 +361,31 @@
   }
   function flushCookies() { if (SYS && SYS.flushCookies) SYS.flushCookies().catch(function () {}); }
 
+  // ── "Continue with Google" ────────────────────────────────────────
+  // Google refuses OAuth inside app WebViews, so sign-in runs in the system
+  // browser and comes back as com.varad.trackie://auth?code=<one-time code>,
+  // which the app redeems on the server (pages/google_callback.php?handoff=).
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest && ev.target.closest('a[data-google-signin]');
+    if (!a) return;
+    ev.preventDefault();
+    if (/[?&]mode=link\b/.test(a.getAttribute('href') || '')) {
+      toast('info', 'To link Google, open Trackie in your browser (Settings → Sign-in methods). After that, “Continue with Google” works here too.');
+      return;
+    }
+    var url = new URL(a.getAttribute('href'), location.href);
+    url.searchParams.set('app', '1');
+    (P.Browser ? P.Browser.open({ url: url.href }) : Promise.reject()).catch(function () { location.href = url.href; });
+  }, true);
+  if (P.App && P.App.addListener) {
+    P.App.addListener('appUrlOpen', function (ev) {
+      var m = String((ev && ev.url) || '').match(/^com\.varad\.trackie:\/\/auth\?(?:.*&)?code=([a-f0-9]{64})/);
+      if (!m) return;
+      if (P.Browser && P.Browser.close) P.Browser.close().catch(function () {});
+      location.href = location.origin + base() + '/pages/google_callback.php?handoff=' + m[1];
+    });
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────────────
   function onActive() {
     if (!signedIn()) { resumeSession(); return; }

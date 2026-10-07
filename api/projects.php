@@ -31,6 +31,27 @@ switch ($action) {
         );
         json_out(['success' => true, 'id' => $id]);
 
+    case 'track_repo':
+        // A discovered GitHub repo → a Trackie project (tasks, sessions, status).
+        // Name/description/URL come from the synced record, not the browser.
+        $row = fetchOne("SELECT payload FROM integration_data WHERE user_id=? AND provider='github' AND kind='repo' AND external_id=?",
+                        [$uid, (string)(int)($_POST['repo_id'] ?? 0)]);
+        $repo = $row ? (json_decode($row['payload'], true) ?: []) : null;
+        if (!$repo || !preg_match('#^https://github\.com/#', (string)($repo['html_url'] ?? ''))) {
+            json_out(['success' => false, 'error' => 'That repository is not in your last GitHub sync.'], 404);
+        }
+        $existing = fetchOne("SELECT id FROM projects WHERE user_id=? AND LOWER(TRIM(TRAILING '/' FROM github_url))=LOWER(?)", [$uid, rtrim($repo['html_url'], '/')]);
+        if ($existing) json_out(['success' => true, 'id' => (int)$existing['id'], 'existing' => true]);
+        require_once '../includes/providers.php';
+        provider('github');   // loads the provider class
+        $act = TrackieGithubProvider::activity($repo);
+        $id = insert(
+            "INSERT INTO projects (user_id,name,description,github_url,status) VALUES (?,?,?,?,?)",
+            [$uid, mb_substr($repo['name'], 0, 120), $repo['description'] ? mb_substr($repo['description'], 0, 500) : null, $repo['html_url'],
+             $act === 'archived' ? 'done' : ($act === 'active' ? 'active' : 'paused')]
+        );
+        json_out(['success' => true, 'id' => $id]);
+
     case 'update_status':
         $id     = (int)($_POST['project_id'] ?? 0);
         $status = sanitizeInput($_POST['status'] ?? '');

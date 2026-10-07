@@ -6,6 +6,7 @@ require_once '../includes/auth.php';
 require_once '../includes/providers.php';
 require_once '../includes/integrations.php';
 require_once '../includes/settings.php';
+require_once '../includes/identity.php';
 
 requireAuth();
 
@@ -17,17 +18,25 @@ $prefs    = userSettings($uid);
 $registry = integrationsRegistry();
 $summary  = integrationsSummary();
 
-// Group providers by category for a scannable layout.
-$byCategory = [];
+// Group providers by category for a scannable layout. Unbuilt ones (no code
+// uses them yet) are listed by name only, never as cards that look usable.
+$byCategory = $unbuilt = [];
 foreach ($registry as $key => $p) {
+    if (!$p['built']) { $unbuilt[] = $p['name']; continue; }
     $byCategory[$p['category']][$key] = $p;
 }
+
+// Sign-in methods: password + linked Google identity.
+$meUser       = fetchOne("SELECT email, password FROM users WHERE id=?", [$uid]);
+$hasPassword  = $meUser && userHasPassword($meUser);
+$googleLogin  = env('GOOGLE_CLIENT_ID') !== '' && identitiesReady();
+$googleId     = $googleLogin ? identityForUser($uid, 'google') : null;
 
 $statusMeta = [
     'active'      => ['label' => 'Active',           'badge' => 'badge-green'],
     'connected'   => ['label' => 'Connected',        'badge' => 'badge-green'],
     'connect'     => ['label' => 'Ready to connect', 'badge' => 'badge-blue'],
-    'coming_soon' => ['label' => 'Coming soon',      'badge' => 'badge-gray'],
+    'coming_soon' => ['label' => 'Needs API key',    'badge' => 'badge-gray'],
     'unavailable' => ['label' => 'Unavailable',      'badge' => 'badge-red'],
 ];
 
@@ -158,20 +167,33 @@ require_once '../includes/head.php';
   </div>
 </div>
 
+<h3 class="settings-h3" style="margin-top:2rem" id="signin-methods">Sign-in methods</h3>
+<div class="card card-body settings-prefs">
+  <div class="settings-row">
+    <div><span class="settings-label"><i class="fas fa-key" aria-hidden="true"></i> Email &amp; password</span>
+      <p class="settings-help"><?= $hasPassword ? h($meUser['email']) : 'No password yet — you sign in with Google. Use "Forgot password" on the sign-in page to add one.' ?></p></div>
+    <?php if (!$hasPassword): ?><a class="btn btn-secondary btn-sm settings-control" href="<?= APP_BASE ?>/pages/forgot_password.php" data-no-spa>Set a password</a><?php endif; ?>
+  </div>
+  <?php if ($googleLogin): ?>
+  <div class="settings-row">
+    <div><span class="settings-label"><i class="fab fa-google" aria-hidden="true"></i> Google</span>
+      <p class="settings-help"><?= $googleId ? 'Linked to ' . h($googleId['email'] ?? 'your Google account') . ($googleId['last_login_at'] ? ' · last used ' . h(syncAgo($googleId['last_login_at'])) : '') : 'Sign in with one tap using your Google account.' ?></p></div>
+    <?php if ($googleId): ?>
+      <button class="btn btn-ghost btn-sm settings-control" style="color:var(--accent)" onclick="unlinkGoogle(<?= $hasPassword ? 'true' : 'false' ?>)">Unlink</button>
+    <?php else: ?>
+      <a class="btn btn-secondary btn-sm settings-control" href="<?= APP_BASE ?>/pages/google_callback.php?mode=link" data-no-spa data-google-signin>Link Google</a>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+</div>
+
 <h3 class="settings-h3" style="margin-top:2rem">Integrations</h3>
 
 <div class="grid-stats" style="margin-bottom:1.5rem">
-  <?= renderStatCard($summary['active'], 'Active integrations', 'fa-plug', 'var(--ok)') ?>
-  <?= renderStatCard($summary['total'] - $summary['active'], 'Coming soon', 'fa-clock', 'var(--muted)') ?>
-  <?= renderStatCard($summary['total'], 'Total providers', 'fa-layer-group', 'var(--info)') ?>
+  <?= renderStatCard($summary['connected'], 'Connected', 'fa-plug', 'var(--ok)') ?>
+  <?= renderStatCard($summary['active'], 'Available on this server', 'fa-server', 'var(--info)') ?>
+  <?= renderStatCard($summary['total'] - $summary['active'], 'Need an API key', 'fa-key', 'var(--muted)') ?>
 </div>
-
-<?= renderInsight(
-  $summary['active'] > 0
-    ? "You have {$summary['active']} of {$summary['total']} integrations active. Each one you connect makes Trackie's insights sharper."
-    : "Connect an integration to unlock richer insights — Spotify for focus music, Weather for your dashboard, and more.",
-  'fa-plug'
-) ?>
 
 
 <div id="integrationsGrid">
@@ -205,6 +227,9 @@ require_once '../includes/head.php';
           <?php if (!empty($p['lastError'])): ?>
             <p class="integration-error"><?= h($p['lastError']) ?></p>
           <?php endif; ?>
+          <?php if (!$p['hasImpl']): ?>
+            <a href="<?= APP_BASE . h($p['connect']) ?>" class="btn btn-secondary btn-sm" style="width:100%"><i class="fas fa-arrow-right"></i> Manage on the <?= h($p['category']) ?> page</a>
+          <?php else: ?>
           <div style="display:flex;gap:.5rem">
             <button class="btn btn-secondary btn-sm" style="flex:1" onclick="syncProvider('<?= h($p['impl']) ?>', this)">
               <i class="fas fa-rotate"></i> Sync now
@@ -214,6 +239,7 @@ require_once '../includes/head.php';
               <i class="fas fa-link-slash"></i>
             </button>
           </div>
+          <?php endif; ?>
         <?php elseif ($p['status'] === 'active'): ?>
           <button class="btn btn-secondary btn-sm" style="width:100%" disabled>
             <i class="fas fa-circle-check" style="color:var(--ok)"></i> Active
@@ -224,12 +250,12 @@ require_once '../includes/head.php';
             <i class="fas fa-triangle-exclamation" style="color:var(--warn)"></i> Unavailable
           </button>
         <?php elseif ($p['status'] === 'connect'): ?>
-          <a href="<?= APP_BASE . h($p['connect']) ?>" class="btn btn-primary btn-sm" style="width:100%">
+          <a href="<?= APP_BASE . h($p['connect']) ?>" class="btn btn-primary btn-sm" style="width:100%"<?= str_contains($p['connect'], '_callback.php') ? ' data-no-spa' : '' ?>>
             <i class="fas fa-link"></i> Connect
           </a>
         <?php else: ?>
           <button class="btn btn-secondary btn-sm" style="width:100%" disabled title="<?= h($p['setup']) ?>">
-            <i class="fas fa-clock"></i> Coming soon
+            <i class="fas fa-key"></i> Needs an API key
           </button>
           <div class="integration-setup">
             <i class="fas fa-key" style="font-size:.6875rem"></i>
@@ -242,14 +268,17 @@ require_once '../includes/head.php';
 <?php endforeach; ?>
 </div>
 
+<?php if ($unbuilt): ?>
+  <p class="form-hint" style="margin-top:1rem">Not built yet: <?= h(implode(', ', $unbuilt)) ?>. They appear here once Trackie actually uses them.</p>
+<?php endif; ?>
+
 <div class="card card-body" style="margin-top:1.5rem">
   <div style="font-size:.875rem;font-weight:600;margin-bottom:.375rem">
     <i class="fas fa-circle-info" style="color:var(--info)"></i> For the developer
   </div>
   <p class="form-hint" style="margin:0">
-    API keys live in <code>config/env.php</code> (web-blocked, gitignored). Each
-    “Coming soon” card above turns active automatically once its key is filled in
-    — no code change needed. Full key-placement map: <code>MD/INTEGRATIONS.md</code>.
+    API keys live in <code>config/env.php</code> (web-blocked, gitignored) and never
+    reach the browser. A card marked “Needs an API key” turns on once its key is filled in.
   </p>
 </div>
 
@@ -319,6 +348,20 @@ document.getElementById('prefsCard').addEventListener('change', e => {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
   refresh();
 })();
+
+/* ── Sign-in methods ──────────────────────────────────────── */
+async function unlinkGoogle(hasPassword) {
+  if (!hasPassword) {
+    Trackie.Toast.warning('Set a password first (Forgot password on the sign-in page), otherwise you could not sign in after unlinking Google.', 7000);
+    return;
+  }
+  if (!await Trackie.confirmDialog('Unlink Google? You will sign in with your email and password.', { confirmText: 'Unlink', danger: true })) return;
+  try {
+    const r = await Trackie.API.post(`${API_BASE}/settings.php`, { action: 'unlink_google' });
+    if (r.success) { Trackie.Toast.success('Google unlinked.'); if (Trackie.SpaNav?.refresh) Trackie.SpaNav.refresh(); else location.reload(); }
+    else Trackie.Toast.error(r.error || 'Could not unlink Google.');
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+}
 
 /* ── Phone app installs (api/device.php) ───────────────────── */
 (function phoneDevices() {
