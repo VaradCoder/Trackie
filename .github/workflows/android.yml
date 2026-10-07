@@ -14,6 +14,7 @@
 #                                               forever, or updates won't install)
 # Optional:
 #   GOOGLE_SERVICES_JSON_BASE64               — Firebase push
+# (All five were added on 2026-10-07; builds from then on are signed + published.)
 name: Android app
 
 on:
