@@ -752,6 +752,13 @@ $migrations = [
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
+    'app_config table' => "CREATE TABLE IF NOT EXISTS app_config (
+        name       VARCHAR(40) PRIMARY KEY,
+        value      VARCHAR(255) NOT NULL DEFAULT '',
+        updated_by INT DEFAULT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
     'goals linked source' => "ALTER TABLE goals
         ADD COLUMN IF NOT EXISTS source       VARCHAR(20) DEFAULT NULL,
         ADD COLUMN IF NOT EXISTS source_ref   INT DEFAULT NULL AFTER source,

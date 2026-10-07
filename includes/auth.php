@@ -152,3 +152,17 @@ function logoutUser(): void {
     session_start();
     session_regenerate_id(true);
 }
+
+/**
+ * A one-hour, single-use password reset link for a user. Older unused links
+ * are retired. Only the SHA-256 of the token is stored.
+ */
+function createPasswordReset(int $uid): string {
+    $token = generateToken();
+    update("UPDATE password_resets SET used=1 WHERE user_id=?", [$uid]);
+    insert("INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (?,?,?)",
+           [$uid, hash('sha256', $token), date('Y-m-d H:i:s', time() + 3600)]);
+    $origin = siteBaseUrl();
+    if ($origin === '') $origin = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'trackie.free.nf');
+    return $origin . APP_BASE . '/pages/reset_password.php?token=' . $token;
+}

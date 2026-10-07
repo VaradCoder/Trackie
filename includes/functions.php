@@ -506,7 +506,29 @@ function generateToken(int $bytes = 32): string {
  * (works everywhere, including hosts like InfinityFree where putenv() is
  * disabled) and falls back to getenv() for back-compat.
  */
+/**
+ * Non-secret settings an admin can edit on the Admin page (table app_config).
+ * env.php still wins when it sets a value; secrets (API keys, passwords,
+ * tokens) are never stored here.
+ */
+const APP_CONFIG_KEYS = ['MAIL_FROM', 'MAIL_FROM_NAME', 'SUPPORT_EMAIL', 'APP_URL'];
+
+function appConfig(?string $key = null): array|string {
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        try {
+            if (function_exists('db') && tableExists('app_config')) {
+                foreach (fetchAll("SELECT name, value FROM app_config") as $r) $cache[$r['name']] = (string)$r['value'];
+            }
+        } catch (Throwable $e) { /* no DB yet — env.php only */ }
+    }
+    return $key === null ? $cache : ($cache[$key] ?? '');
+}
+
 function env(string $key, string $default = ''): string {
+    if (defined($key) && (string)constant($key) !== '') return (string)constant($key);
+    if (in_array($key, APP_CONFIG_KEYS, true) && ($v = appConfig($key)) !== '') return $v;
     if (defined($key)) return (string)constant($key);
     $v = getenv($key);
     return $v !== false ? $v : $default;
@@ -920,7 +942,7 @@ function resetRecurringTodos(int $uid): void {
  * are accepted, so a forged Host header can't inject markup). No trailing slash.
  */
 function siteBaseUrl(): string {
-    if (defined('APP_URL') && APP_URL !== '') return rtrim(APP_URL, '/');
+    if (($u = env('APP_URL')) !== '' && preg_match('#^https?://[a-z0-9.-]+(:\d+)?/?$#i', $u)) return rtrim($u, '/');
     $host = (string)($_SERVER['HTTP_HOST'] ?? '');
     if (!preg_match('/^[a-z0-9.-]+(:\d{1,5})?$/i', $host)) return '';
     $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';

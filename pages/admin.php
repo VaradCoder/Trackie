@@ -102,7 +102,7 @@ foreach ($safeAll("SELECT DATE(created_at) d, COUNT(*) n FROM users WHERE create
 $dailyMax = max(1, ...array_values(array_map(static fn($d) => $d['web'] + $d['app'] + $d['both'], $daily)));
 
 $users = fetchAll(
-    "SELECT u.id, u.name, u.email, u.created_at, u.is_admin, u.password,
+    "SELECT u.id, u.name, u.email, u.created_at, u.is_admin, u.password, u.profile_pic,
             (SELECT COUNT(*) FROM todos t  WHERE t.user_id=u.id AND t.deleted_at IS NULL) todos,
             (SELECT COUNT(*) FROM habits h WHERE h.user_id=u.id) habits,
             (SELECT COUNT(*) FROM goals g  WHERE g.user_id=u.id) goals,
@@ -126,6 +126,7 @@ foreach ($users as &$u) {
     $u['devices']  = $devices[$id] ?? [];
     $u['google']   = isset($googleUsers[$id]);
     $u['has_pw']   = ($u['password'] ?? '') !== '' && $u['password'][0] !== '!';
+    $u['pic']      = $u['profile_pic'] && is_file(ROOT_PATH . '/' . $u['profile_pic']) ? APP_BASE . '/' . $u['profile_pic'] : null;
     $days = $u['last_seen'] ? (int)floor(($now - strtotime($u['last_seen'])) / 86400) : null;
     $u['segment'] = trim(implode(' ', array_filter([
         $u['online'] ? 'online' : '',
@@ -153,22 +154,37 @@ $dbVersion = '—';
 try { $dbVersion = fetchOne("SELECT VERSION() v")['v']; } catch (Throwable $e) {}
 $tableCount = adminCount("SELECT COUNT(*) c FROM information_schema.tables WHERE table_schema = DATABASE()");
 
-// ── Configuration (presence only — values are never shown) ─────
+// ── Configuration ─────────────────────────────────────────────
+// Secrets (keys, passwords, tokens) live only in config/env.php and are
+// never displayed. Non-secret settings can be edited here (table app_config;
+// env.php wins when it sets a value).
 $isSet = static fn(string ...$keys) => array_reduce($keys, fn($ok, $k) => $ok && (string)env($k) !== '', true);
+$fromEnv = static fn(string $k) => defined($k) && (string)constant($k) !== '';
 $mailVia = env('BREVO_API_KEY') !== '' ? 'Brevo API' : ((env('SMTP_HOST') !== '' && env('SMTP_USER') !== '') ? 'SMTP' : null);
+$hasAppConfig = tableExists('app_config');
+$editable = [
+    'MAIL_FROM'      => ['Sender address', 'Reset emails come from this address. With Brevo it must be a verified sender.', 'email', 'varadbhole09@gmail.com'],
+    'MAIL_FROM_NAME' => ['Sender name', 'Shown as the email sender.', 'text', 'Trackie'],
+    'SUPPORT_EMAIL'  => ['Support email', 'Shown on the Privacy and Terms pages.', 'email', 'varadbhole09@gmail.com'],
+    'APP_URL'        => ['App URL', 'Canonical links and reset links use it.', 'url', 'https://trackie.free.nf'],
+];
+$pushReady = function_exists('pushEnabled') && pushEnabled();
+$cronFile = ROOT_PATH . '/keys/cron_token.txt';
+$cronReady = strlen((string)env('CRON_TOKEN')) >= 24 || (is_file($cronFile) && strlen(trim((string)file_get_contents($cronFile))) >= 24);
+// [label, status text, ok, how to fix (HTML) or null]
 $config = [
-    ['Email (password reset)', $mailVia ? "Configured · {$mailVia}" : 'Not configured — reset links cannot be emailed', (bool)$mailVia],
-    ['Sender address (MAIL_FROM)', $isSet('MAIL_FROM') ? 'Set' : 'Missing', $isSet('MAIL_FROM')],
-    ['Support email', $isSet('SUPPORT_EMAIL') ? 'Set' : 'Missing (shown on Privacy/Terms)', $isSet('SUPPORT_EMAIL')],
-    ['App URL (APP_URL)', $isSet('APP_URL') ? 'Set' : 'Missing — canonical links use the request host', $isSet('APP_URL')],
-    ['Web Push keys (keys/vapid.php)', (function_exists('pushEnabled') && pushEnabled()) ? 'Installed' : 'Missing — reminders cannot reach closed browsers', function_exists('pushEnabled') && pushEnabled()],
-    ['Cron token', $isSet('CRON_TOKEN') ? 'Set' : 'Missing — web cron disabled', $isSet('CRON_TOKEN')],
-    ['Token encryption key', $isSet('TRACKIE_ENCRYPTION_KEY') ? 'Set' : 'Missing — connecting GitHub/Google/Spotify will fail', $isSet('TRACKIE_ENCRYPTION_KEY')],
-    ['GitHub sign-in', $isSet('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET')],
-    ['Google sign-in', $isSet('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET')],
-    ['Spotify', $isSet('SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET')],
-    ['HTTPS', (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'On' : 'Off (this request)', !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'],
-    ['Content-Security-Policy', defined('TRACKIE_CSP') ? 'Enforced' : 'Not sent', defined('TRACKIE_CSP')],
+    ['Email (password reset)', $mailVia ? "Configured · {$mailVia}" : 'Not configured — reset links can\'t be emailed (use "Copy link" on a user instead)', (bool)$mailVia,
+        $mailVia ? null : 'Free option: create a <a href="https://app.brevo.com/settings/keys/api" target="_blank" rel="noopener">Brevo API key</a>, verify your sender address in Brevo, then add to <code>config/env.php</code> on the server:<pre>define(\'BREVO_API_KEY\', \'xkeysib-…\');</pre>'],
+    ['Web Push keys (keys/vapid.php)', $pushReady ? 'Installed' : 'Missing — reminders cannot reach closed browsers', $pushReady,
+        $pushReady ? null : 'Creates a key pair on the server in <code>keys/vapid.php</code> (web-blocked). Browser reminders start working once people allow notifications. The Android app doesn\'t need this — it uses Firebase.<br><button type="button" class="btn btn-primary btn-sm" style="margin-top:.5rem" onclick="genVapid(this)"><i class="fas fa-key"></i> Generate push keys</button>'],
+    ['Cron token', $cronReady ? 'Set' : 'Missing — web cron disabled', $cronReady,
+        $cronReady ? null : 'Creates a random token on the server in <code>keys/cron_token.txt</code> (web-blocked) and shows the cron URL once. Then add that URL at a free cron service (e.g. cron-job.org) every 5–15 minutes, so due reminders and pushes go out even when nobody has Trackie open.<br><button type="button" class="btn btn-primary btn-sm" style="margin-top:.5rem" onclick="genCron(this)"><i class="fas fa-clock"></i> Generate cron token</button>'],
+    ['Token encryption key', $isSet('TRACKIE_ENCRYPTION_KEY') ? 'Set' : 'Missing — connecting GitHub/Google/Spotify will fail', $isSet('TRACKIE_ENCRYPTION_KEY'), null],
+    ['GitHub sign-in', $isSet('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'), null],
+    ['Google sign-in', $isSet('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'), null],
+    ['Spotify', $isSet('SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET'), null],
+    ['HTTPS', (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'On' : 'Off (this request)', !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off', null],
+    ['Content-Security-Policy', defined('TRACKIE_CSP') ? 'Enforced' : 'Not sent', defined('TRACKIE_CSP'), null],
 ];
 
 // ── Migrations: derived from the schema itself ─────────────────
@@ -288,15 +304,15 @@ require_once '../includes/head.php';
 <div class="table-wrap" style="margin-bottom:1.5rem">
   <table class="data-table ad-table">
     <thead>
-      <tr><th>User</th><th>Last seen</th><th>Uses</th><th title="Days active in the last 30">Days · 30d</th><th>Phone app</th><th>Joined</th><th>Data</th><th>XP</th><th>Role</th><th></th></tr>
+      <tr><th>User · ID</th><th>Last seen</th><th>Uses</th><th title="Days active in the last 30">Days · 30d</th><th>Phone app</th><th>Joined</th><th>Data</th><th>XP</th><th>Role</th><th>Actions</th></tr>
     </thead>
     <tbody id="adUsers">
       <?php foreach ($users as $u): ?>
         <tr id="user-<?= $u['id'] ?>" data-seg="<?= h($u['segment']) ?>" data-q="<?= h(strtolower($u['name'] . ' ' . $u['email'])) ?>">
           <td>
             <div class="ad-user">
-              <span class="ad-avatar"><?= h(mb_strtoupper(mb_substr($u['name'], 0, 1))) ?><?php if ($u['online']): ?><i class="ad-dot" title="Online now"></i><?php endif; ?></span>
-              <div style="min-width:0"><div class="ad-name"><?= h($u['name']) ?> <small>#<?= (int)$u['id'] ?></small></div>
+              <span class="ad-avatar"><?php if ($u['pic']): ?><img src="<?= h($u['pic']) ?>" alt=""><?php else: ?><?= h(mb_strtoupper(mb_substr($u['name'], 0, 1))) ?><?php endif; ?><?php if ($u['online']): ?><i class="ad-dot" title="Online now"></i><?php endif; ?></span>
+              <div style="min-width:0"><button type="button" class="ad-name ad-link" onclick="openProfile(<?= (int)$u['id'] ?>)"><?= h($u['name']) ?></button> <small class="ad-id" title="SQL users.id">ID <?= (int)$u['id'] ?></small>
                 <div class="ad-email"><?= h($u['email']) ?>
                   <?php if ($u['google']): ?><i class="fab fa-google" title="Signs in with Google"></i><?php endif; ?>
                   <?php if (!$u['has_pw']): ?><span class="badge badge-gray" title="No password — Google only">no password</span><?php endif; ?></div></div>
@@ -325,9 +341,14 @@ require_once '../includes/head.php';
           <td><?= number_format((int)$u['xp']) ?></td>
           <td><span class="badge <?= $u['is_admin'] ? 'badge-red' : 'badge-gray' ?>" id="role-<?= $u['id'] ?>"><?= $u['is_admin'] ? 'Admin' : 'User' ?></span></td>
           <td>
-            <?php if ((int)$u['id'] !== $uid): ?>
-              <button class="btn btn-ghost btn-sm" onclick="toggleAdmin(<?= $u['id'] ?>)"><?= $u['is_admin'] ? 'Revoke' : 'Make admin' ?></button>
-            <?php else: ?><span style="font-size:.75rem;color:var(--subtle)">you</span><?php endif; ?>
+            <div class="ad-actions">
+              <button class="btn btn-icon btn-ghost btn-sm" onclick="openProfile(<?= (int)$u['id'] ?>)" title="Profile" aria-label="Profile of <?= h($u['name']) ?>"><i class="fas fa-id-card"></i></button>
+              <button class="btn btn-icon btn-ghost btn-sm" onclick="sendReset(<?= (int)$u['id'] ?>, this)" title="Send password reset link" aria-label="Send password reset link to <?= h($u['name']) ?>"><i class="fas fa-key"></i></button>
+              <?php if ((int)$u['id'] !== $uid): ?>
+                <button class="btn btn-icon btn-ghost btn-sm" id="adm-<?= (int)$u['id'] ?>" onclick="toggleAdmin(<?= (int)$u['id'] ?>)" title="<?= $u['is_admin'] ? 'Revoke admin' : 'Make admin' ?>" aria-label="<?= $u['is_admin'] ? 'Revoke admin' : 'Make admin' ?>"><i class="fas <?= $u['is_admin'] ? 'fa-user-minus' : 'fa-user-shield' ?>"></i></button>
+                <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="deleteUser(<?= (int)$u['id'] ?>, <?= h(json_encode($u['email'])) ?>, <?= h(json_encode($u['name'])) ?>)" title="Delete user" aria-label="Delete <?= h($u['name']) ?>"><i class="fas fa-trash"></i></button>
+              <?php else: ?><span class="ad-sub" style="display:inline">you</span><?php endif; ?>
+            </div>
           </td>
         </tr>
       <?php endforeach; ?>
@@ -374,11 +395,28 @@ require_once '../includes/head.php';
 <!-- Configuration + migrations -->
 <div class="grid-2" style="margin-bottom:1.5rem">
   <div class="card card-body">
-    <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">Configuration <span class="form-hint" style="margin:0">— values are never displayed</span></div>
-    <?php foreach ($config as [$l, $v, $ok]): ?>
-      <div style="display:flex;justify-content:space-between;gap:1rem;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.875rem">
-        <span style="color:var(--muted)"><?= h($l) ?></span>
-        <strong style="color:<?= $ok ? 'var(--ok)' : 'var(--warn)' ?>;text-align:right"><?= $ok ? '●' : '○' ?> <?= h($v) ?></strong>
+    <div class="ad-card-title">Configuration <span class="form-hint" style="margin:0">— secret values are never displayed</span></div>
+
+    <form id="cfgForm" class="ad-cfg-form" onsubmit="saveConfig(event)">
+      <?php foreach ($editable as $key => [$label, $help, $type, $suggest]): $val = env($key); $locked = $fromEnv($key); ?>
+        <div class="ad-cfg-field">
+          <label for="cfg-<?= $key ?>"><span class="ad-cfg-dot <?= $val !== '' ? 'ok' : '' ?>"><?= $val !== '' ? '●' : '○' ?></span> <?= h($label) ?> <code><?= $key ?></code></label>
+          <input id="cfg-<?= $key ?>" name="<?= $key ?>" type="<?= $type ?>" class="form-input" value="<?= h($val) ?>" placeholder="<?= h($suggest) ?>"
+                 <?= $locked ? 'disabled title="Set in config/env.php — edit it there"' : '' ?><?= !$hasAppConfig ? ' disabled' : '' ?>>
+          <small><?= h($help) ?><?= $locked ? ' Set in config/env.php.' : '' ?></small>
+        </div>
+      <?php endforeach; ?>
+      <?php if ($hasAppConfig): ?>
+        <div style="display:flex;gap:.5rem;align-items:center"><button class="btn btn-primary btn-sm" type="submit"><i class="fas fa-save"></i> Save settings</button>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="fillSuggested()">Use suggested values</button></div>
+      <?php else: ?><p class="form-hint">Run migration <code>2026-10-07_app_config.sql</code> to edit these here.</p><?php endif; ?>
+    </form>
+
+    <?php foreach ($config as [$l, $v, $ok, $fix]): ?>
+      <div class="ad-cfg-row">
+        <div class="ad-cfg-head"><span><?= h($l) ?></span>
+          <strong style="color:<?= $ok ? 'var(--ok)' : 'var(--warn)' ?>"><?= $ok ? '●' : '○' ?> <?= h($v) ?></strong></div>
+        <?php if ($fix): ?><details class="ad-fix"><summary>How to fix</summary><div><?= $fix ?></div></details><?php endif; ?>
       </div>
     <?php endforeach; ?>
   </div>
@@ -428,6 +466,20 @@ require_once '../includes/head.php';
 </div>
 
 </div>
+<!-- Profile panel -->
+<div id="profileModal" class="modal-backdrop hidden">
+  <div class="modal-box ad-profile-box">
+    <div class="modal-header"><span class="modal-title">User profile</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="profileModal" aria-label="Close dialog">&times;</button></div>
+    <div class="modal-body" id="profileBody"></div>
+  </div>
+</div>
+<!-- Reset link result -->
+<div id="resetModal" class="modal-backdrop hidden">
+  <div class="modal-box">
+    <div class="modal-header"><span class="modal-title">Password reset link</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="resetModal" aria-label="Close dialog">&times;</button></div>
+    <div class="modal-body" id="resetBody"></div>
+  </div>
+</div>
 <?php include '../includes/footer.php'; ?>
 
 <script>
@@ -447,6 +499,119 @@ require_once '../includes/head.php';
   document.getElementById('adSearch').addEventListener('input', apply);
 })();
 
+const ADMIN_API = '<?= APP_BASE ?>/api/admin.php';
+const esc = s => escHtml(String(s ?? ''));
+const fmtDT = t => t ? new Date(String(t).replace(' ', 'T')).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+
+async function openProfile(id) {
+  const body = document.getElementById('profileBody');
+  body.innerHTML = '<div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
+  Trackie.openModal('profileModal');
+  try {
+    const r = await Trackie.API.post(ADMIN_API, { action: 'profile', user_id: id }, { button: null });
+    if (!r.success) { body.innerHTML = `<p class="hb-error">${esc(r.error || 'Could not load.')}</p>`; return; }
+    const u = r.user, row = (k, v) => `<div class="ad-row"><span>${k}</span><strong>${v}</strong></div>`;
+    const days = u.presence.map(p => `<span title="${esc(p.day)}: web ${+p.web_hits}, app ${+p.app_hits}" class="ad-day ${+p.app_hits && +p.web_hits ? 'both' : +p.app_hits ? 'app' : 'web'}"></span>`).join('');
+    body.innerHTML = `
+      <div class="ad-prof-head">
+        <span class="ad-avatar ad-avatar-lg">${u.pic ? `<img src="${esc(u.pic)}" alt="">` : esc(u.name.slice(0, 1).toUpperCase())}</span>
+        <div><div class="ad-prof-name">${esc(u.name)} ${u.is_admin ? '<span class="badge badge-red">Admin</span>' : ''}</div>
+          <div class="ad-email">${esc(u.email)}</div><div class="ad-sub" style="display:block">SQL id <code>users.id = ${+u.id}</code></div></div>
+      </div>
+      ${row('Joined', fmtDT(u.joined))}
+      ${row('Last seen', fmtDT(u.last_seen))}
+      ${row('Onboarding', u.onboarded ? 'Done ' + fmtDT(u.onboarded) : 'Not finished')}
+      ${row('Sign-in', [u.has_password ? 'Password' : 'No password', u.google ? 'Google (' + esc(u.google.email) + ')' : ''].filter(Boolean).join(' · '))}
+      ${row('Time zone', esc(u.timezone || 'Default'))}
+      ${row('Focus · hobbies', esc([u.focus, u.hobbies].filter(Boolean).join(' · ') || '—'))}
+      ${row('XP', (+u.xp).toLocaleString())}
+      <div class="fit-card-label" style="margin:1rem 0 .375rem">Data</div>
+      <div class="ad-chips">${Object.entries(u.counts).map(([k, v]) => `<span class="hb-chip">${esc(k)} · ${+v}</span>`).join('')}</div>
+      <div class="fit-card-label" style="margin:1rem 0 .375rem">Phone app</div>
+      ${u.devices.length ? u.devices.map(d => row(`<i class="fab fa-android" style="color:#22c55e"></i> ${esc(d.device_name || 'Android')}`, `v${esc(String(d.app_version || '').replace(/\s*\(.*$/, ''))} · synced ${fmtDT(d.last_seen_at)}${+d.push ? ' · push on' : ''}`)).join('') : '<p class="hb-empty-line">No app installed.</p>'}
+      <div class="fit-card-label" style="margin:1rem 0 .375rem">Integrations</div>
+      ${Object.keys(u.integrations).length ? Object.values(u.integrations).map(i => row(esc(i.provider), esc(i.sync_status) + (i.last_sync ? ' · ' + fmtDT(i.last_sync) : ''))).join('') : '<p class="hb-empty-line">None connected.</p>'}
+      <div class="fit-card-label" style="margin:1rem 0 .375rem">Last 14 active days</div>
+      ${days ? `<div class="ad-days">${days}</div><div class="ad-legend"><span><i style="background:#3b82f6"></i>Website</span><span><i style="background:#22c55e"></i>App</span><span><i style="background:#a855f7"></i>Both</span></div>` : '<p class="hb-empty-line">No visits recorded yet.</p>'}
+      <div class="ad-prof-actions">
+        <button class="btn btn-secondary btn-sm" onclick="sendReset(${+u.id}, this)"><i class="fas fa-key"></i> Send reset link</button>
+        ${u.id !== <?= (int)$uid ?> ? `<button class="btn btn-ghost btn-sm" style="color:var(--accent)" onclick='Trackie.closeModal("profileModal"); deleteUser(${+u.id}, ${JSON.stringify(u.email)}, ${JSON.stringify(u.name)})'><i class="fas fa-trash"></i> Delete user</button>` : ''}
+      </div>`;
+  } catch (e) { body.innerHTML = `<p class="hb-error">${esc(e.message || 'Network error.')}</p>`; }
+}
+
+async function sendReset(id, btn) {
+  if (!await Trackie.confirmDialog('Create a new password reset link for this user? Any older link stops working.', { confirmText: 'Create link' })) return;
+  document.querySelector('#resetModal .modal-title').textContent = 'Password reset link';
+  try {
+    const r = await Trackie.API.post(ADMIN_API, { action: 'reset_link', user_id: id }, { button: btn });
+    if (!r.success) { Trackie.Toast.error(r.error || 'Could not create a link.'); return; }
+    document.getElementById('resetBody').innerHTML = `
+      <p style="margin:0 0 .75rem">${r.mailed ? '<i class="fas fa-check-circle" style="color:var(--ok)"></i> Emailed to the user.' : `<i class="fas fa-triangle-exclamation" style="color:var(--warn)"></i> Not emailed: ${esc(r.mail_error)} Share this link with the user yourself:`}</p>
+      <div style="display:flex;gap:.5rem"><input class="form-input" id="resetUrl" readonly value="${esc(r.url)}"><button class="btn btn-primary btn-sm" onclick="copyReset()"><i class="fas fa-copy"></i> Copy</button></div>
+      <p class="form-hint" style="margin-top:.5rem">Works once and expires in 1 hour. Treat it like a password.</p>`;
+    Trackie.openModal('resetModal');
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+}
+async function copyReset() {
+  const i = document.getElementById('resetUrl'); i.select();
+  try { await navigator.clipboard.writeText(i.value); Trackie.Toast.success('Link copied.'); } catch { document.execCommand('copy'); Trackie.Toast.success('Link copied.'); }
+}
+
+async function deleteUser(id, email, name) {
+  const typed = await Trackie.promptDialog?.(`Delete ${name} permanently? All their todos, habits, goals, photos and every other record are removed. This cannot be undone.\n\nType their email to confirm:`, { placeholder: email, confirmText: 'Delete forever', danger: true })
+             ?? window.prompt(`Delete ${name} permanently? This cannot be undone.\nType their email to confirm:`);
+  if (typed === null || typed === undefined || typed === false) return;
+  if (String(typed).trim().toLowerCase() !== email.toLowerCase()) { Trackie.Toast.warning('The email did not match — nothing was deleted.'); return; }
+  try {
+    const r = await Trackie.API.post(ADMIN_API, { action: 'delete_user', user_id: id, confirm_email: String(typed).trim() });
+    if (!r.success) { Trackie.Toast.error(r.error || 'Could not delete.'); return; }
+    document.getElementById('user-' + id)?.remove();
+    Trackie.Toast.success(`Deleted ${name}${r.files ? ` and ${r.files} file${r.files === 1 ? '' : 's'}` : ''}.`);
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+}
+
+async function genVapid(btn, replace) {
+  try {
+    const r = await Trackie.API.post(ADMIN_API, { action: 'generate_vapid', replace: replace ? 1 : '' }, { button: btn });
+    if (r.exists && !replace) {
+      if (await Trackie.confirmDialog(r.error + ' Replace them?', { confirmText: 'Replace', danger: true })) return genVapid(btn, true);
+      return;
+    }
+    if (!r.success) { Trackie.Toast.error(r.error || 'Could not generate keys.'); return; }
+    Trackie.Toast.success('Push keys created.'); Trackie.SpaNav?.refresh ? Trackie.SpaNav.refresh() : location.reload();
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+}
+async function genCron(btn, replace) {
+  try {
+    const r = await Trackie.API.post(ADMIN_API, { action: 'generate_cron', replace: replace ? 1 : '' }, { button: btn });
+    if (r.exists && !replace) {
+      if (await Trackie.confirmDialog(r.error + ' Replace it?', { confirmText: 'Replace', danger: true })) return genCron(btn, true);
+      return;
+    }
+    if (!r.success) { Trackie.Toast.error(r.error || 'Could not create a token.'); return; }
+    document.getElementById('resetBody').innerHTML = `
+      <p style="margin:0 0 .75rem"><i class="fas fa-check-circle" style="color:var(--ok)"></i> Cron token created. Add this URL to a cron service (e.g. cron-job.org), every 5–15 minutes:</p>
+      <div style="display:flex;gap:.5rem"><input class="form-input" id="resetUrl" readonly value="${esc(r.url)}"><button class="btn btn-primary btn-sm" onclick="copyReset()"><i class="fas fa-copy"></i> Copy</button></div>
+      <p class="form-hint" style="margin-top:.5rem">Shown only now — anyone with this URL can trigger the cron run.</p>`;
+    document.querySelector('#resetModal .modal-title').textContent = 'Cron URL';
+    Trackie.openModal('resetModal');
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+}
+
+function fillSuggested() {
+  document.querySelectorAll('#cfgForm input:not([disabled])').forEach(i => { if (!i.value) i.value = i.placeholder; });
+}
+async function saveConfig(ev) {
+  ev.preventDefault();
+  const f = {}; document.querySelectorAll('#cfgForm input:not([disabled])').forEach(i => { f[i.name] = i.value.trim(); });
+  try {
+    const r = await Trackie.API.post(ADMIN_API, Object.assign({ action: 'save_config' }, f), { button: ev.submitter });
+    if (r.success) { Trackie.Toast.success('Settings saved.'); Trackie.SpaNav?.refresh ? Trackie.SpaNav.refresh() : location.reload(); }
+    else Trackie.Toast.error(r.error || 'Could not save.');
+  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+}
+
 async function toggleAdmin(id) {
   const ok = await Trackie.confirmDialog('Change this user\'s admin role?', { confirmText: 'Confirm' });
   if (!ok) return;
@@ -458,6 +623,8 @@ async function toggleAdmin(id) {
         badge.textContent = res.is_admin ? 'Admin' : 'User';
         badge.className = 'badge ' + (res.is_admin ? 'badge-red' : 'badge-gray');
       }
+      const b = document.getElementById('adm-' + id);
+      if (b) { b.title = b.ariaLabel = res.is_admin ? 'Revoke admin' : 'Make admin'; b.innerHTML = `<i class="fas ${res.is_admin ? 'fa-user-minus' : 'fa-user-shield'}"></i>`; }
       Trackie.Toast.success('Role updated.');
     } else Trackie.Toast.error(res.error || 'Failed.');
   } catch { Trackie.Toast.error('Network error.'); }

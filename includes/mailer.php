@@ -135,3 +135,18 @@ function mailViaSmtp(string $to, string $subject, string $text, ?string $html, s
     fclose($fp);
     return ['ok' => true, 'via' => 'smtp', 'error' => null];
 }
+
+/** The password-reset email (Forgot password page + Admin → Send reset link). */
+function sendPasswordResetEmail(string $to, string $name, string $resetUrl): array {
+    $name = trim($name) ?: 'there';
+    $text = "Hi {$name},\n\n"
+          . "Someone (hopefully you) asked to reset your Trackie password.\n"
+          . "Open this link to choose a new one. It expires in 1 hour and works once:\n\n"
+          . $resetUrl . "\n\n"
+          . "If you didn't ask for this, ignore this email. Your password stays the same.\n\n— Trackie";
+    $html = '<p>Hi ' . h($name) . ',</p>'
+          . '<p>Someone (hopefully you) asked to reset your Trackie password. This link expires in 1 hour and works once:</p>'
+          . '<p><a href="' . h($resetUrl) . '" style="display:inline-block;padding:10px 18px;background:#ef4444;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Reset password</a></p>'
+          . '<p style="color:#666;font-size:13px">If you did not ask for this, ignore this email. Your password stays the same.</p>';
+    return sendMail($to, 'Reset your Trackie password', $text, $html);
+}

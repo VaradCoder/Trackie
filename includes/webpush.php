@@ -281,3 +281,35 @@ function sendPushToUser(int $userId, array $data): int
     }
     return $sent;
 }
+
+/**
+ * Create a VAPID keypair and write keys/vapid.php (cron/generate_vapid.php,
+ * Admin → Configuration). Replacing keys invalidates existing browser push
+ * subscriptions. Returns the public key (base64url). Throws on failure.
+ */
+function generateVapidKeys(string $subject): string {
+    $key = WebPush::newEcKey();
+    // Export needs openssl.cnf too; on Windows/XAMPP PHP often can't find it and
+    // openssl_pkey_export() then fails SILENTLY, leaving an empty private key.
+    $pem = '';
+    foreach ([null, getenv('OPENSSL_CONF') ?: null, 'C:/xampp/apache/conf/openssl.cnf', 'C:/xampp/php/extras/ssl/openssl.cnf',
+              'C:/xampp/php/extras/openssl/openssl.cnf', '/etc/ssl/openssl.cnf', '/usr/lib/ssl/openssl.cnf'] as $cnf) {
+        if ($cnf !== null && !is_file($cnf)) continue;
+        $ok = $cnf === null ? openssl_pkey_export($key, $pem) : openssl_pkey_export($key, $pem, null, ['config' => $cnf]);
+        if ($ok && str_contains((string)$pem, 'PRIVATE KEY') && openssl_pkey_get_private($pem)) break;
+        $pem = '';
+    }
+    if ($pem === '') throw new RuntimeException('Could not export the private key (OpenSSL config not found).');
+    $details = openssl_pkey_get_details($key);
+    // Raw 65-byte uncompressed public point → base64url (applicationServerKey).
+    $pad = fn(string $b) => str_pad($b, 32, "\x00", STR_PAD_LEFT);
+    $publicB64 = WebPush::b64uEncode("\x04" . $pad($details['ec']['x']) . $pad($details['ec']['y']));
+
+    $dir = ROOT_PATH . '/keys';
+    if (!is_dir($dir)) mkdir($dir, 0700, true);
+    if (!is_file($dir . '/.htaccess')) @file_put_contents($dir . '/.htaccess', "Require all denied\n");
+    $out = "<?php\n// Auto-generated VAPID keys for Web Push. Keep private — never commit.\nreturn "
+         . var_export(['publicKey' => $publicB64, 'privateKeyPem' => $pem, 'subject' => $subject], true) . ";\n";
+    if (file_put_contents($dir . '/vapid.php', $out) === false) throw new RuntimeException('Could not write keys/vapid.php.');
+    return $publicB64;
+}

@@ -2,8 +2,9 @@
 require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once '../includes/auth.php';
 
-if (isLoggedIn()) redirect(APP_BASE . '/pages/dashboard.php');
+// Signed-in users may use this too: Google-only accounts set their first password here.
 
 $error   = '';
 $success = '';
@@ -44,33 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = 'If that email is registered, a reset link is on its way. Check your inbox and spam folder.';
 
         if ($user) {
-            $token     = generateToken();
-            $tokenHash = hash('sha256', $token);
-            $expires   = date('Y-m-d H:i:s', time() + 3600);
-
-            // Invalidate old tokens for this user
-            update("UPDATE password_resets SET used=1 WHERE user_id=?", [$user['id']]);
-            insert(
-                "INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (?,?,?)",
-                [$user['id'], $tokenHash, $expires]
-            );
-
-            $resetUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
-                      . '://' . $_SERVER['HTTP_HOST']
-                      . APP_BASE . '/pages/reset_password.php?token=' . $token;
-
-            $name = trim((string)$user['name']) ?: 'there';
-            $text = "Hi {$name},\n\n"
-                  . "Someone (hopefully you) asked to reset your Trackie password.\n"
-                  . "Open this link to choose a new one. It expires in 1 hour and works once:\n\n"
-                  . $resetUrl . "\n\n"
-                  . "If you didn't ask for this, ignore this email. Your password stays the same.\n\n— Trackie";
-            $html = '<p>Hi ' . h($name) . ',</p>'
-                  . '<p>Someone (hopefully you) asked to reset your Trackie password. This link expires in 1 hour and works once:</p>'
-                  . '<p><a href="' . h($resetUrl) . '" style="display:inline-block;padding:10px 18px;background:#ef4444;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Reset password</a></p>'
-                  . '<p style="color:#666;font-size:13px">If you didn\'t ask for this, ignore this email. Your password stays the same.</p>';
-
-            $res = mailConfigured() ? sendMail($email, 'Reset your Trackie password', $text, $html)
+            $resetUrl = createPasswordReset((int)$user['id']);
+            $res = mailConfigured() ? sendPasswordResetEmail($email, (string)$user['name'], $resetUrl)
                                     : ['ok' => false, 'error' => 'no transport'];
             if (!$res['ok']) {
                 // Never log the token or URL on a real server.
