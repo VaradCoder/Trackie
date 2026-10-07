@@ -99,8 +99,15 @@
        for a new APK the app checks GitHub Releases and offers the download.
      ════════════════════════════════════════════════════════════════ */
   var LN = P.LocalNotifications, PN = P.PushNotifications, BR = P.BackgroundRunner;
+  // Trackie's own native helper (MainActivity.java): cookie flush, battery
+  // optimisation. Absent in APKs older than 1.1.4 — every use is guarded.
+  var SYS = P.TrackieSystem || null;
+  // Notification ids below 1000 are timer alerts (focus, meditation, rest);
+  // reminder ids are crc32-based and far larger, so a reminder resync never
+  // cancels a running timer's alarm.
+  var TIMER_IDS = { focus: 101, meditation: 102, rest: 103 };
   var RUNNER = 'com.varad.trackie.sync';
-  var STORE = { token: 'trackie.device.token', exactAsked: 'trackie.exactAlarm.asked', updateChecked: 'trackie.update.checked', updateSkipped: 'trackie.update.skipped' };
+  var STORE = { token: 'trackie.device.token', exactAsked: 'trackie.exactAlarm.asked', updateChecked: 'trackie.update.checked', updateSkipped: 'trackie.update.skipped', batteryAsked: 'trackie.battery.asked' };
   var RELEASES = 'https://api.github.com/repos/VaradCoder/Trackie/releases/latest';
 
   function csrf() { var m = document.querySelector('meta[name="csrf-token"]'); return m ? m.content : ''; }
@@ -170,9 +177,8 @@
       var data = await postSession('/api/reminders.php', { action: 'upcoming' });
       if (!data || !data.success) return;
       var pending = await LN.getPending();
-      if (pending.notifications && pending.notifications.length) {
-        await LN.cancel({ notifications: pending.notifications.map(function (n) { return { id: n.id }; }) });
-      }
+      var stale = (pending.notifications || []).filter(function (n) { return Number(n.id) >= 1000; });
+      if (stale.length) await LN.cancel({ notifications: stale.map(function (n) { return { id: n.id }; }) });
       var list = (data.occurrences || []).map(function (o) {
         return { id: o.id, title: '⏰ ' + o.title, body: o.body, channelId: 'trackie_reminders', smallIcon: 'ic_stat_trackie', autoCancel: true,
                  schedule: { at: new Date(o.ts * 1000), allowWhileIdle: true }, extra: { url: base() + '/pages/reminders.php' } };
@@ -288,20 +294,94 @@
     } catch (e) {}
   }
 
+  // ── Opened signed out? Sign back in with this install's device token ──
+  // Android can kill the app before the WebView writes fresh cookies to disk,
+  // so the session cookie AND the remember-me cookie may be gone on the next
+  // open. The device token (localStorage, issued at sign-in) survives that.
+  // Sign out (above) and Settings → Sign out retire the token, so this never
+  // overrides a deliberate sign-out.
+  var resuming = false;
+  async function resumeSession() {
+    if (resuming || signedIn() || !ls(STORE.token)) return false;
+    var path = location.pathname.replace(base(), '');
+    if (!/^\/(?:index\.php)?$|^\/pages\/(?:auth|login)\.php$/.test(path)) return false;   // only from the sign-in / landing screen
+    var last = parseInt(sessionStorage.getItem('trackie.resume.at') || '0', 10);
+    if (Date.now() - last < 60000) return false;                                         // never loop
+    resuming = true;
+    try { sessionStorage.setItem('trackie.resume.at', String(Date.now())); } catch (e) {}
+    try {
+      var r = await postDevice({ action: 'resume' });
+      if (r && r.success && r.redirect) { location.replace(r.redirect); return true; }
+      if (r && r.auth === false) ls(STORE.token, null);                                 // revoked → normal sign-in
+    } catch (e) {}
+    resuming = false;
+    return false;
+  }
+
+  // ── Timer alerts: focus / meditation / rest end rings even if the app is closed ──
+  async function timerAlert(kind, at, title, body, url) {
+    var id = TIMER_IDS[kind];
+    if (!LN || !id) return;
+    try {
+      await channelsReady;
+      await LN.cancel({ notifications: [{ id: id }] }).catch(function () {});
+      var when = at instanceof Date ? at : new Date(at);
+      if (!(when.getTime() > Date.now() + 1000)) return;
+      if (!(await ensureNotificationPermission())) return;
+      await LN.schedule({ notifications: [{ id: id, title: title, body: body || '', channelId: 'trackie_reminders', smallIcon: 'ic_stat_trackie',
+        autoCancel: true, schedule: { at: when, allowWhileIdle: true }, extra: { url: url || location.href } }] });
+    } catch (e) {}
+  }
+  function cancelTimerAlert(kind) {
+    var id = TIMER_IDS[kind];
+    if (LN && id) LN.cancel({ notifications: [{ id: id }] }).catch(function () {});
+  }
+
+  // ── Background permission: battery optimisation stops alarms + sync ──
+  async function batteryStatus() {
+    if (!SYS || !SYS.getBatteryStatus) return null;
+    try { return await SYS.getBatteryStatus(); } catch (e) { return null; }
+  }
+  async function allowBackground() {
+    if (!SYS) return false;
+    try {
+      var s = await batteryStatus();
+      if (s && !s.ignoring && SYS.requestBatteryExemption) await SYS.requestBatteryExemption();
+      else if (SYS.openAppSettings) await SYS.openAppSettings();
+      return true;
+    } catch (e) { return false; }
+  }
+  async function checkBackground() {
+    var s = await batteryStatus();
+    if (!s || s.ignoring || ls(STORE.batteryAsked)) return;
+    ls(STORE.batteryAsked, '1');
+    if (window.Trackie && window.Trackie.Toast.action) {
+      window.Trackie.Toast.action('Let Trackie run in the background so reminders and timers ring when the app is closed.', 'Allow', allowBackground, 20000);
+    }
+  }
+  function flushCookies() { if (SYS && SYS.flushCookies) SYS.flushCookies().catch(function () {}); }
+
   // ── Lifecycle ──────────────────────────────────────────────────────
   function onActive() {
-    if (!signedIn()) return;
+    if (!signedIn()) { resumeSession(); return; }
+    flushCookies();                                     // a fresh sign-in reaches disk now, not in ~30 s
     syncReminders();
     ensureDevice();
     checkExactAlarms();
     checkForAppUpdate();
+    setTimeout(checkBackground, 4000);
   }
   window.addEventListener('load', function () { setTimeout(onActive, 1200); });
-  if (P.App && P.App.addListener) P.App.addListener('appStateChange', function (s) { if (s.isActive) onActive(); });
+  if (P.App && P.App.addListener) P.App.addListener('appStateChange', function (s) { if (s.isActive) onActive(); else flushCookies(); });
+  // Resume as early as possible — don't show the sign-in form for a second.
+  if (!signedIn() && ls(STORE.token)) {
+    if (document.readyState !== 'loading') resumeSession(); else document.addEventListener('DOMContentLoaded', resumeSession);
+  }
   // A reminder was created/edited/deleted in the app → reschedule now.
   document.addEventListener('trackie:changed', function (e) {
     var d = e.detail || {};
     if (d && (d.reminder_id !== undefined || d.next_fire_at !== undefined || /remind/i.test(String(d.action || '')))) syncReminders();
   });
-  window.TrackieNative = { syncReminders: syncReminders, registerDevice: registerDevice, checkForAppUpdate: function () { ls(STORE.updateChecked, '0'); ls(STORE.updateSkipped, null); return checkForAppUpdate(); } };
+  window.TrackieNative = { syncReminders: syncReminders, registerDevice: registerDevice, timerAlert: timerAlert, cancelTimerAlert: cancelTimerAlert,
+    batteryStatus: batteryStatus, allowBackground: allowBackground, checkForAppUpdate: function () { ls(STORE.updateChecked, '0'); ls(STORE.updateSkipped, null); return checkForAppUpdate(); } };
 })();

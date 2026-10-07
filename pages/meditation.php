@@ -200,11 +200,20 @@ function mdToggle() {
   else s.start = Date.now();
   mdSave(s); mdRender();
   clearInterval(mdTick); if (s.start) mdTick = setInterval(mdRender, 500);
+  mdAlert(s);
 }
-function mdReset() { mdSave(null); clearInterval(mdTick); mdRender(); }
+// Android app: the end bell also rings as a notification if Trackie is closed.
+function mdAlert(s) {
+  if (!window.TrackieNative) return;
+  if (!s || !s.start) { TrackieNative.cancelTimerAlert('meditation'); return; }
+  TrackieNative.timerAlert('meditation', new Date(Date.now() + s.minutes * 60000 - mdElapsed(s)),
+    '🧘 Meditation complete', `${s.minutes} minutes done. Open Trackie to log how you feel.`, '<?= APP_BASE ?>/pages/meditation.php');
+}
+function mdReset() { mdSave(null); clearInterval(mdTick); mdRender(); window.TrackieNative?.cancelTimerAlert('meditation'); }
 function mdFinish(early) {
   const s = mdState(); if (!s) return;
   clearInterval(mdTick);
+  window.TrackieNative?.cancelTimerAlert('meditation');
   const minutes = Math.max(1, Math.round(mdElapsed(s) / 60000));
   mdSave(null); mdRender();
   if (!early) mdBell(true);

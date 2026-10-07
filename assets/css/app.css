@@ -4591,7 +4591,7 @@ html { overflow-x: clip; }
   border-radius: var(--radius-lg); padding: 1.75rem 2rem; line-height: 1.65; font-size: .9375rem; }
 .dl-steps h2 { font-size: 1.125rem; font-weight: 700; margin: 1.75rem 0 .625rem; }
 .dl-steps h2:first-child { margin-top: 0; }
-.dl-steps ol { padding-left: 1.375rem; margin: 0; }
+.dl-steps ol, .dl-steps ul { padding-left: 1.375rem; margin: 0; }
 .dl-steps li { margin: .5rem 0; }
 .dl-steps p { color: var(--muted); }
 .dl-faq dt { font-weight: 700; margin-top: 1rem; }

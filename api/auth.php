@@ -21,7 +21,9 @@ switch ($action) {
     case 'login':
         $email    = sanitizeInput($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
-        $remember = !empty($_POST['remember']);
+        // The phone app is a personal device that can't show a login prompt in
+        // the background — it always stays signed in (until Sign out).
+        $remember = !empty($_POST['remember']) || str_contains($_SERVER['HTTP_USER_AGENT'] ?? '', 'TrackieApp/');
 
         if (!$email || !$password)      json_out(['success' => false, 'error' => 'Please fill in all fields.'], 422);
         if (!validateEmail($email))     json_out(['success' => false, 'error' => 'Enter a valid email address.'], 422);

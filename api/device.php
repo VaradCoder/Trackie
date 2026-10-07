@@ -12,6 +12,10 @@
  *   sync       → reminder occurrences to schedule as alarms (background job)
  *   set_fcm    → store/rotate this install's Firebase token
  *   unregister → this install signs itself out (app sign-out)
+ *   resume     → the app opened signed out (session + remember cookie lost,
+ *                e.g. Android killed it before cookies reached disk): sign
+ *                this install's user back in. Sign out / Settings → revoke
+ *                retire the token, so this never undoes a deliberate sign-out.
  */
 require_once '../config/app.php';
 require_once '../config/database.php';
@@ -32,7 +36,7 @@ $fcmIn = static function () {
 };
 
 /* ── Device-token actions ─────────────────────────────────────────── */
-if (in_array($action, ['sync', 'set_fcm', 'unregister'], true)) {
+if (in_array($action, ['sync', 'set_fcm', 'unregister', 'resume'], true)) {
     $dev = nativeDeviceFromRequest();
     if (!$dev) json_out(['success' => false, 'auth' => false, 'error' => 'This device is signed out. Open Trackie to sign in again.'], 401);
     $uid = (int)$dev['user_id'];
@@ -56,6 +60,13 @@ if (in_array($action, ['sync', 'set_fcm', 'unregister'], true)) {
         case 'unregister':
             nativeRevokeDevice($uid, (int)$dev['id']);
             json_out(['success' => true]);
+
+        case 'resume':
+            $user = fetchOne("SELECT id, name, email, profile_pic, is_admin FROM users WHERE id = ?", [$uid]);
+            if (!$user) json_out(['success' => false, 'auth' => false, 'error' => 'Account not found.'], 401);
+            if (isLoggedIn() && currentUserId() !== $uid) json_out(['success' => false, 'error' => 'Signed in as someone else.'], 409);
+            if (!isLoggedIn()) loginUser($user, true);
+            json_out(['success' => true, 'redirect' => APP_BASE . '/pages/dashboard.php']);
     }
 }
 

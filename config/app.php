@@ -50,7 +50,7 @@ const TRACKIE_CSP = "default-src 'self'; "
     . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
     . "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
     . "img-src 'self' data: blob: https:; "
-    . "media-src 'self' blob: https:; "
+    . "media-src 'self' data: blob: https:; "   // data: = the focus-complete chime
     . "connect-src 'self' https://cdn.jsdelivr.net https://*.spotify.com wss://*.spotify.com https://*.scdn.co https://api.github.com; "
     . "frame-src 'self' https://sdk.scdn.co https://*.spotify.com; "
     . "worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; "

@@ -40,4 +40,7 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- "Let Trackie run in the background?" (TrackieSystemPlugin) — without it
+         many phones delay alarms and stop the 15-minute sync once the app is swiped away. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 </manifest>

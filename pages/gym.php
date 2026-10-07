@@ -2175,11 +2175,14 @@ function updateOverallProgress(finished = false) {
   woEl('ctxVolume').textContent = woFmtVolume(woVolume(woDoneSets()));
 }
 
+// Clocks run from timestamps: phones pause timers in the background, so
+// counting ticks made a minimised workout lose minutes.
 function startSessionTimer() {
   clearInterval(session.timerHandle);
+  session.startedAtMs = session.startedAtMs || Date.now() - session.elapsedSec * 1000;
   session.timerHandle = setInterval(() => {
     if (!session) return;
-    session.elapsedSec++;
+    session.elapsedSec = Math.floor((Date.now() - session.startedAtMs) / 1000);
     const t = woFmtClock(session.elapsedSec);
     woEl('sessionElapsed').textContent = t;
     woEl('ctxTime').textContent = t;
@@ -2188,12 +2191,13 @@ function startSessionTimer() {
 
 function woStartRest(seconds) {
   woStopRest();
-  session.rest = { total: seconds, remaining: seconds, handle: null };
+  session.rest = { total: seconds, remaining: seconds, endAt: Date.now() + seconds * 1000, handle: null };
   woEl('woRest').classList.remove('hidden');
   woRenderRest();
+  woRestAlert();
   session.rest.handle = setInterval(() => {
     if (!session || !session.rest) return;
-    session.rest.remaining--;
+    session.rest.remaining = Math.ceil((session.rest.endAt - Date.now()) / 1000);
     woRenderRest();
     if (session.rest.remaining <= 0) {
       woStopRest();
@@ -2207,17 +2211,25 @@ function woRenderRest() {
   woEl('woRestTime').textContent = woFmtClock(Math.max(0, r.remaining));
   woEl('woRestFill').style.width = (r.total ? Math.max(0, r.remaining) / r.total * 100 : 0) + '%';
 }
+// Android app: "rest over" rings even with the phone locked or Trackie in the background.
+function woRestAlert() {
+  const r = session && session.rest;
+  if (!r) { window.TrackieNative?.cancelTimerAlert('rest'); return; }
+  window.TrackieNative?.timerAlert('rest', new Date(r.endAt), '💪 Rest over', 'Time for your next set.', '<?= APP_BASE ?>/pages/gym.php');
+}
 function woStopRest() {
-  if (session && session.rest) clearInterval(session.rest.handle);
+  if (session && session.rest) { clearInterval(session.rest.handle); window.TrackieNative?.cancelTimerAlert('rest'); }
   if (session) session.rest = null;
   woEl('woRest')?.classList.add('hidden');
 }
 function woAdjustRest(delta) {
   if (!session.rest) return;
   session.rest.remaining = Math.max(0, session.rest.remaining + delta);
+  session.rest.endAt = Date.now() + session.rest.remaining * 1000;
   session.rest.total = Math.max(session.rest.total, session.rest.remaining);
   if (session.rest.remaining === 0) { woStopRest(); return; }
   woRenderRest();
+  woRestAlert();
 }
 
 /* ── Navigation + finishing ────────────────────────────────────────── */
@@ -2299,7 +2311,7 @@ async function showSummary({ early = false } = {}) {
   // (this also awards session XP + runs the achievement check, once).
   const doneSets = woDoneSets();
   let exerciseCount = new Set(doneSets.map(s => s.exercise)).size;
-  let durationSec = session.elapsedSec;
+  let durationSec = session.startedAtMs ? Math.floor((Date.now() - session.startedAtMs) / 1000) : session.elapsedSec;
   let streak = null;
   try {
     const res = await Trackie.API.post(`${API_BASE}/gym.php`, {action:'session_complete', session_id: session.sessionId});

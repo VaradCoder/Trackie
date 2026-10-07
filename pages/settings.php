@@ -136,6 +136,11 @@ require_once '../includes/head.php';
       <i class="fab fa-android" aria-hidden="true"></i> Download
     </a>
   </div>
+  <div class="settings-row hidden" id="bgRow">
+    <div><span class="settings-label">Run in background</span>
+      <p class="settings-help" id="bgHelp">Checking…</p></div>
+    <button type="button" class="btn btn-secondary btn-sm settings-control hidden" id="bgAllow">Allow</button>
+  </div>
   <div id="appDevices" aria-live="polite"><p class="settings-help" style="margin:0">Loading your devices…</p></div>
 </div>
 
@@ -294,6 +299,25 @@ document.getElementById('prefsCard').addEventListener('change', e => {
   btn.textContent = `Use this device's zone (${dev.replace(/_/g, ' ')})`;
   btn.hidden = false;
   btn.addEventListener('click', () => { sel.value = dev; btn.hidden = true; savePrefs(); });
+})();
+
+/* ── This phone: battery optimisation (Android app 1.1.4+ only) ── */
+(function backgroundRow() {
+  const row = document.getElementById('bgRow');
+  if (!row || !window.TrackieNative?.batteryStatus) return;
+  const help = document.getElementById('bgHelp'), btn = document.getElementById('bgAllow');
+  async function refresh() {
+    const s = await TrackieNative.batteryStatus();
+    if (!s) return;                                   // older APK without the native helper
+    row.classList.remove('hidden');
+    help.textContent = s.ignoring
+      ? 'Allowed. Reminders, timers and background sync keep working when the app is closed.'
+      : 'Restricted by battery saver. Reminders and timers may be late or missed after you swipe Trackie away.';
+    btn.classList.toggle('hidden', s.ignoring);
+  }
+  btn.addEventListener('click', () => TrackieNative.allowBackground());
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
+  refresh();
 })();
 
 /* ── Phone app installs (api/device.php) ───────────────────── */

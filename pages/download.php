@@ -83,9 +83,15 @@ require_once '../includes/head.php';
       <li><strong>Allow notifications</strong>, and turn on <em>Alarms &amp; reminders</em> when asked, so reminders ring on time.</li>
     </ol>
 
-    <h2>If reminders arrive late</h2>
-    <p>Some phones (Xiaomi, Oppo, Vivo, Realme, OnePlus, Samsung) pause background apps to save battery. Open
-      <em>Settings → Apps → Trackie → Battery</em> and choose <strong>Unrestricted</strong> (or <em>No restrictions</em>).</p>
+    <h2>If reminders arrive late or stop after closing the app</h2>
+    <p>Some phones (Xiaomi, Oppo, Vivo, Realme, OnePlus, Samsung) shut down apps you swipe away to save battery, and
+      take their alarms with them. Trackie asks for <strong>Run in background</strong> the first time you open it; you can
+      also find it in Trackie under <em>Settings → Phone app</em>. If reminders still stop:</p>
+    <ul>
+      <li><em>Settings → Apps → Trackie → Battery</em>: choose <strong>Unrestricted</strong> (or <em>No restrictions</em>).</li>
+      <li>Xiaomi / Redmi / POCO, Oppo, Vivo, Realme: also turn on <strong>Autostart</strong> for Trackie (in the same app settings, or the Security app).</li>
+      <li>Optional: in the recent-apps screen, long-press Trackie and tap the <strong>lock</strong> icon so clearing all apps skips it.</li>
+    </ul>
 
     <h2>Questions</h2>
     <dl class="dl-faq">

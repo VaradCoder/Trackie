@@ -37,7 +37,7 @@ function tryRememberLogin(): bool {
 
     $hash = hash('sha256', $cookie);
     $row  = fetchOne(
-        "SELECT user_id FROM remember_tokens
+        "SELECT user_id, created_at < NOW() - INTERVAL 1 DAY AS stale FROM remember_tokens
          WHERE token_hash = ? AND expires_at > NOW()
          LIMIT 1",
         [$hash]
@@ -47,14 +47,22 @@ function tryRememberLogin(): bool {
     $user = fetchOne("SELECT id, name, email, profile_pic, is_admin FROM users WHERE id = ?", [$row['user_id']]);
     if (!$user) return false;
 
+    session_regenerate_id(true);
     $_SESSION['user_id']     = $user['id'];
     $_SESSION['user_name']   = $user['name'];
     $_SESSION['user_email']  = $user['email'];
     $_SESSION['profile_pic'] = $user['profile_pic'];
     $_SESSION['is_admin']    = (int)($user['is_admin'] ?? 0);
-    // Rotate token so a stolen cookie can't be reused.
-    delete("DELETE FROM remember_tokens WHERE token_hash = ?", [$hash]);
-    _issueRememberCookie((int)$user['id']);
+    // Rotate at most once a day so a stolen cookie goes stale. The old token
+    // stays valid for a short grace period instead of dying instantly: pages
+    // fire several requests at once with the same cookie (only one can win a
+    // rotation), and the Android WebView writes cookies to disk lazily — an
+    // app closed right after a rotation reopens with the old cookie, which
+    // used to mean a surprise sign-out.
+    if ($row['stale']) {
+        update("UPDATE remember_tokens SET expires_at = LEAST(expires_at, NOW() + INTERVAL 10 MINUTE) WHERE token_hash = ?", [$hash]);
+        _issueRememberCookie((int)$user['id']);
+    }
     return true;
 }
 

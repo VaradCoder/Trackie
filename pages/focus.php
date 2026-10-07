@@ -151,7 +151,30 @@ let mode = 'Study';
 let phase = 'focus';            // 'focus' | 'break'
 let remaining = 25 * 60;
 let timer = null;
+let endAt = null;               // ms timestamp while running — the clock, not the interval
 let FOCUS_MIN = 25; const BREAK_MIN = 5;
+
+/* The timer is kept as an end time in localStorage, so it survives the page
+   being backgrounded (phones pause timers), SPA navigation, and the app being
+   closed: reopening Focus picks it up, and a session that ended meanwhile is
+   saved with its real end time. In the Android app an alarm also rings at
+   the end even if Trackie isn't running. */
+const FOCUS_KEY = 'trackie.focus.state';
+const FOCUS_STALE_MS = 12 * 3600 * 1000;   // an unfinished session older than this is dropped, not logged
+function saveState() {
+  try {
+    localStorage.setItem(FOCUS_KEY, JSON.stringify({ phase, mode, focusMin: FOCUS_MIN, endAt, left: remaining,
+      todo: document.getElementById('focusTodo')?.value || '' }));
+  } catch (e) {}
+}
+function loadState() { try { return JSON.parse(localStorage.getItem(FOCUS_KEY) || 'null'); } catch (e) { return null; } }
+function alertAtEnd() {
+  if (!endAt) return;
+  window.TrackieNative?.timerAlert('focus', new Date(endAt),
+    phase === 'focus' ? '✅ Focus session complete' : '☕ Break over',
+    phase === 'focus' ? `${mode} · ${FOCUS_MIN} min done. Time for a ${BREAK_MIN}-minute break.` : 'Ready for the next focus session?',
+    '<?= APP_BASE ?>/pages/focus.php');
+}
 
 const disp  = document.getElementById('timerDisplay');
 const phaseEl = document.getElementById('timerPhase');
@@ -169,24 +192,32 @@ function setPhase(p) {
   remaining = (p === 'focus' ? FOCUS_MIN : BREAK_MIN) * 60;
   phaseEl.textContent = p === 'focus' ? 'Focus session' : 'Break';
   render();
+  saveState();
 }
 function tick() {
-  remaining--;
-  if (remaining <= 0) { complete(); return; }
+  if (!endAt) return;
+  remaining = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+  if (remaining <= 0) { complete(endAt); return; }
   render();
 }
-function start() {
+function start(restoring) {
   if (timer) return;
-  timer = setInterval(tick, 1000);
+  endAt = endAt || Date.now() + remaining * 1000;
+  timer = setInterval(tick, 500);
+  saveState();
+  alertAtEnd();
   bStart.classList.add('hidden'); bPause.classList.remove('hidden');
   document.getElementById('timerRing').classList.add('is-running');
   document.getElementById('focusLottie').play?.();
-  if (phase === 'focus') spotifyFocusPlay();
+  if (phase === 'focus' && restoring !== true) spotifyFocusPlay();
   // Keep the screen awake for the duration of an active session.
   Trackie.Platform?.keepAwake(true);
 }
 function pause() {
-  clearInterval(timer); timer = null;
+  if (endAt) remaining = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+  clearInterval(timer); timer = null; endAt = null;
+  window.TrackieNative?.cancelTimerAlert('focus');
+  saveState();
   bStart.classList.remove('hidden'); bPause.classList.add('hidden');
   document.getElementById('timerRing').classList.remove('is-running');
   document.getElementById('focusLottie').pause?.();
@@ -211,9 +242,10 @@ function spotifyFocusPause() {
 function reset() {
   pause(); setPhase(phase);
 }
-async function complete() {
+async function complete(endedAtMs) {
   pause();
   const wasFocus = phase === 'focus';
+  const endedAt = Math.floor((endedAtMs || Date.now()) / 1000);
   if (wasFocus) {
     try {
       const sel = document.getElementById('focusTodo');
@@ -221,7 +253,7 @@ async function complete() {
       const todoTitle = todoId ? sel.options[sel.selectedIndex].text.replace(/ · [^·]+$/, '') : '';
       const res = await Trackie.API.post(`${API_BASE}/focus.php`, {
         action:'complete', type:'focus', duration: FOCUS_MIN, mode,
-        todo_id: todoId, ended_at: Math.floor(Date.now() / 1000),   // real end time survives an offline replay
+        todo_id: todoId, ended_at: endedAt,   // real end time survives an offline replay or a closed app
       });
       // API.post() queues mutating calls while offline and returns
       // {success:true, queued:true}. That is the ONLY case where it is true to
@@ -294,15 +326,46 @@ bStart.addEventListener('click', start);
 bPause.addEventListener('click', pause);
 document.getElementById('btnReset').addEventListener('click', reset);
 window.addEventListener('beforeunload', () => { if (timer) document.title = 'Trackie'; });
-// Leaving the page (SPA navigation): stop the countdown so it can't keep
-// ticking against the detached page, rewrite the tab title, or post a
-// session later. Say so rather than silently dropping a running session.
+// Back from the background: phones throttle timers there, so catch up now.
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(); });
+// Leaving the page (SPA navigation): stop ticking against the detached page,
+// but keep the session — its end time is saved, and coming back resumes it.
 Trackie.SpaNav?.onLeave?.(() => {
   if (!timer) return;
-  pause();
-  Trackie.Toast.info('Focus timer stopped because you left the Focus page.');
+  clearInterval(timer); timer = null;
+  Trackie.Platform?.keepAwake(false);
+  document.title = 'Trackie';
+  Trackie.Toast.info(window.TrackieNative ? "Focus timer still running — you'll get a notification when it's done."
+                                          : 'Focus timer still running — come back to Focus to finish it.');
 });
-render();
+
+// Restore a session from before (closed app, other page, reload).
+(function restoreFocus() {
+  const st = loadState();
+  if (!st || !st.phase) { render(); return; }
+  mode = st.mode || mode;
+  FOCUS_MIN = Math.max(1, Math.min(180, parseInt(st.focusMin, 10) || 25));
+  phase = st.phase === 'break' ? 'break' : 'focus';
+  phaseEl.textContent = phase === 'focus' ? 'Focus session' : 'Break';
+  const tab = document.querySelector(`#modeTabs [data-mode="${CSS.escape(mode)}"]`);
+  document.querySelectorAll('#modeTabs [data-mode]').forEach(x => x.classList.toggle('active', x === (tab || document.querySelector('#modeTabs [data-mode="Custom"]'))));
+  document.querySelector('.page-header-sub').textContent = FOCUS_MIN === 25 && tab ? 'Pomodoro — 25 min focus, 5 min break' : `${mode} — ${FOCUS_MIN} min focus session`;
+  const sel = document.getElementById('focusTodo');
+  if (sel && st.todo && sel.querySelector(`option[value="${CSS.escape(st.todo)}"]`)) sel.value = st.todo;
+
+  if (st.endAt && st.endAt > Date.now()) {              // still running
+    endAt = st.endAt;
+    remaining = Math.ceil((endAt - Date.now()) / 1000);
+    render();
+    start(true);
+  } else if (st.endAt) {                                // ended while you were away
+    if (phase === 'focus' && Date.now() - st.endAt < FOCUS_STALE_MS) { endAt = st.endAt; remaining = 0; render(); complete(st.endAt); }
+    else setPhase('focus');
+  } else {                                              // paused
+    remaining = Math.max(1, Math.min(FOCUS_MIN * 60, parseInt(st.left, 10) || FOCUS_MIN * 60));
+    render();
+  }
+})();
 loadFocusBreakdown();
 
 async function loadFocusBreakdown() {
