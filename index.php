@@ -24,7 +24,7 @@ $areas = [
 ];
 $points = [
     ['fa-lock', 'Private by default', 'No ads, no third-party analytics, no selling data. Photos and art are stored privately and only shown to you.'],
-    ['fa-mobile-screen', 'Install it', 'Add Trackie to your home screen — it works as an app on phone and desktop, with reminders.'],
+    ['fa-mobile-screen', 'Get the app', 'An Android app with reminders as real notifications (<a href="' . APP_BASE . '/pages/download.php">download</a>), or add Trackie to your home screen on any phone or computer.'],
     ['fa-plug', 'Connect what you use', 'Optional GitHub, Spotify and Google sign-in and sync. Nothing is connected unless you choose to.'],
 ];
 
@@ -34,6 +34,7 @@ require_once 'includes/head.php';
   <header class="lp-nav">
     <a class="lp-brand" href="<?= APP_BASE ?>/"><img src="<?= APP_BASE ?>/assets/images/icon-192.png" alt="" width="32" height="32"> Trackie</a>
     <nav class="lp-nav-links" aria-label="Account">
+      <a href="<?= APP_BASE ?>/pages/download.php" class="lp-link"><i class="fab fa-android" aria-hidden="true"></i> App</a>
       <a href="<?= APP_BASE ?>/pages/auth.php?tab=login" class="lp-link">Sign in</a>
       <a href="<?= APP_BASE ?>/pages/auth.php?tab=register" class="btn btn-primary btn-sm">Get started</a>
     </nav>
@@ -72,6 +73,7 @@ require_once 'includes/head.php';
 
   <footer class="lp-foot">
     <span>© <?= date('Y') ?> Trackie</span>
+    <a href="<?= APP_BASE ?>/pages/download.php">Android app</a>
     <a href="<?= APP_BASE ?>/pages/privacy.php">Privacy</a>
     <a href="<?= APP_BASE ?>/pages/terms.php">Terms</a>
   </footer>

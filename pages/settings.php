@@ -132,7 +132,7 @@ require_once '../includes/head.php';
   <div class="settings-row">
     <div><span class="settings-label">Trackie for Android</span>
       <p class="settings-help">Reminders arrive as phone notifications, even with the app closed. Website changes reach the app instantly; the app tells you when a new version is available.</p></div>
-    <a class="btn btn-secondary btn-sm settings-control" href="https://github.com/VaradCoder/Trackie/releases/latest" target="_blank" rel="noopener">
+    <a class="btn btn-secondary btn-sm settings-control" href="<?= APP_BASE ?>/pages/download.php" data-no-spa>
       <i class="fab fa-android" aria-hidden="true"></i> Download
     </a>
   </div>
