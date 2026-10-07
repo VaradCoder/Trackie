@@ -4536,6 +4536,51 @@ html { overflow-x: clip; }
 .rv-chips { display: flex; flex-wrap: wrap; gap: .375rem; margin-top: .5rem; }
 .rv-chip { font-size: .75rem; padding: .2rem .6rem; border-radius: 999px; background: var(--surface2); color: var(--text); }
 
+/* ── Admin: users & activity (pages/admin.php) ───────────────────── */
+.ad-h2 { font-size: 1rem; font-weight: 700; color: var(--text); margin: 1.5rem 0 .75rem; display: flex; align-items: center; gap: .5rem; }
+.ad-h2 i { color: var(--accent); }
+.ad-kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.ad-kpi-top { display: flex; align-items: center; gap: .375rem; }
+.ad-kpi-top i { font-size: .8125rem; }
+.ad-kpis .stat-val { margin-top: .375rem; }
+.ad-kpi-hint { font-size: .6875rem; color: var(--subtle); margin-top: .25rem; }
+.ad-card-title { font-size: .9375rem; font-weight: 600; margin-bottom: .875rem; color: var(--text); }
+.ad-split { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--surface2); margin-bottom: .75rem; }
+.ad-row { display: flex; justify-content: space-between; align-items: center; padding: .4375rem 0; border-bottom: 1px solid var(--border); font-size: .875rem; color: var(--muted); }
+.ad-row strong { color: var(--text); }
+.ad-row small { color: var(--subtle); font-weight: 500; margin-left: .25rem; }
+.ad-chart { display: flex; align-items: flex-end; gap: 3px; height: 150px; padding-top: 1rem; }
+.ad-bar { flex: 1; height: 100%; display: flex; flex-direction: column-reverse; position: relative; min-width: 0; }
+.ad-bar span { display: block; width: 100%; }
+.ad-bar span:first-child { border-radius: 0 0 2px 2px; }
+.ad-bar:hover { background: var(--surface2); }
+.ad-new { position: absolute; top: -1rem; left: 50%; transform: translateX(-50%); font-style: normal; font-size: .5625rem; font-weight: 700; color: #fff; background: #f59e0b; border-radius: 999px; padding: 0 .25rem; line-height: 1.4; }
+.ad-chart-axis { display: flex; justify-content: space-between; font-size: .6875rem; color: var(--subtle); margin-top: .375rem; }
+.ad-legend { display: flex; flex-wrap: wrap; gap: .375rem 1rem; font-size: .75rem; color: var(--muted); margin-top: .625rem; }
+.ad-legend i { display: inline-block; width: .625rem; height: .625rem; border-radius: 3px; margin-right: .3125rem; vertical-align: -1px; }
+.ad-legend .ad-new-dot { background: #f59e0b; border-radius: 50%; }
+.ad-users-head { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin: 0 0 .75rem; }
+.ad-filters { display: flex; gap: .25rem; flex-wrap: wrap; flex: 1; }
+.ad-filters .filter-tab { font-size: .75rem; padding: .3125rem .625rem; }
+.ad-search { width: 220px; max-width: 100%; }
+.ad-table td { vertical-align: middle; }
+.ad-table tr[hidden] { display: none; }
+.ad-user { display: flex; align-items: center; gap: .625rem; min-width: 200px; }
+.ad-avatar { position: relative; width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent-bg, var(--surface2)); color: var(--accent); font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; }
+.ad-dot { position: absolute; right: -1px; bottom: -1px; width: .625rem; height: .625rem; border-radius: 50%; background: #22c55e; border: 2px solid var(--surface); }
+.ad-name { font-weight: 600; color: var(--text); }
+.ad-name small, .ad-sub { color: var(--subtle); font-weight: 400; font-size: .75rem; }
+.ad-sub { display: block; }
+td > .ad-sub:only-child { display: inline; }
+.ad-email { font-size: .75rem; color: var(--muted); display: flex; align-items: center; gap: .375rem; flex-wrap: wrap; }
+.ad-email .fa-google { color: #4285f4; }
+.ad-email .badge { font-size: .625rem; }
+.ad-online { color: #16a34a; font-weight: 600; }
+.ad-nowrap { white-space: nowrap; }
+.ad-device { font-size: .75rem; color: var(--text); }
+.ad-device .fa-android { color: #22c55e; }
+.ad-device small { color: var(--subtle); }
+
 /* ── Sign-in: Google + Settings sign-in methods ───────────────────── */
 .auth-google { width: 100%; justify-content: center; gap: .625rem; margin-bottom: 1rem; font-weight: 600; }
 .auth-or { display: flex; align-items: center; gap: .75rem; margin: 0 0 1rem; color: var(--muted); font-size: .75rem; }

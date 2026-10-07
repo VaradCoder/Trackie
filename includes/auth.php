@@ -66,8 +66,32 @@ function tryRememberLogin(): bool {
     return true;
 }
 
+/**
+ * Admin → Users presence: one user_presence row per user per day, counting
+ * website vs Android-app use. Throttled per session to one write per client
+ * per 5 minutes, so it costs nothing on most requests. Runs before the
+ * user's own time zone is applied: days are in server time for every user.
+ */
+function recordPresence(int $uid): void {
+    $client = str_contains($_SERVER['HTTP_USER_AGENT'] ?? '', 'TrackieApp/') ? 'app' : 'web';
+    $key = 'presence_' . $client;
+    if (isset($_SESSION[$key]) && time() - (int)$_SESSION[$key] < 300) return;
+    $_SESSION[$key] = time();
+    try {
+        if (!tableExists('user_presence')) return;
+        $col = $client === 'app' ? 'app_hits' : 'web_hits';
+        $now = date('Y-m-d H:i:s');
+        update(
+            "INSERT INTO user_presence (user_id, day, {$col}, first_at, last_at, last_client) VALUES (?, ?, 1, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE {$col} = LEAST({$col} + 1, 65535), last_at = VALUES(last_at), last_client = VALUES(last_client)",
+            [$uid, date('Y-m-d'), $now, $now, $client]
+        );
+    } catch (Throwable $e) { /* presence is a nicety — never break a request */ }
+}
+
 function requireAuth(): void {
     if (tryRememberLogin()) {
+        recordPresence(currentUserId());
         // Settings → time zone: "today", streaks and reminder times follow the
         // user's own midnight (PHP + MySQL session). No-op for the default zone.
         require_once __DIR__ . '/settings.php';

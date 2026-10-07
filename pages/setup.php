@@ -737,6 +737,21 @@ $migrations = [
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
+    // Admin → Users: per-day presence, website vs Android app.
+    'user_presence table' => "CREATE TABLE IF NOT EXISTS user_presence (
+        user_id   INT NOT NULL,
+        day       DATE NOT NULL,
+        web_hits  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+        app_hits  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+        first_at  DATETIME NOT NULL,
+        last_at   DATETIME NOT NULL,
+        last_client VARCHAR(8) NOT NULL DEFAULT 'web',
+        PRIMARY KEY (user_id, day),
+        INDEX idx_day (day),
+        INDEX idx_last (last_at),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
     'goals linked source' => "ALTER TABLE goals
         ADD COLUMN IF NOT EXISTS source       VARCHAR(20) DEFAULT NULL,
         ADD COLUMN IF NOT EXISTS source_ref   INT DEFAULT NULL AFTER source,
