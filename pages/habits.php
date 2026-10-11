@@ -62,12 +62,8 @@ require_once '../includes/head.php';
 $totalHabits    = count($habits);
 $loggedToday    = array_sum(array_column($habits, 'logged_today'));
 $completionRate = $totalHabits > 0 ? round($loggedToday / $totalHabits * 100) : 0;
-// Longest active streak across all habits (uses the log dates we already have)
-$allLogDates = array_column(
-    fetchAll("SELECT DISTINCT l.date_completed FROM logs l JOIN habits h ON h.id=l.habit_id WHERE h.user_id=?", [$uid]),
-    'date_completed'
-);
-$habitStreak = calculateStreaks($allLogDates, userNeutralDates($uid))['current'] ?? 0;
+// Overall habit streak — scheduled-off days don't break it (see habitStreaks())
+$habitStreak = habitStreaks($uid)['current'];
 
 // ── AI-style insight (rule-based, from the user's own data) ──
 $habitsInsight = '';

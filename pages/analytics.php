@@ -26,12 +26,7 @@ $habitStats = fetchOne(
     [$uid]
 );
 
-// All log dates for streak calc
-$logDates = array_column(
-    fetchAll("SELECT DISTINCT l.date_completed FROM logs l JOIN habits h ON h.id=l.habit_id WHERE h.user_id=?", [$uid]),
-    'date_completed'
-);
-$streaks = calculateStreaks($logDates, userNeutralDates($uid));
+$streaks = habitStreaks($uid);
 
 // Last-7-days daily completions (for chart)
 $completionRows = fetchAll(

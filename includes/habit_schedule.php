@@ -65,6 +65,61 @@ function habitWeekTarget(array $h): int {
 }
 
 /**
+ * Days (Y-m-d => true) in [$from, $to] on which at least one habit was
+ * REQUIRED — the only days the overall habit streak can break on.
+ *
+ *   daily, every day      → every day from the day it was created
+ *   daily, schedule_days  → its weekdays only, from the day it was created
+ *   weekly                → the last day of a week in which it wasn't done:
+ *                           a weekly habit can't be missed until its week is over
+ *
+ * A habit's created_on (Y-m-d) bounds it; without one it counts from $from.
+ * Schedules are the CURRENT ones — there's no schedule history, so changing a
+ * habit's days re-reads the past with the new days.
+ */
+function habitRequiredDays(array $habits, array $logsByHabit, string $from, string $to, int $weekStart = 0): array {
+    $req = [];
+    foreach ($habits as $h) {
+        $start = max($from, (string)($h['created_on'] ?? '') ?: $from);
+        if ($start > $to) continue;
+        $logs = $logsByHabit[$h['id']] ?? [];
+        if (($h['frequency'] ?? 'daily') === 'weekly') {
+            $done = [];
+            foreach ($logs as $d) $done[weekStartOf($d, $weekStart)] = true;
+            for ($ws = weekStartOf($start, $weekStart); $ws <= $to; $ws = date('Y-m-d', strtotime($ws . ' 12:00 +7 day'))) {
+                $end = date('Y-m-d', strtotime($ws . ' 12:00 +6 day'));
+                if ($end >= $start && $end <= $to && !isset($done[$ws])) $req[$end] = true;
+            }
+            continue;
+        }
+        $days = habitDays($h);
+        for ($t = strtotime($start . ' 12:00'), $d = $start; $d <= $to; $t = strtotime('+1 day', $t), $d = date('Y-m-d', $t)) {
+            if (!$days || in_array((int)date('w', $t), $days, true)) $req[$d] = true;
+        }
+    }
+    return $req;
+}
+
+/**
+ * Overall habit streak from raw data (pure; habitStreaks() feeds it).
+ * Completion days count; days with no habit required are neutral; explicit
+ * "skip" days bridge (existing rule); a required day with nothing done breaks.
+ */
+function overallHabitStreak(array $habits, array $logsByHabit, array $skipDates, int $weekStart = 0, ?string $today = null): array {
+    $today ??= date('Y-m-d');
+    $done = [];
+    foreach ($logsByHabit as $logs) foreach ($logs as $d) if ($d <= $today) $done[$d] = true;
+    if (!$done) return ['current' => 0, 'best' => 0];
+    $from = min(array_keys($done));
+    $required = habitRequiredDays($habits, $logsByHabit, $from, $today, $weekStart);
+    $neutral = $skipDates;
+    for ($t = strtotime($from . ' 12:00'), $d = $from; $d <= $today; $t = strtotime('+1 day', $t), $d = date('Y-m-d', $t)) {
+        if (!isset($required[$d])) $neutral[] = $d;
+    }
+    return calculateStreaks(array_keys($done), $neutral, $today);
+}
+
+/**
  * Streak over a weekly schedule (used by workouts; see workoutStreak()).
  *
  * A day only breaks the run when it was DUE and nothing was done. Days that

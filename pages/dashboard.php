@@ -120,11 +120,7 @@ $studyToday = (int)fetchOne(
     [$uid, $today]
 )['c'];
 
-$logDates = array_column(
-    fetchAll("SELECT DISTINCT l.date_completed FROM logs l JOIN habits h ON h.id=l.habit_id WHERE h.user_id=?", [$uid]),
-    'date_completed'
-);
-$streakData = calculateStreaks($logDates, userNeutralDates($uid));
+$streakData = habitStreaks($uid);
 
 // ── Hero: XP/level + Trackie Score + today's priority (Phase 2/5/6) ──
 $xpData = function_exists('xpSummary')

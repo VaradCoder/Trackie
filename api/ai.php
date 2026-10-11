@@ -49,8 +49,7 @@ if ($hobby === 'Fitness' && tableExists('workout_logs')) {
         "SELECT exercise_name, COUNT(*) c, MAX(weight_kg) max_w FROM workout_logs
          WHERE user_id=? GROUP BY exercise_name ORDER BY c DESC LIMIT 5", [$uid]
     );
-    $logDates = array_column(fetchAll("SELECT DISTINCT log_date FROM workout_logs WHERE user_id=? ORDER BY log_date", [$uid]), 'log_date');
-    $streak = calculateStreaks($logDates, userNeutralDates($uid));
+    $streak = workoutStreak($uid);   // was calculateStreaks(workouts, HABIT skip days)
 
     if ((int)$stats['days'] === 0) {
         json_out(['success' => true, 'text' => "No workouts logged yet — log your first session and I'll start spotting patterns in your training.", 'cached' => false]);
@@ -60,7 +59,7 @@ if ($hobby === 'Fitness' && tableExists('workout_logs')) {
     $prompt = "You are a concise, encouraging fitness coach. Here is a user's real training data from their tracking app:\n"
         . "- Total workout days logged: {$stats['days']}\n"
         . "- Workouts this week: {$stats['week_days']}\n"
-        . "- Current streak: {$streak['current']} days, best streak: {$streak['best']} days\n"
+        . "- Current streak: {$streak['current']} {$streak['unit']}s, best streak: {$streak['best']} {$streak['unit']}s" . ($streak['unit'] === 'workout' ? ' (planned rest days don\'t break it)' : '') . "\n"
         . "- Most-logged exercises: {$exList}\n\n"
         . "Give ONE short paragraph (max 60 words) of specific, actionable coaching feedback based only on this data. "
         . "No generic filler, no disclaimers, no markdown headers — just the insight, like a coach texting a quick note.";

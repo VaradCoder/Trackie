@@ -329,15 +329,6 @@ function dashboardLayout(?string $focus): array {
 // These live here, not in gamification.php, because pages that render a
 // streak (sidebar, dashboard, analytics) do not all load gamification.
 
-/** Distinct dates the user logged ANY habit — used for the overall streak. */
-function userLogDates(int $uid): array {
-    if (!tableExists('logs')) return [];
-    return array_column(
-        fetchAll("SELECT DISTINCT date_completed FROM logs WHERE user_id=? ORDER BY date_completed", [$uid]),
-        'date_completed'
-    );
-}
-
 /**
  * Distinct dates the user marked a habit as a deliberate rest day ('skip').
  * 'fail' is NOT included — an admitted miss is a miss and should break the
@@ -353,13 +344,24 @@ function userNeutralDates(int $uid): array {
 }
 
 /**
- * THE canonical habit streak for a user. Every habit-streak call site should
- * use this rather than calling calculateStreaks() with its own query — there
- * were 8 such call sites and they would otherwise disagree about whether rest
- * days count.
+ * THE canonical overall habit streak for a user: consecutive days with at
+ * least one habit done. Every call site should use this rather than calling
+ * calculateStreaks() with its own query — the Dashboard, Habits header,
+ * Analytics and Today each had a copy, and none knew about schedules, so a
+ * Mon/Wed/Fri habit done perfectly showed 0 there and 9 on its own card.
+ *
+ * Days on which no habit was required (see habitRequiredDays()) are neutral;
+ * a required day with nothing done still breaks it unless marked "skip".
  */
 function habitStreaks(int $uid): array {
-    return calculateStreaks(userLogDates($uid), userNeutralDates($uid));
+    if (!tableExists('habits') || !tableExists('logs')) return ['current' => 0, 'best' => 0];
+    require_once __DIR__ . '/habit_schedule.php';
+    $habits = fetchAll("SELECT id, frequency, schedule_days, DATE(created_at) AS created_on FROM habits WHERE user_id=?", [$uid]);
+    $logsByHabit = [];
+    foreach (fetchAll("SELECT l.habit_id, l.date_completed FROM logs l JOIN habits h ON h.id=l.habit_id WHERE h.user_id=?", [$uid]) as $r) {
+        $logsByHabit[$r['habit_id']][] = $r['date_completed'];
+    }
+    return overallHabitStreak($habits, $logsByHabit, userNeutralDates($uid), (int)userSetting($uid, 'week_start'));
 }
 
 /**
@@ -426,8 +428,10 @@ function anyCompletionBefore(string $date, array $set): bool {
  * "rest day" still lost their streak — the UI offered mercy the logic did not
  * grant. Defaulting to an empty array keeps every existing caller (workout
  * streaks, meditation) behaving exactly as before.
+ *
+ * @param string|null $today Y-m-d "today" in the user's zone; tests pass one.
  */
-function calculateStreaks(array $dates, array $neutralDates = []): array {
+function calculateStreaks(array $dates, array $neutralDates = [], ?string $today = null): array {
     if (empty($dates)) return ['current' => 0, 'best' => 0];
 
     $set = array_flip(array_unique($dates));
@@ -467,10 +471,10 @@ function calculateStreaks(array $dates, array $neutralDates = []): array {
 
     // Current streak (walk backwards from today)
     $current = 0;
-    $check   = date('Y-m-d');
+    $check   = $today ?? date('Y-m-d');
     // Allow streak to persist if today not yet logged (don't break at midnight)
     if (!isset($set[$check])) {
-        $check = date('Y-m-d', strtotime('-1 day'));
+        $check = date('Y-m-d', strtotime($check . ' -1 day'));
     }
     while (true) {
         if (isset($set[$check])) {

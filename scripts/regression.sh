@@ -12,6 +12,7 @@
 #   5. Nav         — manifest shortcuts + every navTree href resolve
 #   6. JS units    — node tests/js/*.test.js (dependency-free)
 #   7. PHP units   — php tests/php/*.test.php (pure functions, no DB)
+#   8. Integration — php tests/integration/*.php (throwaway local user, removed after)
 #
 # Usage:  bash scripts/regression.sh
 # Requires: local XAMPP running, test account test@trackie.local / Test1234
@@ -108,6 +109,14 @@ for t in "$ROOT"/tests/php/*.test.php; do
   [ -f "$t" ] || continue
   if out=$("$PHP_BIN" "$t" 2>&1); then green "  $(basename "$t"): $(echo "$out" | tail -1)";
   else red "  UNIT FAIL $(basename "$t"):"; echo "$out" | grep -E "^FAIL|Fatal|Warning" | head -5; FAIL=1; fi
+done
+
+# ── 8. Integration (tests/integration/*.php — throwaway local user, deleted after) ──
+note "== 8. Integration =="
+for t in "$ROOT"/tests/integration/*.php; do
+  [ -f "$t" ] || continue
+  if out=$("$PHP_BIN" "$t" "$BASE_URL" 2>&1); then green "  $(basename "$t"): $(echo "$out" | tail -1)";
+  else red "  INTEGRATION FAIL $(basename "$t"):"; echo "$out" | grep -E "^FAIL|Fatal|Refusing" | head -5; FAIL=1; fi
 done
 
 rm -f "$JAR"

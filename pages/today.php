@@ -112,8 +112,7 @@ require_once '../includes/activity.php';
 if (activityReady()) {
     $streakData = activityStreak($uid);
 } else {
-    $logDates   = array_column(fetchAll("SELECT DISTINCT l.date_completed FROM logs l JOIN habits h ON h.id=l.habit_id WHERE h.user_id=?", [$uid]), 'date_completed');
-    $streakData = calculateStreaks($logDates, function_exists('userNeutralDates') ? userNeutralDates($uid) : []);
+    $streakData = habitStreaks($uid);
 }
 
 require_once '../includes/head.php';
