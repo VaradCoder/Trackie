@@ -7,6 +7,7 @@
  * "Yesterday / last week / last month" are simulated by moving that user's
  * own rows back in time, since the server clock can't be changed.
  */
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }   // never over HTTP: it writes to the DB
 $base = rtrim($argv[1] ?? 'http://localhost/Trackie', '/');
 $host = parse_url($base, PHP_URL_HOST);
 if (!in_array($host, ['localhost', '127.0.0.1', '::1'], true) && !preg_match('/\.(localhost|test)$/', (string)$host)) {
