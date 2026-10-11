@@ -65,6 +65,39 @@ function habitWeekTarget(array $h): int {
 }
 
 /**
+ * Streak over a weekly schedule (used by workouts; see workoutStreak()).
+ *
+ * A day only breaks the run when it was DUE and nothing was done. Days that
+ * aren't due are planned rest: they never break it, and a completion on one
+ * still counts — an extra session is still a session. Today never breaks it,
+ * because it isn't over yet.
+ *
+ * @param string[]           $dates    Y-m-d completion dates (any order, dupes ok).
+ * @param array<int, string> $dueSince weekday (0 = Sun … 6 = Sat) => Y-m-d it became
+ *        due. Before that date the weekday counts as rest, so adding a new plan
+ *        day doesn't retroactively turn old weeks into misses. Must not be empty —
+ *        with no schedule every day is due; callers use calculateStreaks().
+ * @param string|null        $today    Y-m-d "today" in the user's zone (tests pass one).
+ */
+function scheduledStreak(array $dates, array $dueSince, ?string $today = null): array {
+    $today ??= date('Y-m-d');
+    $set = array_flip(array_filter($dates, static fn($d) => is_string($d) && $d <= $today));
+    if (!$set) return ['current' => 0, 'best' => 0];
+    ksort($set);
+
+    $run = $best = 0;
+    // Noon, not midnight: in zones whose DST switch happens at midnight, 00:00
+    // can be skipped and "+1 day" would then drift. Calendar days are what count.
+    $day = new DateTimeImmutable(array_key_first($set) . ' 12:00:00');
+    for ($d = $day->format('Y-m-d'); $d <= $today; $day = $day->modify('+1 day'), $d = $day->format('Y-m-d')) {
+        if (isset($set[$d])) { $run++; $best = max($best, $run); continue; }
+        $since = $dueSince[(int)$day->format('w')] ?? null;
+        if ($since !== null && $d >= $since && $d !== $today) $run = 0;   // missed a planned day
+    }
+    return ['current' => $run, 'best' => $best];
+}
+
+/**
  * Current/best streak for ONE habit, honouring its schedule:
  * unscheduled days are skipped; weekly habits count consecutive weeks.
  * Today (or this week) not done yet doesn't break the current streak.

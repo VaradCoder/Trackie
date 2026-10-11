@@ -363,6 +363,40 @@ function habitStreaks(int $uid): array {
 }
 
 /**
+ * Weekdays the user has a workout plan for (0 = Sun … 6 = Sat) => the date that
+ * weekday was first planned. 'Any' plans aren't tied to a day, so they add none.
+ */
+function workoutDueSince(int $uid): array {
+    if (!tableExists('workout_plans')) return [];
+    $num = ['Sunday' => 0, 'Monday' => 1, 'Tuesday' => 2, 'Wednesday' => 3, 'Thursday' => 4, 'Friday' => 5, 'Saturday' => 6];
+    $out = [];
+    foreach (fetchAll("SELECT day_of_week, MIN(DATE(created_at)) since FROM workout_plans
+                        WHERE user_id=? AND day_of_week<>'Any' GROUP BY day_of_week", [$uid]) as $r) {
+        if (isset($num[$r['day_of_week']])) $out[$num[$r['day_of_week']]] = $r['since'];
+    }
+    return $out;
+}
+
+/**
+ * THE workout streak. With a weekly plan, days without a plan are rest days
+ * (the Fitness page already labels them "Rest") and don't break it; with no
+ * day-specific plans every day counts, as before. There were four copies of
+ * calculateStreaks(workout dates) — badge, session summary, fitness goal and
+ * the gym_streak_7 achievement — and none of them knew about rest days, so a
+ * perfect Mon/Wed/Fri schedule showed a 0-day streak.
+ *
+ * @return array{current:int, best:int, unit:string}  unit: 'workout' | 'day'
+ */
+function workoutStreak(int $uid, ?array $logDates = null): array {
+    require_once __DIR__ . '/habit_schedule.php';
+    $logDates ??= tableExists('workout_logs') ? array_column(
+        fetchAll("SELECT DISTINCT log_date FROM workout_logs WHERE user_id=? ORDER BY log_date", [$uid]), 'log_date') : [];
+    $due = workoutDueSince($uid);
+    $s = $due ? scheduledStreak($logDates, $due) : calculateStreaks($logDates);
+    return ['current' => (int)$s['current'], 'best' => (int)$s['best'], 'unit' => $due ? 'workout' : 'day'];
+}
+
+/**
  * True when every day strictly between $from and $from+$gap is a rest day.
  * Used to decide whether a gap in completions was deliberate.
  */

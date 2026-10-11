@@ -40,7 +40,7 @@ $logDates = array_column(
     fetchAll("SELECT DISTINCT log_date FROM workout_logs WHERE user_id=? ORDER BY log_date", [$uid]),
     'log_date'
 );
-$streak = calculateStreaks($logDates);
+$streak = workoutStreak($uid, $logDates);
 
 // ── Achievements (Fitness-related, from the shared gamification system) ──
 $gymAchKeys = ['gym_first_rep', 'gym_10', 'gym_50', 'gym_streak_7', 'gym_first_pr'];
@@ -244,8 +244,8 @@ require_once '../includes/head.php';
   </div>
   <div class="fit-header-badges">
     <div class="fit-streak-badge" id="gymStreakBadge">
-      <div class="fit-streak-num"><i class="fas fa-fire"></i> <strong><?= $streak['current'] ?></strong> Day Streak</div>
-      <div class="fit-streak-sub"><?= $streak['current'] > 0 ? 'Keep it alive!' : 'Train today to start one' ?></div>
+      <div class="fit-streak-num"><i class="fas fa-fire"></i> <strong><?= $streak['current'] ?></strong> <?= $streak['unit'] === 'workout' ? 'Workout' : 'Day' ?> Streak</div>
+      <div class="fit-streak-sub"><?= $streak['current'] > 0 ? ($streak['unit'] === 'workout' ? 'Rest days never break it' : 'Keep it alive!') : 'Train today to start one' ?></div>
     </div>
     <?php if ($xpLevel !== null): ?>
       <a class="fit-xp-badge" href="<?= APP_BASE ?>/pages/progress.php" title="Your Trackie level — from XP across every module">
@@ -2312,7 +2312,7 @@ async function showSummary({ early = false } = {}) {
   const doneSets = woDoneSets();
   let exerciseCount = new Set(doneSets.map(s => s.exercise)).size;
   let durationSec = session.startedAtMs ? Math.floor((Date.now() - session.startedAtMs) / 1000) : session.elapsedSec;
-  let streak = null;
+  let streak = null, streakUnit = 'day';
   try {
     const res = await Trackie.API.post(`${API_BASE}/gym.php`, {action:'session_complete', session_id: session.sessionId});
     if (res.success) {
@@ -2321,6 +2321,7 @@ async function showSummary({ early = false } = {}) {
       if (res.xp) session.xpGained = res.xp.gained;
       if (res.newAchievements?.length) session.newAchievements.push(...res.newAchievements);
       streak = res.streak ?? null;
+      streakUnit = res.streak_unit || 'day';
     }
   } catch { /* fall back to client-side numbers below */ }
   if (!session) return;
@@ -2341,7 +2342,7 @@ async function showSummary({ early = false } = {}) {
   if (streak) {
     const streakEl = woEl('summaryStreak');
     streakEl.innerHTML = '<i class="fas fa-fire" aria-hidden="true"></i> ';
-    streakEl.append(`${streak}-day streak`);
+    streakEl.append(`${streak}-${streakUnit} streak`);
     streakEl.classList.remove('hidden');
   }
   woFocus('summaryTitle');

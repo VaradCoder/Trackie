@@ -11,6 +11,7 @@
 #                    and contains no PHP fatal/parse/undefined errors
 #   5. Nav         — manifest shortcuts + every navTree href resolve
 #   6. JS units    — node tests/js/*.test.js (dependency-free)
+#   7. PHP units   — php tests/php/*.test.php (pure functions, no DB)
 #
 # Usage:  bash scripts/regression.sh
 # Requires: local XAMPP running, test account test@trackie.local / Test1234
@@ -99,6 +100,14 @@ for t in "$ROOT"/tests/js/*.test.js; do
   [ -f "$t" ] || continue
   if out=$(node "$t" 2>&1); then green "  $(basename "$t"): $(echo "$out" | tail -1)";
   else red "  UNIT FAIL $(basename "$t"):"; echo "$out" | grep -E "^FAIL" | head -5; FAIL=1; fi
+done
+
+# ── 7. PHP unit tests (tests/php/*.test.php, pure functions, no DB writes) ──
+note "== 7. PHP unit tests =="
+for t in "$ROOT"/tests/php/*.test.php; do
+  [ -f "$t" ] || continue
+  if out=$("$PHP_BIN" "$t" 2>&1); then green "  $(basename "$t"): $(echo "$out" | tail -1)";
+  else red "  UNIT FAIL $(basename "$t"):"; echo "$out" | grep -E "^FAIL|Fatal|Warning" | head -5; FAIL=1; fi
 done
 
 rm -f "$JAR"

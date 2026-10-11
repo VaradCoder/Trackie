@@ -427,16 +427,13 @@ switch ($action) {
 
         // Recompute the streak fresh — today's session may have just extended
         // it, and the completion screen should show the real current number.
-        $freshLogDates = array_column(
-            fetchAll("SELECT DISTINCT log_date FROM workout_logs WHERE user_id=? ORDER BY log_date", [$uid]),
-            'log_date'
-        );
-        $freshStreak = function_exists('calculateStreaks') ? calculateStreaks($freshLogDates)['current'] : null;
+        $freshStreak = workoutStreak($uid);
 
         $fresh = fetchOne("SELECT duration_sec FROM workout_sessions WHERE id=?", [$sessionId]);
         json_out([
             'success'        => true,
-            'streak'         => $freshStreak,
+            'streak'         => $freshStreak['current'],
+            'streak_unit'    => $freshStreak['unit'],
             'exercise_count' => $exerciseCount,
             'duration_sec'   => (int)($fresh['duration_sec'] ?? 0),
             'xp'             => $xp,

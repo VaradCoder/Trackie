@@ -155,7 +155,7 @@ function achievementDefs(): array {
         'gym_first_rep' => ['emoji' => '🏋', 'name' => 'First Rep',             'desc' => 'Log your first workout'],
         'gym_10'        => ['emoji' => '💪', 'name' => 'Iron Habit',            'desc' => 'Log 10 workouts'],
         'gym_50'        => ['emoji' => '🏆', 'name' => 'Gym Veteran',           'desc' => 'Log 50 workout days'],
-        'gym_streak_7'  => ['emoji' => '🔥', 'name' => 'Week Warrior',          'desc' => 'Reach a 7-day gym streak'],
+        'gym_streak_7'  => ['emoji' => '🔥', 'name' => 'Week Warrior',          'desc' => 'Train 7 times in a row without missing a planned day'],
         'gym_first_pr'  => ['emoji' => '📈', 'name' => 'New Record',            'desc' => 'Set your first personal record'],
         'project_ship'  => ['emoji' => '🚀', 'name' => 'Shipped It',           'desc' => 'Mark your first project as Done'],
         'bookworm_5'    => ['emoji' => '📖', 'name' => 'Bookworm',              'desc' => 'Finish 5 books'],
@@ -211,9 +211,7 @@ function checkAchievements(int $uid): array {
     $bestStreak  = (int)($streaks['best'] ?? 0);
 
     $gymDays      = tableExists('workout_logs')  ? $count("SELECT COUNT(DISTINCT log_date) c FROM workout_logs WHERE user_id=?") : 0;
-    $gymStreak    = tableExists('workout_logs')  ? (function_exists('calculateStreaks')
-        ? (calculateStreaks(array_column(fetchAll("SELECT DISTINCT log_date FROM workout_logs WHERE user_id=? ORDER BY log_date", [$uid]), 'log_date'))['current'] ?? 0)
-        : 0) : 0;
+    $gymStreak    = function_exists('workoutStreak') ? workoutStreak($uid)['current'] : 0;
     $projectsDone = tableExists('projects') ? $count("SELECT COUNT(*) c FROM projects WHERE user_id=? AND status='done'") : 0;
     $booksFinished = tableExists('books') ? $count("SELECT COUNT(*) c FROM books WHERE user_id=? AND status='finished'") : 0;
 

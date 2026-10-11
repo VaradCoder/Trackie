@@ -105,11 +105,7 @@ final class FitnessGoals
                     [$this->uid, $g['exercise_name'], $this->uid, $g['exercise_name']]
                 )['best'] ?? 0);
             case 'streak':
-                $dates = array_column(
-                    fetchAll("SELECT DISTINCT log_date FROM workout_logs WHERE user_id=? ORDER BY log_date", [$this->uid]),
-                    'log_date'
-                );
-                return (float)(calculateStreaks($dates)['current'] ?? 0);
+                return (float)workoutStreak($this->uid)['current'];
         }
         return 0.0;
     }
