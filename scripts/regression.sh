@@ -9,6 +9,8 @@
 #   3. Auth        — logs the local test account in (curl), asserts success
 #   4. Render      — every page returns HTTP 200, exactly one #page-main,
 #                    and contains no PHP fatal/parse/undefined errors
+#   5. Nav         — manifest shortcuts + every navTree href resolve
+#   6. JS units    — node tests/js/*.test.js (dependency-free)
 #
 # Usage:  bash scripts/regression.sh
 # Requires: local XAMPP running, test account test@trackie.local / Test1234
@@ -90,6 +92,14 @@ done < <(grep -oE "'href'[[:space:]]*=>[[:space:]]*'[a-z_]+\.php'" "$ROOT/includ
          | grep -oE "[a-z_]+\.php" | sort -u)
 if [ -n "$NAVBAD" ]; then red "  NAV FAIL: navTree references missing page(s):$NAVBAD"; FAIL=1;
 else green "  every navTree href resolves to a real page"; fi
+
+# ── 6. JS unit tests (tests/js/*.test.js, plain Node, no dependencies) ──
+note "== 6. JS unit tests =="
+for t in "$ROOT"/tests/js/*.test.js; do
+  [ -f "$t" ] || continue
+  if out=$(node "$t" 2>&1); then green "  $(basename "$t"): $(echo "$out" | tail -1)";
+  else red "  UNIT FAIL $(basename "$t"):"; echo "$out" | grep -E "^FAIL" | head -5; FAIL=1; fi
+done
 
 rm -f "$JAR"
 echo

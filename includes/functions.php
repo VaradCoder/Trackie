@@ -983,16 +983,30 @@ function renderStatCard($value, string $label, string $icon = '', string $color 
 }
 
 /**
- * Reusable empty state. $actionHtml is raw (a button/link) or ''.
+ * Reusable empty state — same markup as Trackie.UI.empty() in assets/js/ui.js.
+ * $actionHtml is raw (a next-step button/link) or ''. $compact: inside a card.
  */
-function renderEmptyState(string $icon, string $title, string $text = '', string $actionHtml = ''): string {
+function renderEmptyState(string $icon, string $title, string $text = '', string $actionHtml = '', bool $compact = false): string {
     return
-        '<div class="empty-state">'
-      .   '<div class="empty-state-icon"><i class="fas ' . h($icon) . '"></i></div>'
+        '<div class="empty-state' . ($compact ? ' empty-state-compact' : '') . '">'
+      .   '<div class="empty-state-icon" aria-hidden="true"><i class="fas ' . h($icon) . '"></i></div>'
       .   '<div class="empty-state-title">' . h($title) . '</div>'
       .   ($text ? '<p>' . h($text) . '</p>' : '')
-      .   ($actionHtml ? '<div class="u-mt-3">' . $actionHtml . '</div>' : '')
+      .   ($actionHtml ? '<div class="empty-state-action">' . $actionHtml . '</div>' : '')
       . '</div>';
+}
+
+/**
+ * Loading placeholder for content a page script fills in — same markup as
+ * Trackie.UI.loading(). Put it inside the container the script renders into
+ * (give that container aria-busy="true" if it is announced as loading).
+ */
+function renderLoading(string $label = 'Loading…', int $rows = 3): string {
+    $widths = ['w-3/4', 'w-1/2', 'w-3/4', 'w-1/4'];
+    $lines = '';
+    for ($i = 0; $i < max(1, min(6, $rows)); $i++) $lines .= '<div class="skeleton skeleton-text ' . $widths[$i % 4] . '"></div>';
+    return '<div class="ui-loading" role="status"><div class="ui-loading-lines" aria-hidden="true">' . $lines . '</div>'
+         . '<p class="ui-loading-label">' . h($label) . '</p></div>';
 }
 
 /**

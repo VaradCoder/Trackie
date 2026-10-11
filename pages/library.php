@@ -105,12 +105,10 @@ require_once '../includes/head.php';
 
   <div class="fit-section-head"><h2 class="hb-h2">Currently reading</h2></div>
   <?php if (!$reading): ?>
-    <div class="card"><div class="empty-state">
-      <div class="empty-state-icon"><i class="fas fa-book-open"></i></div>
-      <div class="empty-state-title">Nothing on the Reading shelf</div>
-      <p><?= $books ? 'Pick a book from your Library and log a session to start.' : 'Add a book, then log your first reading session.' ?></p>
-      <button class="btn btn-primary u-mt-3" onclick="<?= $books ? "switchRdTab('library')" : 'openAddBook()' ?>"><?= $books ? 'Open Library' : '<i class="fas fa-plus"></i> Add a book' ?></button>
-    </div></div>
+    <div class="card"><?= renderEmptyState('fa-book-open', 'Nothing on the Reading shelf',
+      $books ? 'Pick a book from your Library and log a session to start.' : 'Add a book, then log your first reading session.',
+      $books ? '<button type="button" class="btn btn-primary btn-sm" onclick="switchRdTab(\'library\')">Open Library</button>'
+             : '<button type="button" class="btn btn-primary btn-sm" onclick="openAddBook()"><i class="fas fa-plus" aria-hidden="true"></i> Add a book</button>') ?></div>
   <?php else: ?>
     <div class="rd-current-list">
     <?php foreach ($reading as $b): ?>
@@ -172,12 +170,8 @@ require_once '../includes/head.php';
     <?php endforeach; ?>
   </div>
   <?php if (!$books): ?>
-    <div class="card"><div class="empty-state">
-      <div class="empty-state-icon"><i class="fas fa-book"></i></div>
-      <div class="empty-state-title">Your library is empty</div>
-      <p>Search Open Library or add a book by hand.</p>
-      <button class="btn btn-primary u-mt-3" onclick="openAddBook()"><i class="fas fa-plus"></i> Add your first book</button>
-    </div></div>
+    <div class="card"><?= renderEmptyState('fa-book', 'Your library is empty', 'Search Open Library or add a book by hand.',
+      '<button type="button" class="btn btn-primary btn-sm" onclick="openAddBook()"><i class="fas fa-plus" aria-hidden="true"></i> Add your first book</button>') ?></div>
   <?php else: ?>
     <div class="rd-books" id="rdBooks">
       <?php foreach ($books as $b): ?>
@@ -224,12 +218,8 @@ require_once '../includes/head.php';
 <div id="rd-sessions" class="rd-panel<?= $tab === 'sessions' ? '' : ' hidden' ?>" role="tabpanel" aria-labelledby="rdtab-sessions">
 <div id="rdSessionsWrap">
   <?php if (!$sessions): ?>
-    <div class="card"><div class="empty-state">
-      <div class="empty-state-icon"><i class="fas fa-stopwatch"></i></div>
-      <div class="empty-state-title">No reading sessions yet</div>
-      <p>Time a session with the timer, or log one you already did.</p>
-      <?php if ($books): ?><button class="btn btn-primary u-mt-3" onclick="openSession()"><i class="fas fa-stopwatch"></i> Log a session</button><?php endif; ?>
-    </div></div>
+    <div class="card"><?= renderEmptyState('fa-stopwatch', 'No reading sessions yet', 'Time a session with the timer, or log one you already did.',
+      $books ? '<button type="button" class="btn btn-primary btn-sm" onclick="openSession()"><i class="fas fa-stopwatch" aria-hidden="true"></i> Log a session</button>' : '') ?></div>
   <?php else: ?>
     <div class="card rd-session-list">
       <?php $lastDay = null; foreach ($sessions as $s): ?>
@@ -267,11 +257,8 @@ require_once '../includes/head.php';
     <?php if ($books): ?><button class="btn btn-primary btn-sm" onclick="openNote()"><i class="fas fa-plus"></i> Add</button><?php endif; ?>
   </div>
   <?php if (!$notes): ?>
-    <div class="card"><div class="empty-state">
-      <div class="empty-state-icon"><i class="fas fa-quote-left"></i></div>
-      <div class="empty-state-title">No notes or quotes yet</div>
-      <p>Save the lines worth remembering and your thoughts as you read.</p>
-    </div></div>
+    <div class="card"><?= renderEmptyState('fa-quote-left', 'No notes or quotes yet', 'Save the lines worth remembering and your thoughts as you read.',
+      $books ? '<button type="button" class="btn btn-primary btn-sm" onclick="openNote()"><i class="fas fa-plus" aria-hidden="true"></i> Add a note</button>' : '') ?></div>
   <?php else: ?>
     <div class="rd-notes" id="rdNotes">
       <?php foreach ($notes as $n): ?>
@@ -336,7 +323,7 @@ require_once '../includes/head.php';
 
 <!-- ── Statistics (loaded on demand) ───────────────────────── -->
 <div id="rd-stats" class="rd-panel<?= $tab === 'stats' ? '' : ' hidden' ?>" role="tabpanel" aria-labelledby="rdtab-stats">
-  <div id="rdStats"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Crunching your reading…</div></div>
+  <div id="rdStats" aria-busy="true"><?= renderLoading('Crunching your reading…', 4) ?></div>
 </div>
 
 <!-- ── Add book ─────────────────────────────────────────────── -->
@@ -551,17 +538,17 @@ document.getElementById('bookSearch').addEventListener('input', e => {
   if (q.length < 2) { box.innerHTML = ''; return; }
   rdSearchTimer = setTimeout(async () => {
     const seq = ++rdSearchSeq;
-    box.innerHTML = '<div class="hb-loading" style="padding:.75rem 0"><i class="fas fa-spinner fa-spin"></i> Searching…</div>';
+    box.innerHTML = Trackie.UI.loadingHTML('Searching Open Library…', { inline: true });
     try {
       const res = await rdPost({ action: 'search', q });
       if (seq !== rdSearchSeq) return;
-      if (!res.success) { box.innerHTML = `<p class="hb-foot">${escHtml(res.error || 'Search failed.')}</p>`; return; }
+      if (!res.success) { box.innerHTML = `<p class="hb-foot" role="alert">${escHtml(Trackie.UI.errorText(res, 'Search failed.'))} You can fill in the details below.</p>`; return; }
       rdResults = res.results;
       box.innerHTML = rdResults.length ? rdResults.map((r, i) => `<button class="rd-result" data-i="${i}" role="option">
         ${rdCover(r.cover_url, r.title, 'rd-cover-xs')}
         <span><b>${escHtml(r.title)}</b><small>${escHtml([r.author, r.publish_year, r.pages_total ? r.pages_total + ' pages' : ''].filter(Boolean).join(' · '))}</small></span></button>`).join('')
         : '<p class="hb-foot">No matches — fill in the details below.</p>';
-    } catch { if (seq === rdSearchSeq) box.innerHTML = '<p class="hb-foot">Network error — fill in the details below.</p>'; }
+    } catch (e) { if (seq === rdSearchSeq) box.innerHTML = `<p class="hb-foot" role="alert">${escHtml(Trackie.UI.errorText(e, 'Search failed.'))} You can fill in the details below.</p>`; }
   }, 350);
 });
 document.getElementById('bookResults').addEventListener('click', e => {
@@ -596,8 +583,8 @@ async function saveBook() {
   try {
     const res = await rdPost(data);
     if (res.success) { Trackie.Toast.success('Book added!'); Trackie.closeModal('addBookModal'); await rdRefresh(); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
   finally { btn.disabled = false; }
 }
 
@@ -605,7 +592,7 @@ async function saveBook() {
 async function openEditBook(id) {
   try {
     const res = await rdPost({ action: 'detail', book_id: id });
-    if (!res.success) { Trackie.Toast.error(res.error || 'Not found.'); return; }
+    if (!res.success) { Trackie.UI.toastError(res, 'Not found.'); return; }
     const b = res.book;
     document.getElementById('editId').value = b.id;
     document.getElementById('editTitle').value = b.title;
@@ -614,7 +601,7 @@ async function openEditBook(id) {
     document.getElementById('editCurrent').value = b.current_page || 0;
     Trackie.closeModal('bookModal');
     Trackie.openModal('editBookModal');
-  } catch { Trackie.Toast.error('Network error.'); }
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function saveEditBook() {
   try {
@@ -622,8 +609,8 @@ async function saveEditBook() {
       title: document.getElementById('editTitle').value.trim(), author: document.getElementById('editAuthor').value.trim(),
       pages_total: document.getElementById('editPages').value, current_page: document.getElementById('editCurrent').value });
     if (res.success) { Trackie.Toast.success('Saved.'); Trackie.closeModal('editBookModal'); await rdRefresh(); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function setBookStatus(id, status) {
   try {
@@ -633,13 +620,13 @@ async function setBookStatus(id, status) {
       else if (res.xp?.ok) Trackie.Toast.success(`📚 Finished! +${res.xp.gained} XP`);
       else Trackie.Toast.success(status === 'finished' ? 'Marked finished.' : 'Shelf updated.');
       await rdRefresh();
-    } else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    } else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function rateBook(id, rating) {
   document.querySelectorAll(`#stars-${id} i`).forEach((s, i) => s.className = (i < rating ? 'fas' : 'far') + ' fa-star');
-  try { const res = await rdPost({ action: 'rate', book_id: id, rating }); if (!res.success) Trackie.Toast.error(res.error || 'Failed.'); }
-  catch { Trackie.Toast.error('Network error.'); }
+  try { const res = await rdPost({ action: 'rate', book_id: id, rating }); if (!res.success) Trackie.UI.toastError(res, 'Failed.'); }
+  catch (e) { Trackie.UI.toastError(e); }
 }
 async function deleteBook(id) {
   const ok = await Trackie.confirmDialog('Delete this book? Its sessions, notes and quotes are deleted too.', { confirmText: 'Delete', danger: true });
@@ -647,18 +634,19 @@ async function deleteBook(id) {
   try {
     const res = await rdPost({ action: 'delete', book_id: id });
     if (res.success) { Trackie.Toast.success('Book deleted.'); Trackie.closeModal('bookModal'); await rdRefresh(); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 
 /* ── Book detail ───────────────────────────────────────────────── */
 async function openBook(id) {
   const el = document.getElementById('bookDetail');
-  el.innerHTML = '<div class="hb-loading"><i class="fas fa-spinner fa-spin"></i></div>';
+  Trackie.UI.loading(el, 'Loading book…');
   Trackie.openModal('bookModal');
   try {
     const res = await rdPost({ action: 'detail', book_id: id });
-    if (!res.success) { el.innerHTML = `<p class="hb-error">${escHtml(res.error || 'Not found.')}</p>`; return; }
+    if (!res.success) return Trackie.UI.error(el, res, { retry: () => openBook(id), fallback: 'Could not load this book.' });
+    Trackie.UI.done(el);
     const b = res.book, t = res.totals;
     const labels = { reading: 'Reading', want: 'Want to read', paused: 'Paused', finished: 'Finished' };
     el.innerHTML = `<div class="rd-detail-head">${rdCover(b.cover_url, b.title, 'rd-cover-lg')}
@@ -697,7 +685,7 @@ async function openBook(id) {
         <b>${rdMins(s.minutes)}${s.end_page !== null ? ' · ' + +s.pages + ' p' : ''}</b></div>`).join('')
         : '<p class="hb-empty-line">No sessions yet.</p>'}
       <div class="u-mt-4 u-text-right"><button class="btn btn-ghost btn-sm u-c-accent" onclick="deleteBook(${+b.id})"><i class="fas fa-trash"></i> Delete book</button></div>`;
-  } catch { el.innerHTML = '<p class="hb-error">Network error.</p>'; }
+  } catch (e) { Trackie.UI.error(el, e, { retry: () => openBook(id), fallback: 'Could not load this book.' }); }
 }
 
 /* ── Session timer ─────────────────────────────────────────────
@@ -774,7 +762,7 @@ async function saveSession() {
     const res = await rdPost({ action: 'session_log', book_id: bookId, minutes,
       end_page: document.getElementById('rsEnd').value, note: document.getElementById('rsNote').value,
       date: document.getElementById('rsDate').value });
-    if (!res.success) { Trackie.Toast.error(res.error || 'Failed.'); return; }
+    if (!res.success) { Trackie.UI.toastError(res, 'Failed.'); return; }
     if (rsState()?.bookId === bookId) rsSave(null);
     rsRender(); rsEnsureTick();
     const title = document.getElementById('rsBook').selectedOptions[0]?.textContent || '';
@@ -791,15 +779,15 @@ async function saveSession() {
     </div><div class="modal-footer"><button class="btn btn-secondary btn-sm" data-close-modal="sessionModal">Done</button></div>`;
     if (res.xp?.leveledUp) Trackie.Toast.success(`⚡ Level up! Level ${res.xp.level} — ${res.xp.title}`, 5000);
     await rdRefresh();
-  } catch { Trackie.Toast.error('Network error.'); }
+  } catch (e) { Trackie.UI.toastError(e); }
   finally { btn.disabled = false; }
 }
 async function deleteSession(id) {
   const ok = await Trackie.confirmDialog('Delete this session?', { confirmText: 'Delete', danger: true });
   if (!ok) return;
   try { const res = await rdPost({ action: 'session_delete', session_id: id });
-    if (res.success) { Trackie.Toast.success('Session deleted.'); await rdRefresh(); } else Trackie.Toast.error(res.error || 'Failed.'); }
-  catch { Trackie.Toast.error('Network error.'); }
+    if (res.success) { Trackie.Toast.success('Session deleted.'); await rdRefresh(); } else Trackie.UI.toastError(res, 'Failed.'); }
+  catch (e) { Trackie.UI.toastError(e); }
 }
 rsRender(); rsEnsureTick();
 
@@ -817,18 +805,18 @@ async function saveNote(inlineBookId) {
       book_id: inline ? inlineBookId : document.getElementById('noteBook').value,
       kind: document.getElementById(inline ? 'bdKind' : 'noteKind').value,
       page: document.getElementById(inline ? 'bdPage' : 'notePage').value });
-    if (!res.success) { Trackie.Toast.error(res.error || 'Failed.'); return; }
+    if (!res.success) { Trackie.UI.toastError(res, 'Failed.'); return; }
     Trackie.Toast.success('Saved.');
     if (inline) openBook(inlineBookId); else Trackie.closeModal('noteModal');
     await rdRefresh();
-  } catch { Trackie.Toast.error('Network error.'); }
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function deleteNote(id) {
   const ok = await Trackie.confirmDialog('Delete this?', { confirmText: 'Delete', danger: true });
   if (!ok) return;
   try { const res = await rdPost({ action: 'note_delete', note_id: id });
-    if (res.success) { document.getElementById(`note-${id}`)?.remove(); Trackie.Toast.success('Deleted.'); } else Trackie.Toast.error(res.error || 'Failed.'); }
-  catch { Trackie.Toast.error('Network error.'); }
+    if (res.success) { document.getElementById(`note-${id}`)?.remove(); Trackie.Toast.success('Deleted.'); } else Trackie.UI.toastError(res, 'Failed.'); }
+  catch (e) { Trackie.UI.toastError(e); }
 }
 document.getElementById('rd-notes').addEventListener('click', e => {
   const f = e.target.closest('[data-kind]');
@@ -841,17 +829,20 @@ document.getElementById('rd-notes').addEventListener('click', e => {
 async function saveGoal() {
   try {
     const res = await rdPost({ action: 'goal_save', books_target: document.getElementById('goalBooks').value, pages_target: document.getElementById('goalPages').value });
-    if (res.success) { Trackie.Toast.success('Goal saved.'); await rdRefresh(); } else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    if (res.success) { Trackie.Toast.success('Goal saved.'); await rdRefresh(); } else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 
 /* ── Statistics ────────────────────────────────────────────────── */
 async function loadStats(year) {
   rdStatsLoaded = true;
   const el = document.getElementById('rdStats');
+  const retry = () => loadStats(year);
+  Trackie.UI.loading(el, 'Crunching your reading…', { rows: 4 });
   try {
     const res = await rdPost({ action: 'stats', year: year || '' });
-    if (!res.success) { el.innerHTML = `<div class="card card-body hb-error">${escHtml(res.error || 'Failed.')}</div>`; return; }
+    if (!res.success) return Trackie.UI.error(el, res, { retry, fallback: 'Could not load your reading stats.' });
+    Trackie.UI.done(el);
     const s = res.stats, t = s.totals;
     const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const bars = (key, fmt) => { const v = s.months.map(m => m[key]); const max = Math.max(1, ...v);
@@ -878,6 +869,6 @@ async function loadStats(year) {
           <p class="hb-foot">From Open Library subjects of books you're reading or finished. Books added by hand have none.</p>` : '<p class="hb-empty-line">Add books through search to see subjects.</p>'}</div>`}
       <p class="hb-foot">Pages and time count only from logged sessions; books count when moved to Finished.</p>`;
     document.getElementById('rdYear')?.addEventListener('change', e => loadStats(e.target.value));
-  } catch { el.innerHTML = '<div class="card card-body hb-error">Network error.</div>'; }
+  } catch (e) { Trackie.UI.error(el, e, { retry, fallback: 'Could not load your reading stats.' }); }
 }
 </script>

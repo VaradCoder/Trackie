@@ -114,14 +114,9 @@ require_once '../includes/head.php';
 
 <div id="projectsListWrap">
 <?php if (empty($projects)): ?>
-  <div class="card">
-    <div class="empty-state">
-      <div class="empty-state-icon"><i class="fas fa-diagram-project"></i></div>
-      <div class="empty-state-title">No projects yet</div>
-      <p>Track what you're building — link a GitHub repo and break it into tasks.</p>
-      <button class="btn btn-primary u-mt-3" onclick="openAddProject()"><i class="fas fa-plus"></i> Add your first project</button>
-    </div>
-  </div>
+  <div class="card"><?= renderEmptyState('fa-diagram-project', 'No projects yet', 'Track what you\'re building — link a GitHub repo and break it into tasks.',
+    '<button type="button" class="btn btn-primary btn-sm" onclick="openAddProject()"><i class="fas fa-plus" aria-hidden="true"></i> Add your first project</button>'
+    . ($ghConnected && $repos ? ' <a class="btn btn-secondary btn-sm" href="?tab=github"><i class="fab fa-github" aria-hidden="true"></i> Track a GitHub repo</a>' : '')) ?></div>
 <?php else: ?>
   <div class="grid-cards-lg">
     <?php foreach ($projects as $p): $sm = $statusMeta[$p['status']]; $pct = $p['total_tasks'] > 0 ? round($p['done_tasks'] / $p['total_tasks'] * 100) : 0; ?>
@@ -188,7 +183,8 @@ require_once '../includes/head.php';
       <?php foreach ($langMin as $l): ?><span class="hb-chip"><?= h($l['language']) ?> · <?= $fmtMin((int)$l['m']) ?></span><?php endforeach; ?></div>
   <?php endif; ?>
   <?php if (!$sessions): ?>
-    <div class="card card-body hb-empty-line">No coding sessions yet. Log time spent coding — on a project or just practice.</div>
+    <div class="card"><?= renderEmptyState('fa-stopwatch', 'No coding sessions yet', 'Log time spent coding — on a project or just practice.',
+      '<button type="button" class="btn btn-primary btn-sm" onclick="openCodeSession()"><i class="fas fa-stopwatch" aria-hidden="true"></i> Log a session</button>', true) ?></div>
   <?php else: ?>
     <div class="card">
       <?php foreach ($sessions as $s): ?>
@@ -237,7 +233,9 @@ require_once '../includes/head.php';
     </div>
 
     <?php if (!$repos): ?>
-      <div class="card card-body hb-empty-line" id="ghEmpty"><?= $ghStatus['syncStatus'] === 'error' ? 'The last sync failed — see the message above, then try "Sync now".' : '<i class="fas fa-spinner fa-spin"></i> Fetching your repositories…' ?></div>
+      <div class="card" id="ghEmpty"><?= $ghStatus['syncStatus'] === 'error'
+        ? renderEmptyState('fa-triangle-exclamation', 'The last sync failed', 'See the message above, then try “Sync now”.', '', true)
+        : renderLoading('Fetching your repositories…') ?></div>
     <?php else: ?>
       <div class="grid-stats cd-gh-stats">
         <?php foreach ($activityMeta as $k => [$label, $badge, $hint]): ?>
@@ -434,11 +432,11 @@ document.getElementById('ghWantPrivate')?.addEventListener('change', e => {
 async function ghTrack(repoId, btn) {
   try {
     const res = await Trackie.API.post(`${API_BASE}/projects.php`, { action: 'track_repo', repo_id: repoId }, { button: btn });
-    if (!res.success) { Trackie.Toast.error(res.error || 'Could not track that repository.'); return; }
+    if (!res.success) { Trackie.UI.toastError(res, 'Could not track that repository.'); return; }
     Trackie.Toast.success(res.existing ? 'Already tracked as a project.' : 'Added to your projects.');
     btn.closest('.cd-repo').dataset.tracked = '1';
     btn.outerHTML = `<a class="btn btn-ghost btn-sm cd-track" href="?tab=projects#project-${+res.id}"><i class="fas fa-check"></i> Tracked</a>`;
-  } catch (e) { Trackie.Toast.error(e.message || 'Could not track that repository.'); }
+  } catch (e) { Trackie.UI.toastError(e, 'Could not track that repository.'); }
 }
 async function ghSync(quiet) {
   const btn = document.getElementById('ghSyncBtn');
@@ -447,13 +445,14 @@ async function ghSync(quiet) {
     if (res.success) {
       if (!quiet) Trackie.Toast.success(`GitHub synced — ${res.records} records.`);
       if (Trackie.SpaNav?.refresh) Trackie.SpaNav.refresh(); else location.reload();
-    } else if (!quiet) Trackie.Toast.error(res.error || 'GitHub sync failed.');
+    } else if (!quiet) Trackie.UI.toastError(res, 'GitHub sync failed.');
     else if (res.error) {
       const line = document.getElementById('ghSyncLine');
-      if (line) line.insertAdjacentHTML('afterend', `<div class="cd-gh-err"><i class="fas fa-triangle-exclamation"></i> ${escProj(res.error)}</div>`);
-      document.getElementById('ghEmpty')?.replaceChildren('The last sync failed — see the message above, then try "Sync now".');
+      if (line) line.insertAdjacentHTML('afterend', `<div class="cd-gh-err" role="alert"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> ${escHtml(res.error)}</div>`);
+      const ge = document.getElementById('ghEmpty');
+      if (ge) Trackie.UI.empty(ge, { compact: true, icon: 'fa-triangle-exclamation', title: 'The last sync failed', text: 'See the message above, then try “Sync now”.' });
     }
-  } catch (e) { if (!quiet) Trackie.Toast.error(e.message || 'GitHub sync failed.'); }
+  } catch (e) { if (!quiet) Trackie.UI.toastError(e, 'GitHub sync failed.'); }
 }
 <?php if ($ghStale): ?>
 // Data older than 6 h (or never synced): refresh in the background — the page
@@ -472,8 +471,8 @@ async function saveCodeSession() {
       session_date: document.getElementById('csDate').value, language: document.getElementById('csLang').value,
       project_id: document.getElementById('csProject').value, notes: document.getElementById('csNotes').value });
     if (res.success) { Trackie.Toast.success('Session logged' + (res.xp?.ok ? ` · +${res.xp.gained} XP` : '')); Trackie.SpaNav.refresh(); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function deleteCodeSession(id) {
   if (!await Trackie.confirmDialog('Delete this session?', { confirmText: 'Delete', danger: true })) return;
@@ -482,7 +481,7 @@ async function deleteCodeSession(id) {
 }
 async function openEditProject(id) {
   const res = await Trackie.API.post(`${API_BASE}/projects.php`, { action: 'get', project_id: id });
-  if (!res.success) { Trackie.Toast.error(res.error || 'Not found.'); return; }
+  if (!res.success) { Trackie.UI.toastError(res, 'Not found.'); return; }
   const p = res.project;
   document.getElementById('projId').value = p.id;
   document.getElementById('projName').value = p.name;
@@ -512,8 +511,8 @@ async function saveProject() {
       description: document.getElementById('projDesc').value.trim(), github_url: document.getElementById('projGithub').value.trim(),
       status: document.getElementById('projStatus').value });
     if (res.success) { Trackie.Toast.success(id ? 'Project updated.' : 'Project created!'); Trackie.closeModal('addProjectModal'); Trackie.SpaNav.refresh(); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function deleteProject(id) {
   const ok = await Trackie.confirmDialog('Delete this project and its tasks?', {confirmText:'Delete', danger:true});
@@ -521,15 +520,15 @@ async function deleteProject(id) {
   try {
     const res = await Trackie.API.post(`${API_BASE}/projects.php`, {action:'delete', project_id:id});
     if (res.success) { document.getElementById(`project-${id}`)?.remove(); Trackie.Toast.success('Project deleted.'); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function setProjectStatus(id, status) {
   try {
     const res = await Trackie.API.post(`${API_BASE}/projects.php`, {action:'update_status', project_id:id, status});
     if (res.success) Trackie.Toast.success('Status updated.');
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 
 async function toggleTasks(projectId) {
@@ -544,12 +543,8 @@ const nextStatus = { todo: 'doing', doing: 'done', done: 'todo' };
 
 async function loadTasks(projectId) {
   const panel = document.getElementById(`tasks-${projectId}`);
-  panel.innerHTML = '<div class="u-fs-12 u-c-muted"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
-  try {
-    const res = await Trackie.API.post(`${API_BASE}/projects.php`, {action:'tasks', project_id:projectId});
-    if (!res.success) { panel.innerHTML = '<div class="u-fs-12 u-c-muted">Could not load tasks.</div>'; return; }
-    renderTasks(projectId, res.tasks);
-  } catch { panel.innerHTML = '<div class="u-fs-12 u-c-muted">Network error.</div>'; }
+  await Trackie.UI.load(panel, () => Trackie.API.post(`${API_BASE}/projects.php`, {action:'tasks', project_id:projectId}),
+    res => renderTasks(projectId, res.tasks), { label: 'Loading tasks…', rows: 2, fallback: 'Could not load tasks.' });
 }
 function renderTasks(projectId, tasks) {
   const panel = document.getElementById(`tasks-${projectId}`);
@@ -558,18 +553,15 @@ function renderTasks(projectId, tasks) {
       <button class="btn btn-icon btn-ghost btn-sm" style="width:1.75rem;height:1.75rem" onclick="cycleTaskStatus(${t.id}, '${t.status}', ${projectId})" title="Cycle status" aria-label="Cycle status">
         <i class="fas ${taskStatusIcon[t.status]}" style="font-size:.8125rem;color:${t.status==='done'?'#16a34a':t.status==='doing'?'#f59e0b':'var(--muted)'}"></i>
       </button>
-      <span style="flex:1;font-size:.8125rem;${t.status==='done'?'text-decoration:line-through;color:var(--muted)':''}">${escProj(t.title)}</span>
-      <button aria-label="Delete task" class="btn btn-icon btn-ghost btn-sm" style="width:1.75rem;height:1.75rem" onclick="deleteTask(${t.id}, ${projectId})" aria-label="Delete task"><i class="fas fa-xmark u-fs-12"></i></button>
+      <span style="flex:1;font-size:.8125rem;${t.status==='done'?'text-decoration:line-through;color:var(--muted)':''}">${escHtml(t.title)}</span>
+      <button class="btn btn-icon btn-ghost btn-sm" style="width:1.75rem;height:1.75rem" onclick="deleteTask(${t.id}, ${projectId})" aria-label="Delete task ${escHtml(t.title)}"><i class="fas fa-xmark u-fs-12" aria-hidden="true"></i></button>
     </div>`).join('');
-  panel.innerHTML = rows + `
+  panel.innerHTML = (rows || '<p class="hb-empty-line u-mb-2">No tasks yet — break the project into small steps.</p>') + `
     <div class="u-flex u-gap-2 u-mt-2">
-      <input class="form-input u-fs-13" placeholder="Add a task…" id="newTaskInput-${projectId}"
+      <input class="form-input u-fs-13" placeholder="Add a task…" aria-label="New task" id="newTaskInput-${projectId}"
              onkeydown="if(event.key==='Enter') addTask(${projectId})">
       <button class="btn btn-secondary btn-sm" onclick="addTask(${projectId})" aria-label="Add task"><i class="fas fa-plus" aria-hidden="true"></i></button>
     </div>`;
-}
-function escProj(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 async function addTask(projectId) {
   const input = document.getElementById(`newTaskInput-${projectId}`);
@@ -578,21 +570,21 @@ async function addTask(projectId) {
   try {
     const res = await Trackie.API.post(`${API_BASE}/projects.php`, {action:'add_task', project_id:projectId, title});
     if (res.success) { input.value = ''; await loadTasks(projectId); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function cycleTaskStatus(taskId, current, projectId) {
   try {
     const res = await Trackie.API.post(`${API_BASE}/projects.php`, {action:'update_task_status', task_id:taskId, status: nextStatus[current]});
     if (res.success) await loadTasks(projectId);
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function deleteTask(taskId, projectId) {
   try {
     const res = await Trackie.API.post(`${API_BASE}/projects.php`, {action:'delete_task', task_id:taskId});
     if (res.success) await loadTasks(projectId);
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 </script>

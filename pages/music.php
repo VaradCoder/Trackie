@@ -54,7 +54,7 @@ require_once '../includes/head.php';
 
   <!-- ═══ Now playing: remote control for whatever device Spotify is playing on ═══ -->
   <section class="card ms-now" id="msNow" aria-label="Now playing">
-    <div class="ms-now-idle" id="msIdle"><i class="fas fa-spinner fa-spin"></i> Checking what's playing…</div>
+    <div class="ms-now-idle" id="msIdle"><span role="status"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Checking what's playing…</span></div>
     <div class="ms-now-live hidden" id="msLive">
       <img class="ms-art" id="msArt" src="" alt="">
       <div class="ms-now-main">
@@ -98,11 +98,11 @@ require_once '../includes/head.php';
 
   <div id="mtab-favorites" class="gym-tab-panel">
     <div class="ms-head"><h2 class="hb-h2">Liked Songs</h2><span class="hb-foot u-m-0" id="msLikedCount"></span></div>
-    <div class="card" id="msLiked"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading your Liked Songs…</div></div>
+    <div class="card" id="msLiked" aria-busy="true"><?= renderLoading('Loading your Liked Songs…') ?></div>
     <button class="btn btn-secondary btn-sm hidden u-mt-3" id="msLikedMore">Load more</button>
   </div>
   <div id="mtab-recent" class="gym-tab-panel hidden">
-    <div class="card" id="msRecent"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
+    <div class="card" id="msRecent" aria-busy="true"><?= renderLoading('Loading your recent listening…') ?></div>
     <p class="hb-foot">Spotify shares your last 50 plays.</p>
   </div>
   <div id="mtab-top" class="gym-tab-panel hidden">
@@ -111,15 +111,15 @@ require_once '../includes/head.php';
         <option value="short_term">Last 4 weeks</option><option value="medium_term">Last 6 months</option><option value="long_term">Last year</option>
       </select></div>
     <div class="fit-card-label" style="margin:.25rem 0 .5rem">Artists</div>
-    <div id="msTopArtists" class="ms-artists"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
+    <div id="msTopArtists" class="ms-artists" aria-busy="true"><?= renderLoading('Loading your top artists…', 2) ?></div>
     <div class="fit-card-label" style="margin:1.25rem 0 .5rem">Tracks</div>
-    <div class="card" id="msTopTracks"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
+    <div class="card" id="msTopTracks" aria-busy="true"><?= renderLoading('Loading your top tracks…') ?></div>
   </div>
   <div id="mtab-playlists" class="gym-tab-panel hidden">
     <div class="card card-body ms-focus"><i class="fas fa-bullseye"></i>
       <div><b>Focus Session Sync</b><div class="hb-foot u-m-0">Pick a playlist to start automatically when a focus session starts (and pause when it ends).</div>
         <div id="focusSyncStatus" class="u-fs-13 u-mt-1h"></div></div></div>
-    <div id="musicPlaylists" class="grid-cards u-mt-4"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
+    <div id="musicPlaylists" class="grid-cards u-mt-4" aria-busy="true"><?= renderLoading('Loading your playlists…') ?></div>
   </div>
 
 <?php endif; ?>
@@ -138,19 +138,22 @@ function esc(s) { return escHtml(String(s ?? '')); }
 function fmtMs(ms) { const s = Math.max(0, Math.floor((ms || 0) / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 const spPost = (fields, opts = {}) => Trackie.API.post(`${API_BASE}/spotify.php`, fields, Object.assign({ quiet: true }, opts));
 
-/** Explain a failed Spotify call in a box, with the fix when there is one. */
-function spProblem(res) {
-  if (res && (res.needsReconnect || res.connected === false)) {
-    return `<div class="card-body hb-empty-line">${esc(res.error || 'Spotify needs to be reconnected.')} <a href="${SP_CONNECT}" data-no-spa>Reconnect Spotify</a></div>`;
-  }
-  if (res && res.reason === 'rate_limited') return `<div class="card-body hb-empty-line"><i class="fas fa-hourglass-half"></i> ${esc(res.error)}</div>`;
-  return `<div class="card-body hb-error"><i class="fas fa-triangle-exclamation"></i> ${esc(res?.error || 'Spotify could not be reached.')}</div>`;
+/** A failed Spotify call, shown in el: reconnect when that's the fix, otherwise "Try again". */
+function spFail(el, res, retry) {
+  const reconnect = res && (res.needsReconnect || res.connected === false);
+  return Trackie.UI.error(el, res, {
+    fallback: 'Spotify could not be reached.',
+    retry: reconnect ? null : retry,
+    action: reconnect ? { label: 'Reconnect Spotify', icon: 'fa-link', href: SP_CONNECT, noSpa: true } : null,
+  });
 }
+/** Requests that throw become {success:false} with a user-safe message. */
+const spSafe = p => p.catch(e => ({ success: false, error: Trackie.UI.errorText(e, 'Spotify could not be reached.') }));
 function spToast(res, fallback) {
-  if (!res) return Trackie.Toast.error(fallback);
-  if (res.reason === 'no_device' || res.reason === 'premium' || res.reason === 'rate_limited') return Trackie.Toast.warning(res.error, 6000);
-  Trackie.Toast.error(res.error || fallback);
+  if (res && (res.reason === 'no_device' || res.reason === 'premium' || res.reason === 'rate_limited')) return Trackie.Toast.warning(res.error, 6000);
+  Trackie.UI.toastError(res, fallback);
 }
+const spEmpty = (icon, title, text) => Trackie.UI.emptyHTML({ icon, title, text, compact: true });
 
 /* ── Track rows (shared by Favorites / Recent / Top / Queue) ───────── */
 function trackRow(t, extra = '') {
@@ -215,7 +218,7 @@ async function loadState() {
     const res = await spPost({ action: 'state' });
     if (res.success === false) {
       $('msLive').classList.add('hidden'); $('msIdle').classList.remove('hidden');
-      $('msIdle').innerHTML = spProblem(res);
+      spFail($('msIdle'), res, loadState);
       if (res.reason === 'rate_limited') schedulePoll((res.retry_after || 30) * 1000);
       return;
     }
@@ -224,7 +227,8 @@ async function loadState() {
     renderNow();
     if (!$('msQueue').classList.contains('hidden') && prevTrack !== res.track?.id) loadQueue();
   } catch (e) {
-    $('msIdle').innerHTML = `<span class="hb-error">${esc(e.message || 'Network error.')}</span>`;
+    $('msLive').classList.add('hidden'); $('msIdle').classList.remove('hidden');
+    spFail($('msIdle'), { success: false, error: Trackie.UI.errorText(e, 'Spotify could not be reached.') }, loadState);
   }
 }
 function schedulePoll(ms = 5000) {
@@ -246,7 +250,7 @@ async function control(cmd, value, extra = {}) {
     const res = await spPost(Object.assign({ action: 'control', cmd, value: value ?? '' }, extra));
     if (!res.success) { spToast(res, 'Spotify could not do that.'); return false; }
     return true;
-  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); return false; }
+  } catch (e) { Trackie.UI.toastError(e, 'Spotify could not do that.'); return false; }
   finally { msBusy = false; setTimeout(loadState, 350); }
 }
 document.querySelectorAll('[data-cmd]').forEach(b => b.addEventListener('click', () => {
@@ -271,24 +275,25 @@ async function transferTo(id, play) {
 $('msDeviceBtn').addEventListener('click', async () => {
   const box = $('msDevices');
   if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
-  box.classList.remove('hidden'); box.innerHTML = '<div class="hb-loading u-p-2"><i class="fas fa-spinner fa-spin"></i></div>';
-  const res = await spPost({ action: 'devices' }).catch(e => ({ success: false, error: e.message }));
-  if (!res.success) { box.innerHTML = spProblem(res); return; }
+  box.classList.remove('hidden'); box.innerHTML = Trackie.UI.loadingHTML('Finding your devices…', { inline: true });
+  const res = await spSafe(spPost({ action: 'devices' }));
+  if (!res.success) return spFail(box, res, () => { box.classList.add('hidden'); $('msDeviceBtn').click(); });
   const icon = t => ({ Computer: 'fa-laptop', Smartphone: 'fa-mobile-screen', Speaker: 'fa-volume-high', TV: 'fa-tv' }[t] || 'fa-music');
   box.innerHTML = res.devices.length ? res.devices.map(d => `<button class="ms-dev${d.active ? ' on' : ''}" role="menuitem" data-dev="${esc(d.id)}" ${d.restricted ? 'disabled title="This device can\'t be controlled"' : ''}>
       <i class="fas ${icon(d.type)}"></i> ${esc(d.name)}${d.active ? ' <small>playing</small>' : ''}</button>`).join('')
-    : '<div class="hb-empty-line u-p-2">No devices found — open Spotify somewhere first.</div>';
+    : spEmpty('fa-mobile-screen', 'No devices found', 'Open Spotify on your phone or computer first.');
 });
 $('msDevices').addEventListener('click', e => { const b = e.target.closest('[data-dev]'); if (b) { $('msDevices').classList.add('hidden'); transferTo(b.dataset.dev, msState?.playing); } });
 
 /* Queue */
 async function loadQueue() {
   const box = $('msQueue');
-  box.innerHTML = '<div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading the queue…</div>';
-  const res = await spPost({ action: 'queue' }).catch(e => ({ success: false, error: e.message }));
-  if (!res.success) { box.innerHTML = spProblem(res); return; }
+  Trackie.UI.loading(box, 'Loading the queue…');
+  const res = await spSafe(spPost({ action: 'queue' }));
+  if (!res.success) return spFail(box, res, loadQueue);
+  Trackie.UI.done(box);
   box.innerHTML = `<div class="fit-card-label" style="padding:0 1rem">Up next</div>` + (res.queue.length
-    ? res.queue.map(t => trackRow(t)).join('') : '<div class="card-body hb-empty-line">The queue is empty.</div>');
+    ? res.queue.map(t => trackRow(t)).join('') : spEmpty('fa-list-ol', 'The queue is empty', 'Songs you add to the queue in Spotify show up here.'));
 }
 $('msQueueBtn').addEventListener('click', () => {
   const open = $('msQueue').classList.toggle('hidden') === false;
@@ -299,7 +304,7 @@ $('msQueueBtn').addEventListener('click', () => {
 /* Play a track / playlist on the active device (or this browser's player) */
 async function playUri(fields) {
   const res = await spPost(Object.assign({ action: 'play' }, fields, (!msState?.active && sdkDeviceId) ? { device_id: sdkDeviceId } : {}))
-    .catch(e => ({ success: false, error: e.message }));
+    .catch(e => ({ success: false, error: Trackie.UI.errorText(e, 'Could not start playback.') }));
   if (!res.success) return spToast(res, 'Could not start playback.');
   setTimeout(loadState, 600);
 }
@@ -311,7 +316,7 @@ async function toggleLike(id, btn) {
     b.setAttribute('aria-pressed', v); b.classList.toggle('on', v); b.innerHTML = `<i class="${v ? 'fas' : 'far'} fa-heart"></i>`;
   });
   set(on);
-  const res = await spPost({ action: on ? 'save' : 'unsave', track_id: id }).catch(e => ({ success: false, error: e.message }));
+  const res = await spSafe(spPost({ action: on ? 'save' : 'unsave', track_id: id }));
   if (!res.success) { set(!on); return spToast(res, 'Could not update Liked Songs.'); }
   if (msState?.track?.id === id) msState.liked = on;
   Trackie.Toast.success(on ? 'Added to Liked Songs.' : 'Removed from Liked Songs.');
@@ -344,12 +349,13 @@ $('musicTabs').addEventListener('click', e => { const b = e.target.closest('[dat
 
 async function loadLiked(reset) {
   const box = $('msLiked');
-  if (reset) { likedOffset = 0; box.innerHTML = '<div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading your Liked Songs…</div>'; }
+  if (reset) { likedOffset = 0; Trackie.UI.loading(box, 'Loading your Liked Songs…'); }
   likedLoaded = true;
-  const res = await spPost({ action: 'liked', offset: likedOffset }).catch(e => ({ success: false, error: e.message }));
-  if (!res.success) { box.innerHTML = spProblem(res); $('msLikedMore').classList.add('hidden'); return; }
+  const res = await spSafe(spPost({ action: 'liked', offset: likedOffset }));
+  if (!res.success) { $('msLikedMore').classList.add('hidden'); return spFail(box, res, () => loadLiked(true)); }
+  Trackie.UI.done(box);
   const rows = res.items.map(t => trackRow(Object.assign({ liked: true }, t), t.added_at ? `<span class="ms-when">${esc(new Date(t.added_at).toLocaleDateString())}</span>` : '')).join('');
-  if (reset) box.innerHTML = rows || '<div class="card-body hb-empty-line">No Liked Songs yet — tap ♡ on any track to save it.</div>';
+  if (reset) box.innerHTML = rows || spEmpty('fa-heart', 'No Liked Songs yet', 'Tap ♡ on any track — here, or in Spotify — to save it.');
   else box.insertAdjacentHTML('beforeend', rows);
   $('msLikedCount').textContent = res.total ? `${res.total} songs` : '';
   likedOffset = res.next_offset; $('msLikedMore').classList.toggle('hidden', res.next_offset === null);
@@ -358,27 +364,35 @@ $('msLikedMore').addEventListener('click', () => loadLiked(false));
 
 async function loadRecent() {
   const box = $('msRecent');
-  const res = await spPost({ action: 'recently_played' }).catch(e => ({ success: false, error: e.message }));
-  if (!res.success) { box.innerHTML = spProblem(res); return; }
+  if (!box.querySelector('.ms-row')) Trackie.UI.loading(box, 'Loading your recent listening…');
+  const res = await spSafe(spPost({ action: 'recently_played' }));
+  if (!res.success) return spFail(box, res, loadRecent);
+  Trackie.UI.done(box);
   box.innerHTML = res.items.length ? res.items.map(t => trackRow(t, `<span class="ms-when">${esc(timeAgo(t.played_at))}</span>`)).join('')
-    : '<div class="card-body hb-empty-line">No recent listening yet.</div>';
+    : spEmpty('fa-clock-rotate-left', 'No recent listening yet', 'Play something on Spotify and it appears here.');
 }
 async function loadTop() {
   const range = $('msRange').value;
-  const [a, t] = await Promise.all([spPost({ action: 'top_artists', range }), spPost({ action: 'top_tracks', range })].map(p => p.catch(e => ({ success: false, error: e.message }))));
-  $('msTopArtists').innerHTML = !a.success ? spProblem(a) : a.items.length ? a.items.map(x => `
+  Trackie.UI.loading($('msTopArtists'), 'Loading your top artists…', { rows: 2 });
+  Trackie.UI.loading($('msTopTracks'), 'Loading your top tracks…');
+  const [a, t] = await Promise.all([spPost({ action: 'top_artists', range }), spPost({ action: 'top_tracks', range })].map(spSafe));
+  Trackie.UI.done($('msTopArtists')); Trackie.UI.done($('msTopTracks'));
+  if (!a.success) spFail($('msTopArtists'), a, loadTop);
+  else $('msTopArtists').innerHTML = a.items.length ? a.items.map(x => `
     <a href="${/^https:\/\/open\.spotify\.com\//.test(x.url) ? esc(x.url) : '#'}" target="_blank" rel="noopener" class="ms-artist-card">
       ${x.image ? `<img src="${esc(x.image)}" alt="" loading="lazy">` : '<span></span>'}<b>${esc(x.name)}</b>${x.genres.length ? `<small>${esc(x.genres.join(', '))}</small>` : ''}</a>`).join('')
-    : '<p class="hb-empty-line">Not enough listening history for this range.</p>';
-  $('msTopTracks').innerHTML = !t.success ? spProblem(t) : t.items.length ? t.items.map((x, i) => trackRow(x, `<span class="ms-rank">${i + 1}</span>`)).join('')
-    : '<div class="card-body hb-empty-line">Not enough listening history for this range.</div>';
+    : spEmpty('fa-microphone', 'Not enough listening yet', 'Spotify needs a little more history for this time range.');
+  if (!t.success) spFail($('msTopTracks'), t, loadTop);
+  else $('msTopTracks').innerHTML = t.items.length ? t.items.map((x, i) => trackRow(x, `<span class="ms-rank">${i + 1}</span>`)).join('')
+    : spEmpty('fa-music', 'Not enough listening yet', 'Spotify needs a little more history for this time range.');
 }
 $('msRange').addEventListener('change', loadTop);
 
 async function loadPlaylists() {
   const box = $('musicPlaylists');
-  const res = await spPost({ action: 'playlists' }).catch(e => ({ success: false, error: e.message }));
-  if (!res.success) { box.innerHTML = spProblem(res); return; }
+  const res = await spSafe(spPost({ action: 'playlists' }));
+  if (!res.success) return spFail(box, res, loadPlaylists);
+  Trackie.UI.done(box);
   const current = localStorage.getItem(FOCUS_PLAYLIST_KEY);
   box.innerHTML = res.items.length ? res.items.map(p => `
     <div class="habit-card ms-pl${p.uri === current ? ' on' : ''}">
@@ -388,7 +402,7 @@ async function loadPlaylists() {
         <button class="btn btn-primary btn-sm u-flex-1" data-play-list="${esc(p.uri)}"><i class="fas fa-play"></i> Play</button>
         <button class="btn btn-sm ${p.uri === current ? 'btn-primary' : 'btn-secondary'} u-flex-1" data-focus-pl="${esc(p.uri)}" data-name="${esc(p.name)}">
           <i class="fas ${p.uri === current ? 'fa-check' : 'fa-bullseye'}"></i> ${p.uri === current ? 'Focus' : 'Use for focus'}</button>
-      </div></div>`).join('') : '<p class="hb-empty-line">No playlists found.</p>';
+      </div></div>`).join('') : spEmpty('fa-list', 'No playlists yet', 'Playlists you create or follow in Spotify show up here.');
   updateFocusSyncStatus();
 }
 $('musicPlaylists').addEventListener('click', e => {

@@ -77,6 +77,7 @@ $targets = [
     'assets/css/utilities.css' => 'assets/css/utilities.min.css',
     'assets/css/dashboard.css' => 'assets/css/dashboard.min.css',
     'assets/js/app.js'         => 'assets/js/app.min.js',
+    'assets/js/ui.js'          => 'assets/js/ui.min.js',
     'assets/js/dashboard.js'   => 'assets/js/dashboard.min.js',
     'assets/js/tour.js'        => 'assets/js/tour.min.js',
     'assets/js/capacitor-bridge.js' => 'assets/js/capacitor-bridge.min.js',

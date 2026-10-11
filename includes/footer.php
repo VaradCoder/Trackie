@@ -10,6 +10,7 @@ $vTour = filemtime(ROOT_PATH . '/assets/js/tour.js');
       // window.Motion and degrades gracefully if this CDN load ever fails. ?>
 <script src="https://cdn.jsdelivr.net/npm/motion@11.15.0/dist/motion.js"></script>
 <script src="<?= assetUrl('assets/js/app.js') ?>"></script>
+<script src="<?= assetUrl('assets/js/ui.js') ?>"></script>
 <script src="<?= assetUrl('assets/js/tour.js') ?>"></script>
 <?php if (!empty($extraJs)): ?>
   <?= $extraJs ?>

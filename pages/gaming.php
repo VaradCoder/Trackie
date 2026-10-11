@@ -118,12 +118,12 @@ require_once '../includes/head.php';
                 'completed' => 'Games you marked Completed, newest first.', 'dropped' => 'Games you gave up on, newest first.'] as $k => $hint): ?>
   <div id="gtab-<?= $k ?>" class="gym-tab-panel<?= $k === $initialTab ? '' : ' hidden' ?>" role="tabpanel" aria-labelledby="gmtab-<?= $k ?>">
     <p class="hb-foot gm-hint"><?= h($hint) ?></p>
-    <div data-shelf="<?= $k ?>"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading your games…</div></div>
+    <div data-shelf="<?= $k ?>" aria-busy="true"><?= renderLoading('Loading your games…') ?></div>
   </div>
 <?php endforeach; ?>
 
 <div id="gtab-wrap" class="gym-tab-panel<?= $initialTab === 'wrap' ? '' : ' hidden' ?>" role="tabpanel" aria-labelledby="gmtab-wrap">
-  <div id="gmWrapped"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Building your Gaming Wrap…</div></div>
+  <div id="gmWrapped" aria-busy="true"><?= renderLoading('Building your Gaming Wrap…', 4) ?></div>
 </div>
 
 <!-- Add game modal (games Steam doesn't know about: consoles, other launchers) -->
@@ -192,10 +192,9 @@ function gmCover(url, cls = 'gm-cover') {
     ? `<img class="${cls}" src="${escHtml(url)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
     : `<div class="${cls} gm-cover-empty"><i class="fas fa-gamepad"></i></div>`;
 }
-function gmError(el, msg) { el.innerHTML = `<div class="card card-body hb-error"><i class="fas fa-triangle-exclamation"></i> ${escHtml(msg)}</div>`; }
-function gmEmpty(icon, title, text) {
-  return `<div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas ${icon}"></i></div><div class="empty-state-title">${title}</div><p>${text}</p></div></div>`;
-}
+/* Next steps offered by the empty shelves. */
+const gmConnectSteam = { label: 'Connect Steam', icon: 'fa-link', onClick: () => { const i = document.getElementById('steamIdInput'); i?.scrollIntoView({ block: 'center' }); i?.focus(); } };
+const gmAddGame = { label: 'Add a game', icon: 'fa-plus', onClick: () => openAddGame() };
 
 /* ── Shelves (Most Played / Currently Playing / Completed / Dropped) ── */
 function gmStatusSelect(g) {
@@ -236,8 +235,11 @@ function gmRenderShelves() {
   });
   const steam = <?= $steamLink ? 'true' : 'false' ?>;
   const most = document.querySelector('[data-shelf="most"]');
+  Trackie.UI.done(most);
   if (!d.most_played.length) {
-    most.innerHTML = gmEmpty('fa-ranking-star', 'No playtime yet', steam ? 'Play something on Steam — it shows up here after the next sync.' : 'Connect Steam to rank your library by real playtime.');
+    Trackie.UI.empty(most, { card: true, icon: 'fa-ranking-star', title: 'No playtime yet',
+      text: steam ? 'Play something on Steam — it shows up here after the next sync.' : 'Connect Steam to rank your library by real playtime.',
+      action: steam ? null : gmConnectSteam });
   } else {
     const top = d.most_played[0];
     most.innerHTML = `<div class="gm-rank">${d.most_played.map((g, i) => `
@@ -250,24 +252,34 @@ function gmRenderShelves() {
       </div>`).join('')}</div>
       ${d.counts.played > d.most_played.length ? `<p class="hb-foot">Top ${d.most_played.length} of ${d.counts.played} played games.</p>` : ''}`;
   }
-  const grid = (list, empty, opts) => list.length ? `<div class="grid-cards gm-grid">${list.map(g => gmCard(g, opts && opts(g))).join('')}</div>` : empty;
-  document.querySelector('[data-shelf="playing"]').innerHTML = grid(d.playing,
-    gmEmpty('fa-circle-play', 'Nothing in progress', steam ? 'Games you play on Steam appear here automatically. For other platforms, add a game as Playing.' : 'Add a game you\'re playing, or connect Steam to fill this in automatically.'));
-  document.querySelector('[data-shelf="completed"]').innerHTML = grid(d.completed,
-    gmEmpty('fa-trophy', 'No completed games yet', 'Finished a game? Set its status to Completed — it counts toward your Gaming Wrap.'),
+  // A shelf with games → card grid; an empty one → its empty state + next step.
+  const shelf = (key, list, empty, opts) => {
+    const el = document.querySelector(`[data-shelf="${key}"]`);
+    Trackie.UI.done(el);
+    if (!list.length) return Trackie.UI.empty(el, Object.assign({ card: true }, empty));
+    el.innerHTML = `<div class="grid-cards gm-grid">${list.map(g => gmCard(g, opts && opts(g))).join('')}</div>`;
+  };
+  shelf('playing', d.playing, { icon: 'fa-circle-play', title: 'Nothing in progress',
+    text: steam ? 'Games you play on Steam appear here automatically. For other platforms, add a game as Playing.' : 'Add a game you\'re playing, or connect Steam to fill this in automatically.',
+    action: gmAddGame });
+  shelf('completed', d.completed, { icon: 'fa-trophy', title: 'No completed games yet',
+    text: 'Finished a game? Set its status to Completed — it counts toward your Gaming Wrap.' },
     g => ({ date: g.completed_at, dateIcon: 'fa-flag-checkered', dateLabel: 'Completed' }));
-  document.querySelector('[data-shelf="dropped"]').innerHTML = grid(d.dropped,
-    gmEmpty('fa-circle-xmark', 'Nothing dropped', 'Set a game to Dropped when you stop playing it for good. It leaves Currently Playing.'),
+  shelf('dropped', d.dropped, { icon: 'fa-circle-xmark', title: 'Nothing dropped',
+    text: 'Set a game to Dropped when you stop playing it for good. It leaves Currently Playing.' },
     g => ({ date: g.dropped_at, dateIcon: 'fa-circle-xmark', dateLabel: 'Dropped' }));
   const c = d.counts, stats = document.querySelectorAll('#gamingStatsWrap .stat-val');
   if (stats.length === 4) [`${Math.round(c.hours)}h`, c.played, c.completed, c.dropped].forEach((v, i) => { stats[i].textContent = v; });
 }
 async function loadShelves() {
+  const shelves = document.querySelectorAll('[data-shelf]');
+  const fail = err => shelves.forEach(el => Trackie.UI.error(el, err, { retry: loadShelves, fallback: 'Could not load your games.' }));
+  if (!gmData) shelves.forEach(el => Trackie.UI.loading(el, 'Loading your games…'));   // refreshes keep the current lists on screen
   try {
     const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'shelves' }, { quiet: true });
-    if (!res.success) { document.querySelectorAll('[data-shelf]').forEach(el => gmError(el, res.error || 'Could not load your games.')); return; }
+    if (!res.success) return fail(res);
     gmData = res; gmRenderShelves();
-  } catch (e) { document.querySelectorAll('[data-shelf]').forEach(el => gmError(el, e.message || 'Network error.')); }
+  } catch (e) { fail(e); }
 }
 document.getElementById('page-main').addEventListener('change', e => {
   const sel = e.target.closest('[data-status-for]');
@@ -284,11 +296,14 @@ document.getElementById('page-main').addEventListener('click', e => {
 const GM_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 async function loadWrapped(year, month) {
   const el = document.getElementById('gmWrapped');
+  const retry = () => loadWrapped(year, month);
+  Trackie.UI.loading(el, 'Building your Gaming Wrap…', { rows: 4 });
   try {
     const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'wrapped', year: year || '', month: month || 0 }, { quiet: true });
-    if (!res.success) return gmError(el, res.error || 'Could not build your Gaming Wrap.');
+    if (!res.success) return Trackie.UI.error(el, res, { retry, fallback: 'Could not build your Gaming Wrap.' });
+    Trackie.UI.done(el);
     const w = res.wrapped, lib = w.library, t = w.tracked, p = w.personality;
-    if (!lib.owned) { el.innerHTML = gmEmpty('fa-chart-pie', 'No games yet', 'Add games or connect Steam to see your Gaming Wrap.'); return; }
+    if (!lib.owned) return Trackie.UI.empty(el, { card: true, icon: 'fa-chart-pie', title: 'No games yet', text: 'Add games or connect Steam to see your Gaming Wrap.', action: gmAddGame });
     const period = w.month ? `${GM_MONTHS[w.month - 1]} ${+w.year}` : `${+w.year}`;
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const bars = (vals, labels) => {
@@ -371,7 +386,7 @@ async function loadWrapped(year, month) {
     const reload = () => loadWrapped(document.getElementById('gmYear').value, document.getElementById('gmMonth').value);
     document.getElementById('gmYear').addEventListener('change', reload);
     document.getElementById('gmMonth').addEventListener('change', reload);
-  } catch (e) { gmError(el, e.message || 'Network error.'); }
+  } catch (e) { Trackie.UI.error(el, e, { retry, fallback: 'Could not build your Gaming Wrap.' }); }
 }
 
 /* ── Actions ───────────────────────────────────────────────────── */
@@ -388,8 +403,8 @@ async function saveGame() {
     const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'add', title,
       platform: document.getElementById('gamePlatform').value.trim(), status: document.getElementById('gameStatus').value });
     if (res.success) { Trackie.Toast.success('Game added!'); Trackie.closeModal('addGameModal'); gmChanged(); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function setGameStatus(id, status) {
   try {
@@ -399,24 +414,24 @@ async function setGameStatus(id, status) {
       else if (res.xp?.ok) Trackie.Toast.success(`🏆 Completed! +${res.xp.gained} XP`);
       else Trackie.Toast.success(`Moved to ${GM_STATUS[status]}.`);
       gmChanged();
-    } else Trackie.Toast.error(res.error || 'Failed.');
-  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+    } else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function rateGame(id, rating) {
   document.querySelectorAll(`[data-rate="${id}"] i`).forEach((s, i) => { s.className = (i < rating ? 'fas' : 'far') + ' fa-star'; });
   try {
     const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'rate', item_id: id, rating });
-    if (!res.success) Trackie.Toast.error(res.error || 'Failed.');
+    if (!res.success) Trackie.UI.toastError(res, 'Failed.');
     else if (gmData) ['playing', 'completed', 'dropped', 'most_played'].forEach(k => gmData[k].forEach(g => { if (g.id === id) g.rating = rating; }));
-  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 async function deleteGame(id) {
   if (!await Trackie.confirmDialog('Delete this game?', { confirmText: 'Delete', danger: true })) return;
   try {
     const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'delete', item_id: id });
     if (res.success) { Trackie.Toast.success('Deleted.'); gmChanged(); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 /** Library changed: re-read the shelves; the Wrap rebuilds next time it's opened. */
 function gmChanged() {
@@ -438,8 +453,8 @@ async function connectSteam() {
       else { Trackie.Toast.success(`Connected${res.persona ? ' as ' + res.persona : ''} — synced ${res.synced} game${res.synced === 1 ? '' : 's'}.`); refreshSteamAchievements(); }
       await Trackie.refreshFragments(['steamCardWrap']);
       gmChanged();
-    } else Trackie.Toast.error(res.error || 'Could not connect.');
-  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+    } else Trackie.UI.toastError(res, 'Could not connect.');
+  } catch (e) { Trackie.UI.toastError(e); }
   finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-link"></i> Connect'; }
 }
 /* quiet = the automatic sync on page open: no toasts unless something is wrong. */
@@ -452,9 +467,9 @@ async function syncSteam(quiet = false) {
       if (res.private) { if (!quiet) Trackie.Toast.warning("This profile's game list is private, so nothing could sync. Set it to public in Steam privacy settings, then try again.", 8000); }
       else { if (!quiet) Trackie.Toast.success(`Synced ${res.synced} game${res.synced === 1 ? '' : 's'} from Steam.`); refreshSteamAchievements(); }
       gmChanged();
-    } else if (!quiet) Trackie.Toast.error(res.error || 'Sync failed.');
+    } else if (!quiet) Trackie.UI.toastError(res, 'Sync failed.');
     await Trackie.refreshFragments(['steamCardWrap']);
-  } catch (e) { if (!quiet) Trackie.Toast.error(e.message || 'Network error.'); }
+  } catch (e) { if (!quiet) Trackie.UI.toastError(e); }
   finally {
     const b = document.getElementById('steamSyncBtn');
     if (b) { b.disabled = false; b.innerHTML = '<i class="fas fa-rotate"></i> Sync now'; }
@@ -478,8 +493,8 @@ async function disconnectSteam() {
   try {
     const res = await Trackie.API.post(`${API_BASE}/gaming.php`, { action: 'steam_disconnect' });
     if (res.success) { Trackie.Toast.success('Steam disconnected.'); await Trackie.refreshFragments(['steamCardWrap']); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
+    else Trackie.UI.toastError(res, 'Failed.');
+  } catch (e) { Trackie.UI.toastError(e); }
 }
 
 loadShelves();

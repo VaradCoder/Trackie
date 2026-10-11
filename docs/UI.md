@@ -128,3 +128,24 @@ New mutating actions across the app should follow this same shape rather than wa
 - Priority/urgency is always communicated with both color *and* a text label (never color alone) — e.g. High/Medium/Low badges, not just colored dots.
 - Interactive day cells and cards use `role="button"`/`tabindex` where they're not native `<button>`/`<a>` elements.
 - Every destructive action (delete todo, disconnect integration) goes through `Trackie.confirmDialog()` before executing.
+
+## Async states: loading, empty, error (Phase 1 · slice 2)
+
+One pattern for "this part is loading / has nothing yet / failed". Never hand-write spinners, empty-state HTML or `catch { Toast.error('Network error.') }`.
+
+| Need | PHP (server-rendered) | JS (`assets/js/ui.js`) |
+|---|---|---|
+| Loading placeholder | `renderLoading('Loading your games…', $rows)` inside the container (add `aria-busy="true"` on it) | `Trackie.UI.loading(el, label, { rows })`, or `{ inline: true }` for a one-line spinner |
+| Empty, with a next step | `renderEmptyState($icon, $title, $text, $actionHtml, $compact)` | `Trackie.UI.empty(el, { icon, title, text, action: { label, icon, onClick \| href }, compact, card })` |
+| Failure | — | `Trackie.UI.error(el, err, { retry, action, fallback })` |
+| Load → paint, with retry | — | `await Trackie.UI.load(el, () => api(), data => paint(data), { label, fallback })` |
+| Toast for a failed action | — | `Trackie.UI.toastError(errOrRes, 'Could not save.')` |
+
+Rules
+- **Show the real reason.** `Trackie.API` throws `ApiError` with user-safe text, and `{success:false, error}` responses carry one too. `errorText()` shows those, and uses the fallback for anything else (never a raw JS exception).
+- **Retry where it can help, a next step where it can't.** Use "Try again" for timeouts and 5xx. When the fix is something else (e.g. "Reconnect Spotify"), pass it as `action` instead of a retry.
+- **Accessibility comes built in:** loading is `role="status"` with `aria-busy` on the container; errors are `role="alert"`; skeleton lines are `aria-hidden`; the shimmer stops under `prefers-reduced-motion`.
+- **Refreshes keep content.** Show `loading()` on the first load or on an explicit switch (year, range), not on a background refresh that already has data on screen.
+- `escHtml()` (app.js) is the one escaper. Don't add page-local copies.
+
+Tests: `node tests/js/ui.test.js` (also step 6 of `scripts/regression.sh`).
