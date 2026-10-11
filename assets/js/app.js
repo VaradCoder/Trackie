@@ -581,6 +581,9 @@ const API = (() => {
       // error:"…"} — hand them to the caller, which shows res.error.
       if (!res.ok && typeof data === 'object' && !('success' in data)) data.success = false;
       if (!res.ok && typeof data === 'object' && !data.error) data.error = `Request failed (HTTP ${res.status}).`;
+      // Keep the HTTP status for Trackie.UI (retry only transient failures).
+      // Non-enumerable: the response shape callers see is unchanged.
+      if (!res.ok && data && typeof data === 'object') Object.defineProperty(data, 'httpStatus', { value: res.status, enumerable: false });
       return data;
     }
     if (!res.ok) {

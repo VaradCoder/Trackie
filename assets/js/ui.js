@@ -39,6 +39,21 @@
     return fallback;
   }
 
+  /**
+   * Is trying the same request again likely to help? Only for transient
+   * failures: no connection / timeout (status 0), 408, 429, 5xx, or a
+   * {success:false} result whose reason is known to be temporary. Never for
+   * 401 (session — app.js already redirects to sign-in), 403, 404 or 422.
+   */
+  const TRANSIENT_REASONS = ['rate_limited', 'network', 'timeout', 'unavailable'];
+  function isRetryable(err) {
+    if (!err || typeof err !== 'object') return false;
+    const st = err.name === 'ApiError' ? err.status : err.httpStatus;
+    if (typeof st === 'number' && (st === 0 || st === 408 || st === 429 || st >= 500)) return true;
+    return TRANSIENT_REASONS.includes(err.reason);
+  }
+  const isAuthError = err => !!err && typeof err === 'object' && (err.name === 'ApiError' ? err.status : err.httpStatus) === 401;
+
   function loadingHTML(label = 'Loading…', { rows = 3, inline = false } = {}) {
     if (inline) {
       return `<p class="ui-loading ui-loading-inline" role="status"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> ${esc(label)}</p>`;
@@ -74,6 +89,7 @@
 
   function errorHTML(err, { retry = null, action = null, fallback } = {}) {
     const msg = errorText(err, fallback);
+    if (retry && !isRetryable(err)) retry = null;   // don't offer what can't help
     const btns = [
       retry ? `<button type="button" class="btn btn-secondary btn-sm" data-ui-act="retry"><i class="fas fa-rotate-right" aria-hidden="true"></i> Try again</button>` : '',
       action ? actionHTML(Object.assign({ primary: false }, action), 0) : '',
@@ -135,11 +151,12 @@
 
   function toastError(err, fallback) {
     const msg = errorText(err, fallback);
+    if (isAuthError(err)) return msg;   // app.js already toasted + is redirecting to sign-in
     if (window.Trackie && Trackie.Toast) Trackie.Toast.error(msg);
     return msg;
   }
 
-  const UI = { errorText, loadingHTML, emptyHTML, errorHTML, render, loading, done, empty, error, load, toastError };
+  const UI = { errorText, isRetryable, loadingHTML, emptyHTML, errorHTML, render, loading, done, empty, error, load, toastError };
   if (window.Trackie) window.Trackie.UI = UI;
   window.TrackieUI = UI;
 })();

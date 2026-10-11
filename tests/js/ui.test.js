@@ -70,7 +70,7 @@ class ApiError extends Error { constructor(m, s) { super(m); this.name = 'ApiErr
 
   // error + retry
   let retries = 0;
-  UI.error(a, new ApiError('Open Library did not answer (HTTP 502).'), { retry: () => retries++ });
+  UI.error(a, new ApiError('Open Library did not answer (HTTP 502).', 502), { retry: () => retries++ });
   ok(/role="alert"/.test(a.innerHTML) && /Open Library did not answer/.test(a.innerHTML), 'error has role=alert and the real reason');
   a.buttons.find(b => b.act === 'retry').click();
   ok(retries === 1, '"Try again" calls retry');
@@ -82,13 +82,28 @@ class ApiError extends Error { constructor(m, s) { super(m); this.name = 'ApiErr
   const r = await UI.load(b, async () => ({ success: true, items: [1, 2] }), d => { painted = d.items.length; }, { label: 'Loading…' });
   ok(painted === 2 && r.items.length === 2 && b.getAttribute('aria-busy') === null, 'load: paints the result and clears aria-busy');
   let calls = 0;
-  await UI.load(b, async () => { calls++; return calls === 1 ? { success: false, error: 'Not connected.' } : { success: true }; }, () => { painted = 'second'; });
-  ok(/Not connected\./.test(b.innerHTML) && /role="alert"/.test(b.innerHTML), 'load: {success:false} shows the error');
+  const http503 = o => Object.defineProperty(o, 'httpStatus', { value: 503, enumerable: false });
+  await UI.load(b, async () => { calls++; return calls === 1 ? http503({ success: false, error: 'Steam is down.' }) : { success: true }; }, () => { painted = 'second'; });
+  ok(/Steam is down\./.test(b.innerHTML) && /role="alert"/.test(b.innerHTML), 'load: {success:false} shows the error');
   b.buttons.find(x => x.act === 'retry').click();
   await new Promise(res => setTimeout(res, 0));
   ok(calls === 2 && painted === 'second', 'load: Try again re-runs the fetch and paints');
-  await UI.load(b, async () => { throw new ApiError('Offline.'); }, () => {});
+  await UI.load(b, async () => { throw new ApiError('Offline.', 0); }, () => {});
   ok(/Offline\./.test(b.innerHTML), 'load: thrown ApiError shows its message');
+
+  // Retry policy: only transient failures get "Try again"
+  const http = (st, o) => Object.defineProperty(o, 'httpStatus', { value: st, enumerable: false });
+  const offersRetry = err => /data-ui-act="retry"/.test(UI.errorHTML(err, { retry: () => {} }));
+  ok(offersRetry(new ApiError('No connection.', 0)), 'retry: offline/timeout (status 0)');
+  ok(offersRetry(new ApiError('Busy.', 503)) && offersRetry(new ApiError('Slow down.', 429)) && offersRetry(new ApiError('Timeout.', 408)), 'retry: 5xx, 429, 408');
+  ok(offersRetry(http(502, { success: false, error: 'Steam down.' })), 'retry: JSON {success:false} with HTTP 502');
+  ok(offersRetry({ success: false, reason: 'rate_limited', error: 'Wait 30 s.' }), 'retry: known transient reason');
+  ok(!offersRetry(new ApiError('Session expired.', 401)), 'NO retry: 401 (app.js redirects to sign-in)');
+  ok(!offersRetry(http(403, { success: false, error: 'CSRF token mismatch' })) && !offersRetry(http(404, { success: false, error: 'Not found.' })), 'NO retry: 403, 404');
+  ok(!offersRetry(http(422, { success: false, error: 'Title is required.' })), 'NO retry: 422 validation');
+  ok(!offersRetry({ success: false, error: "Steam isn't connected yet." }), 'NO retry: plain {success:false} without a transient sign');
+  ok(!offersRetry(new TypeError('x')), 'NO retry: programming errors');
+  ok(Object.keys(http(500, { success: false, error: 'e' })).join() === 'success,error', 'httpStatus is non-enumerable (response shape unchanged)');
 
   // element by id + missing element is harmless
   UI.loading('byId', 'x');
@@ -96,9 +111,11 @@ class ApiError extends Error { constructor(m, s) { super(m); this.name = 'ApiErr
   ok(UI.empty('missing', { title: 'x' }) === null, 'missing element → null, no throw');
 
   // toast
-  UI.toastError(new ApiError('Session expired.'), 'Failed.');
+  UI.toastError(new ApiError('Steam is down.', 503), 'Failed.');
   UI.toastError(new Error('boom'), 'Could not save.');
-  ok(toasts[0] === 'Session expired.' && toasts[1] === 'Could not save.', 'toastError shows the real reason, fallback for bugs');
+  UI.toastError(new ApiError('Your session has expired.', 401), 'Failed.');
+  ok(toasts[0] === 'Steam is down.' && toasts[1] === 'Could not save.', 'toastError shows the real reason, fallback for bugs');
+  ok(toasts.length === 2, 'toastError stays quiet on 401 (app.js already toasted and redirects)');
 
   console.log(`== ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
