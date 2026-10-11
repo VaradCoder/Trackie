@@ -964,6 +964,72 @@ function resetRecurringTodos(int $uid): void {
     );
 }
 
+/**
+ * The activity reference for one completion of a todo done on $date (Y-m-d).
+ *
+ * One-off todos keep 'todo' (one completion per todo, as always). A recurring
+ * todo is ONE row that resetRecurringTodos() re-opens each period, so its
+ * completions are told apart by the period they belong to — the same periods
+ * the reset uses: the day, the week from Monday, the month from the 1st.
+ * Keying on the period (not the exact day) means completing, re-opening and
+ * completing again on a later day of the same week is still one completion,
+ * and one XP award.
+ */
+function todoOccurrenceKey(string $recurring, string $date): string {
+    $t = strtotime($date . ' 12:00:00');
+    switch ($recurring) {
+        case 'daily':   return 'todo:' . date('Y-m-d', $t);
+        case 'weekly':  return 'todo:' . date('Y-m-d', strtotime('-' . ((int)date('N', $t) - 1) . ' day', $t));
+        case 'monthly': return 'todo:' . date('Y-m-01', $t);
+        default:        return 'todo';
+    }
+}
+
+/**
+ * Complete or re-open a todo — the one path for the checkbox, the board and
+ * the calendar, so every completion reaches the activity log the same way.
+ * Idempotent: a retried "complete" keeps the original time and pays no XP
+ * twice; a retried "re-open" does nothing. Re-opening removes only the
+ * completion being re-opened, never earlier days' history.
+ *
+ * @return array{found:bool, xp:?array, achievements:array}
+ */
+function setTodoCompleted(int $uid, int $id, bool $done, ?string $status = null): array {
+    resetRecurringTodos($uid);   // decide against the CURRENT period, not a stale one
+    $t = fetchOne("SELECT id, recurring, completed, completed_at FROM todos WHERE id=? AND user_id=? AND deleted_at IS NULL", [$id, $uid]);
+    if (!$t) return ['found' => false, 'xp' => null, 'achievements' => []];
+    require_once __DIR__ . '/activity.php';
+
+    $wasDone = (int)$t['completed'] === 1 && $t['completed_at'];
+    $at      = $done ? ($wasDone ? $t['completed_at'] : date('Y-m-d H:i:s')) : null;
+    update("UPDATE todos SET completed=?, completed_at=?" . ($status !== null ? ", status=?" : '') . " WHERE id=? AND user_id=? AND deleted_at IS NULL",
+           array_merge([$done ? 1 : 0, $at], $status !== null ? [$status] : [], [$id, $uid]));
+
+    $xp = null; $ach = [];
+    if ($done) {
+        $day = substr($at, 0, 10);
+        $key = todoOccurrenceKey((string)$t['recurring'], $day);
+        $opt = ['date' => $day];
+        // Before this change a recurring todo was paid once, under 'todo'. If that
+        // payment fell in this period, this completion has already been paid.
+        if ($key !== 'todo' && tableExists('xp_events') && fetchOne(
+            "SELECT id FROM xp_events WHERE user_id=? AND action='todo' AND ref_type='todo' AND ref_id=? AND DATE(created_at) >= ? LIMIT 1",
+            [$uid, $id, substr($key, 5)])) $opt['xp'] = 0;
+        $xp  = recordActivity($uid, 'todo', $key, $id, $opt);
+        $ach = achievementPayload(checkAchievements($uid));
+    } elseif ($wasDone) {
+        if ((string)$t['recurring'] === 'none') {
+            undoActivity($uid, 'todo', 'todo', $id);   // unchanged for one-off todos
+        } elseif (activityReady()) {
+            // Only the completion being re-opened: the one dated like completed_at,
+            // under the period key or the pre-change 'todo' key.
+            update("DELETE FROM activity_log WHERE user_id=? AND action='todo' AND ref_id=? AND occurred_on=? AND (ref_type='todo' OR ref_type LIKE 'todo:%')",
+                   [$uid, $id, substr($t['completed_at'], 0, 10)]);
+        }
+    }
+    return ['found' => true, 'xp' => $xp, 'achievements' => $ach];
+}
+
 // ── Reusable UI components (v2 design system) ─────────────────────
 // Shared markup so every page renders headers, stat cards, and empty
 // states identically. All values are output-escaped here; callers pass

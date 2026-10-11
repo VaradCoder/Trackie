@@ -201,7 +201,10 @@ function checkAchievements(int $uid): array {
     $newly = achievementBuffer();
     $count = fn($sql) => (int)(fetchOne($sql, [$uid])['c'] ?? 0);
 
-    $todosDone   = $count("SELECT COUNT(*) c FROM todos WHERE user_id=? AND completed=1 AND deleted_at IS NULL");
+    // Recurring todos re-open each period, so the todos table alone undercounts
+    // them; activity_log has one row per completion. Never lower than before.
+    $todosDone   = max($count("SELECT COUNT(*) c FROM todos WHERE user_id=? AND completed=1 AND deleted_at IS NULL"),
+                       tableExists('activity_log') ? $count("SELECT COUNT(*) c FROM activity_log WHERE user_id=? AND action='todo'") : 0);
     $studyDone   = tableExists('study_plan') ? $count("SELECT COUNT(*) c FROM study_plan WHERE user_id=? AND completed=1") : 0;
     $goalsDone   = $count("SELECT COUNT(*) c FROM goals WHERE user_id=? AND progress >= target_value");
     $fitnessLogs = $count("SELECT COUNT(*) c FROM logs l JOIN habits h ON h.id=l.habit_id WHERE l.user_id=? AND h.group_name='Fitness'");

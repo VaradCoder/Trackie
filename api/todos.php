@@ -68,26 +68,11 @@ switch ($action) {
         $completed = (int)($_POST['completed'] ?? 0);
         if (!$id) json_out(['success' => false, 'error' => 'Invalid ID.'], 422);
 
-        // Ownership first: XP used to be awarded for ANY id, even one that
-        // belongs to someone else (the UPDATE below is scoped, the XP wasn't).
-        if (!fetchOne("SELECT id FROM todos WHERE id=? AND user_id=? AND deleted_at IS NULL", [$id, $uid])) {
-            json_out(['success' => false, 'error' => 'Todo not found.'], 404);
-        }
-        $completedAt = $completed ? date('Y-m-d H:i:s') : null;
-        update(
-            "UPDATE todos SET completed=?,completed_at=? WHERE id=? AND user_id=? AND deleted_at IS NULL",
-            [$completed, $completedAt, $id, $uid]
-        );
-        $xp = null;
-        $newAchievements = [];
-        require_once '../includes/activity.php';
-        if ($completed) {
-            $xp = recordActivity($uid, 'todo', 'todo', $id);   // once per todo
-            $newAchievements = achievementPayload(checkAchievements($uid));
-        } else {
-            undoActivity($uid, 'todo', 'todo', $id);
-        }
-        json_out(['success' => true, 'xp' => $xp, 'achievements' => $newAchievements]);
+        // Ownership is checked inside (scoped SELECT) before anything is written
+        // or any XP is paid. Recurring todos get one activity row per period.
+        $r = setTodoCompleted($uid, $id, (bool)$completed);
+        if (!$r['found']) json_out(['success' => false, 'error' => 'Todo not found.'], 404);
+        json_out(['success' => true, 'xp' => $r['xp'], 'achievements' => $r['achievements']]);
 
     case 'restore':
         // Undo a delete: todos are soft-deleted, so bring back the parent and
@@ -146,13 +131,11 @@ switch ($action) {
         if (!$id || !in_array($status, $valid, true))
             json_out(['success' => false, 'error' => 'Invalid input.'], 422);
 
-        $completed   = $status === 'done' ? 1 : 0;
-        $completedAt = $status === 'done' ? date('Y-m-d H:i:s') : null;
-        update(
-            "UPDATE todos SET status=?, completed=?, completed_at=? WHERE id=? AND user_id=? AND deleted_at IS NULL",
-            [$status, $completed, $completedAt, $id, $uid]
-        );
-        json_out(['success' => true]);
+        // Moving a card to/from Done is a completion like the checkbox: it used
+        // to change the row only, so board completions had no activity or XP.
+        $r = setTodoCompleted($uid, $id, $status === 'done', $status);
+        if (!$r['found']) json_out(['success' => false, 'error' => 'Todo not found.'], 404);
+        json_out(['success' => true, 'xp' => $r['xp'], 'achievements' => $r['achievements']]);
 
     default:
         json_out(['success' => false, 'error' => 'Unknown action.'], 400);
