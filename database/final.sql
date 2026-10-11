@@ -1012,11 +1012,21 @@ CREATE TABLE IF NOT EXISTS routine_logs (
     user_id    INT NOT NULL,
     routine_id INT NOT NULL,
     log_date   DATE NOT NULL,
+    status     ENUM('done','skipped') NOT NULL DEFAULT 'done',   -- 'skipped' = one-day exception
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uniq_routine_day (routine_id, log_date),
     INDEX idx_user_date (user_id, log_date),
     FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE,
     FOREIGN KEY (routine_id) REFERENCES routines(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A planned rest day for the whole routine plan (day-level, not per routine).
+CREATE TABLE IF NOT EXISTS routine_rest_days (
+    user_id    INT  NOT NULL,
+    rest_date  DATE NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, rest_date),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS user_integrations (

@@ -197,6 +197,7 @@ function ensureActivityBackfill(int $uid): void {
     $row = fetchOne("SELECT activity_backfilled_at FROM user_settings WHERE user_id=?", [$uid]);
     if ($row && $row['activity_backfilled_at']) return;
 
+    require_once __DIR__ . '/routines.php';
     $ins = "INSERT IGNORE INTO activity_log (user_id, module, action, ref_type, ref_id, occurred_on, xp) ";
     $sources = [
         // XP history is the richest record of what happened (dates embedded in 'log:YYYY-MM-DD' keys).
@@ -211,7 +212,9 @@ function ensureActivityBackfill(int $uid): void {
         'logs' => $ins . "SELECT user_id, 'habits', 'habit', CONCAT('log:', date_completed), habit_id, date_completed, 0 FROM logs WHERE user_id=?",
         'todos' => $ins . "SELECT user_id, 'todos', 'todo', 'todo', id, DATE(completed_at), 0 FROM todos
                            WHERE user_id=? AND completed=1 AND completed_at IS NOT NULL AND deleted_at IS NULL",
-        'routine_logs' => $ins . "SELECT user_id, 'routines', 'routine', CONCAT('routine:', log_date), routine_id, log_date, 0 FROM routine_logs WHERE user_id=?",
+        // Skips are not completions (routine_logs.status, 2026-10-11).
+        'routine_logs' => $ins . "SELECT user_id, 'routines', 'routine', CONCAT('routine:', log_date), routine_id, log_date, 0 FROM routine_logs WHERE user_id=?"
+                          . (routineSkipsReady() ? " AND status='done'" : ''),
         'focus_sessions' => $ins . "SELECT user_id, 'focus', 'focus', 'focus_session', id, DATE(COALESCE(completed_at, started_at)), 0 FROM focus_sessions
                                     WHERE user_id=? AND completed=1 AND type='focus'",
         'workout_logs' => $ins . "SELECT user_id, 'fitness', 'workout', CONCAT('log:', log_date), id, log_date, 0 FROM workout_logs WHERE user_id=?",

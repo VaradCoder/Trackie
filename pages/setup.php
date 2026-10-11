@@ -973,6 +973,20 @@ $migrations = [
         FOREIGN KEY (routine_id) REFERENCES routines(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
+    // One-day exceptions: a routine-day is done OR skipped (mutually exclusive,
+    // so the UNIQUE above still holds). Existing rows default to 'done'.
+    'routine_logs.status' => "ALTER TABLE routine_logs
+        ADD COLUMN IF NOT EXISTS status ENUM('done','skipped') NOT NULL DEFAULT 'done' AFTER log_date",
+    // Planned rest days are day-level, so they get their own table rather than
+    // a row per routine (routines added later are covered too).
+    'routine_rest_days table' => "CREATE TABLE IF NOT EXISTS routine_rest_days (
+        user_id    INT  NOT NULL,
+        rest_date  DATE NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, rest_date),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
     // Goal check-ins (api/goals.php). Never created by any script before —
     // the table was made by hand, without a primary key. See the repair
     // step just above the runner loop.

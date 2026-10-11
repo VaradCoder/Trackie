@@ -32,19 +32,20 @@ function calendarEvents(int $uid, string $from, string $to): array {
     // Routines: one entry per day they're due (schedule_days), done where logged.
     // Capped at 62 days so a long range can't explode into thousands of rows.
     $routines = $q('routines', "SELECT id, title, time_slot, schedule_days FROM routines WHERE user_id=?", [$uid]);
+    // A day the routine was recorded on shows even if the weekly plan has since
+    // changed (history survives schedule edits); skips and rest days are labelled.
     if ($routines && (strtotime($to) - strtotime($from)) <= 62 * 86400) {
-        require_once __DIR__ . '/habit_schedule.php';
-        $done = [];
-        foreach ($q('routine_logs', "SELECT routine_id, log_date FROM routine_logs WHERE user_id=? AND log_date BETWEEN ? AND ?", [$uid, $from, $to]) as $l) {
-            $done[$l['routine_id'] . '|' . $l['log_date']] = true;
-        }
-        for ($t = strtotime($from); $t <= strtotime($to); $t = strtotime('+1 day', $t)) {
-            $d = date('Y-m-d', $t); $dow = (int)date('w', $t);
+        require_once __DIR__ . '/routines.php';
+        try { $logs = routineLogStates($uid, $from, $to); $rest = routineRestDays($uid, $from, $to); }
+        catch (Throwable $e) { error_log('calendar routines: ' . $e->getMessage()); $logs = $rest = []; }
+        $suffix = ['skipped' => ' (skipped)', 'rest' => ' (rest day)'];
+        for ($t = strtotime($from . ' 12:00'); date('Y-m-d', $t) <= $to; $t = strtotime('+1 day', $t)) {
+            $d = date('Y-m-d', $t);
             foreach ($routines as $r) {
-                $days = habitDays(['frequency' => 'daily', 'schedule_days' => $r['schedule_days']]);
-                if ($days && !in_array($dow, $days, true)) continue;
-                $ev[] = ['uid' => "routine-{$r['id']}-$d", 'source' => 'routine', 'id' => (int)$r['id'], 'title' => $r['title'], 'date' => $d,
-                         'time' => substr($r['time_slot'], 0, 5), 'done' => isset($done[$r['id'] . '|' . $d]), 'actionable' => false,
+                $st = routineDayState($r, $d, $logs, $rest);
+                if ($st === 'off') continue;
+                $ev[] = ['uid' => "routine-{$r['id']}-$d", 'source' => 'routine', 'id' => (int)$r['id'], 'title' => $r['title'] . ($suffix[$st] ?? ''), 'date' => $d,
+                         'time' => substr($r['time_slot'], 0, 5), 'done' => $st === 'done', 'state' => $st, 'actionable' => false,
                          'priority' => null, 'link' => $base . 'routines.php'];
             }
         }

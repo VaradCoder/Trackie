@@ -16,6 +16,7 @@ chdir(__DIR__ . '/../../pages');
 require '../config/app.php';
 require '../config/database.php';
 require '../includes/functions.php';
+require __DIR__ . '/_harness.inc';
 
 $pass = $fail = 0;
 function ok(bool $c, string $n): void { global $pass, $fail; if ($c) { $pass++; echo "PASS  $n\n"; } else { $fail++; echo "FAIL  $n\n"; } }
@@ -34,6 +35,7 @@ try {
     };
     $csrf = static fn(string $html) => preg_match('/csrf-token" content="([^"]+)"/', $html, $m) ? $m[1] : '';
     $login = $http('/api/auth.php', ['action' => 'login', 'email' => $email, 'password' => $pw, 'csrf_token' => $csrf($http('/pages/auth.php'))]);
+    releaseTestLogin($email);
     ok(str_contains($login, '"success":true'), 'throwaway user signs in');
     $tok = $csrf($http('/pages/todos.php'));
     $api = function (array $p) use ($http, $tok) { return json_decode($http('/api/todos.php', $p + ['csrf_token' => $tok]), true) ?: []; };

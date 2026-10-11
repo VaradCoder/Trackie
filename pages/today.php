@@ -82,20 +82,16 @@ $goals = fetchAll(
 );
 
 // ── Routines due today (specific weekdays honoured) ───────────────
+// Same states as the Routines page (includes/routines.php): skipped and
+// rest-day routines are shown as such, never as unfinished.
+require_once '../includes/routines.php';
 $routinesToday = [];
-if (tableExists('routines')) {
-    $rows = tableExists('routine_logs')
-        ? fetchAll("SELECT r.id, r.title, r.time_slot, r.schedule_days, r.category, (rl.id IS NOT NULL) AS done_today
-                      FROM routines r
-                      LEFT JOIN routine_logs rl ON rl.routine_id = r.id AND rl.log_date = ? AND rl.user_id = r.user_id
-                     WHERE r.user_id = ? ORDER BY r.time_slot", [$today, $uid])
-        : [];
-    $dow = (int)date('w');
-    foreach ($rows as $r) {
-        $days = habitDays(['frequency' => 'daily', 'schedule_days' => $r['schedule_days'] ?? null]);
-        if (!$days || in_array($dow, $days, true)) $routinesToday[] = $r;
-    }
+foreach (routinesOnDay($uid, $today) as $r) {
+    if ($r['state'] === 'off') continue;
+    $r['done_today'] = $r['state'] === 'done' ? 1 : 0;
+    $routinesToday[] = $r;
 }
+$routineRestToday = (bool)routineRestDays($uid, $today, $today);
 
 // ── Reminders still to come today ────────────────────────────────
 $remindersToday = tableExists('reminders')
@@ -178,12 +174,14 @@ require_once '../includes/head.php';
 <div class="card card-body u-mb-4">
   <h3 style="font-size:.9375rem;font-weight:600;margin:0 0 var(--sp-3)"><i class="fas fa-clock u-c-accent u-mr-1h"></i>Routines</h3>
   <div id="todayRoutines">
-    <?php foreach ($routinesToday as $r): ?>
+    <?php if ($routineRestToday): ?><p class="u-fs-13 u-c-muted u-m-0 u-mb-2"><i class="fas fa-couch" aria-hidden="true"></i> Rest day — nothing here is expected today.</p><?php endif; ?>
+    <?php foreach ($routinesToday as $r): $quiet = $r['done_today'] || $r['state'] === 'skipped' || $r['state'] === 'rest'; ?>
       <label class="cal-board-check" style="padding:var(--sp-2) 0;border-bottom:1px solid var(--border)">
         <input type="checkbox" <?= $r['done_today'] ? 'checked' : '' ?>
                onchange="toggleTodayRoutine(<?= (int)$r['id'] ?>, this)">
-        <span style="flex:1;<?= $r['done_today'] ? 'text-decoration:line-through;opacity:.5' : '' ?>">
+        <span style="flex:1;<?= $quiet ? 'opacity:.5;' : '' ?><?= $r['done_today'] ? 'text-decoration:line-through' : '' ?>">
           <b class="u-fw-6 u-c-muted u-mr-1h"><?= date('g:i A', strtotime($r['time_slot'])) ?></b><?= h($r['title']) ?>
+          <?php if ($r['state'] === 'skipped'): ?><span class="u-fs-12"> · skipped today</span><?php endif; ?>
         </span>
       </label>
     <?php endforeach; ?>

@@ -3982,6 +3982,8 @@ html { overflow-x: clip; }
 }
 .routine-row            { transition: opacity .2s ease; }
 .routine-row.is-done    { opacity: .62; }
+.routine-row.is-skipped,
+.routine-row.is-rest     { opacity: .62; border-style: dashed; }   /* not done, but not owed either */
 .routine-row.is-done .routine-title,
 .routine-row.is-done > div:nth-child(3) > div:first-child {
   text-decoration: line-through;

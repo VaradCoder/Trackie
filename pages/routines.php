@@ -13,35 +13,25 @@ $currentPage = 'routines';
 
 $today = date('Y-m-d');
 
-// LEFT JOIN today's log so each row knows whether it's already done — one
-// query rather than an is-it-done lookup per routine.
-$routines = tableExists('routine_logs')
-    ? fetchAll(
-        "SELECT r.*, (rl.id IS NOT NULL) AS done_today
-           FROM routines r
-           LEFT JOIN routine_logs rl
-                  ON rl.routine_id = r.id AND rl.log_date = ? AND rl.user_id = r.user_id
-          WHERE r.user_id = ?
-          ORDER BY r.time_slot ASC",
-        [$today, $uid])
-    : fetchAll("SELECT *, 0 AS done_today FROM routines WHERE user_id=? ORDER BY time_slot ASC", [$uid]);
-
-// Routines can run on specific weekdays (schedule_days, same rules as habits).
-// Today's list — and its progress bar — only counts the ones due today.
+// Each routine's state today (done / skipped / rest / due / off) from the one
+// shared reader, so this page, Today and the Calendar can't disagree.
+require_once '../includes/routines.php';
 $routineSched = static fn(array $r) => ['frequency' => 'daily', 'schedule_days' => $r['schedule_days'] ?? null];
-$dow = (int)date('w');
 $notToday = [];
-$routines = array_values(array_filter($routines, static function ($r) use ($routineSched, $dow, &$notToday) {
-    $days = habitDays($routineSched($r));
-    if (!$days || in_array($dow, $days, true)) return true;
+$routines = array_values(array_filter(routinesOnDay($uid, $today), static function ($r) use (&$notToday) {
+    if ($r['state'] !== 'off') return true;   // scheduled today, or recorded today anyway
     $notToday[] = $r;
     return false;
 }));
-
-$doneCount  = 0;
-foreach ($routines as $r) if ((int)$r['done_today']) $doneCount++;
-$totalCount = count($routines);
-$pct        = $totalCount ? (int)round($doneCount / $totalCount * 100) : 0;
+foreach ($routines as &$r) $r['done_today'] = $r['state'] === 'done' ? 1 : 0;
+unset($r);
+$isRestDay  = (bool)routineRestDays($uid, $today, $today);
+$canExcept  = routineSkipsReady() && routineRestReady();
+// Only 'due' and 'done' are expected: a skip or a rest day never counts against today.
+$prog       = routineProgress(array_column($routines, 'state'));
+$doneCount  = $prog['done'];
+$totalCount = $prog['expected'];
+$pct        = $prog['pct'];
 
 // Group by time-of-day bucket
 $groups = ['Morning' => [], 'Afternoon' => [], 'Evening' => [], 'Night' => []];
@@ -73,6 +63,17 @@ require_once '../includes/head.php';
 ]) ?>
 
 <div id="routinesListWrap">
+<?php if ($isRestDay): ?>
+  <div class="card card-body u-mb-5 u-flex u-items-center u-justify-between u-gap-4" role="status">
+    <div><div class="u-fw-6 u-c-text"><i class="fas fa-couch u-mr-1h" aria-hidden="true"></i> Rest day</div>
+      <div class="u-fs-13 u-c-muted">Nothing on your routine is expected today. Anything you do still counts.</div></div>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="setRoutineRestDay(false)">Back to normal</button>
+  </div>
+<?php elseif ($canExcept && $routines): ?>
+  <div class="u-flex u-justify-end u-mb-2">
+    <button type="button" class="btn btn-ghost btn-sm" onclick="setRoutineRestDay(true)"><i class="fas fa-couch" aria-hidden="true"></i> Make today a rest day</button>
+  </div>
+<?php endif; ?>
 <?php if ($totalCount): ?>
   <div class="card card-body routine-progress u-mb-5">
     <div class="u-flex u-items-baseline u-justify-between u-gap-4 u-mb-2">
@@ -114,8 +115,9 @@ require_once '../includes/head.php';
         <?php foreach ($items as $r):
           $cc   = $catColors[$r['category']] ?? '#64748b';
           $done = (int)$r['done_today'];
+          $st   = $r['state'];
         ?>
-          <div class="card card-body routine-row<?= $done ? ' is-done' : '' ?> u-flex u-items-center u-gap-4" id="routine-<?= $r['id'] ?>"
+          <div class="card card-body routine-row<?= $done ? ' is-done' : '' ?><?= $st === 'skipped' ? ' is-skipped' : '' ?><?= $st === 'rest' ? ' is-rest' : '' ?> u-flex u-items-center u-gap-4" id="routine-<?= $r['id'] ?>"
               >
             <button type="button"
                     class="routine-check<?= $done ? ' checked' : '' ?>"
@@ -144,11 +146,26 @@ require_once '../includes/head.php';
               <?php if ($r['description']): ?>
                 <div class="routine-desc"><?= h($r['description']) ?></div>
               <?php endif; ?>
+              <?php if ($st === 'skipped'): ?>
+                <div class="routine-desc"><i class="fas fa-forward" aria-hidden="true"></i> Skipped today — your weekly plan is unchanged</div>
+              <?php elseif ($st === 'rest'): ?>
+                <div class="routine-desc"><i class="fas fa-couch" aria-hidden="true"></i> Rest day</div>
+              <?php elseif (!routineScheduledOn($r, $today)): ?>
+                <div class="routine-desc"><i class="fas fa-plus" aria-hidden="true"></i> Done today as an extra</div>
+              <?php endif; ?>
             </div>
             <span class="badge" style="background:<?= $cc ?>20;color:<?= $cc ?>;flex-shrink:0">
               <?= h($r['category']) ?>
             </span>
             <div class="u-flex u-gap-1 u-shrink-0">
+              <?php if ($canExcept && !$done && $st !== 'rest'): ?>
+                <button type="button" class="btn btn-icon btn-ghost btn-sm"
+                        title="<?= $st === 'skipped' ? 'Undo skip' : 'Skip today' ?>"
+                        aria-label="<?= $st === 'skipped' ? 'Undo skip for' : 'Skip today:' ?> <?= h($r['title']) ?>"
+                        onclick="skipRoutine(<?= $r['id'] ?>, <?= $st === 'skipped' ? 'false' : 'true' ?>)">
+                  <i class="fas <?= $st === 'skipped' ? 'fa-rotate-left' : 'fa-forward' ?>" aria-hidden="true"></i>
+                </button>
+              <?php endif; ?>
               <button class="btn btn-icon btn-ghost btn-sm" title="Edit" aria-label="Edit <?= h($r['title']) ?>"
                       onclick="editRoutine(<?= $r['id'] ?>)">
                 <i class="fas fa-pen"></i>
@@ -331,6 +348,8 @@ async function toggleRoutine(id, btn) {
       Trackie.Toast.error(res.error || "Couldn't update that routine.");
       return;
     }
+    const row = btn.closest('.routine-row');
+    if (row && (row.classList.contains('is-skipped') || row.classList.contains('is-rest'))) Trackie.refreshFragments(['routinesListWrap']);
     if (nowDone && res.xp?.gained) {
       res.xp.leveledUp
         ? Trackie.Toast.success(`⚡ Level up! Level ${res.xp.level}`, 5000)
@@ -343,6 +362,25 @@ async function toggleRoutine(id, btn) {
   }
 }
 
+// One-day exceptions — the weekly plan itself never changes.
+async function skipRoutine(id, on) {
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/routines.php`, { action: on ? 'skip' : 'unskip', routine_id: id });
+    if (!res.success) return Trackie.UI.toastError(res, "Couldn't update that routine.");
+    Trackie.Toast.success(on ? 'Skipped for today — next week is unchanged.' : 'Skip undone.');
+    Trackie.refreshFragments(['routinesListWrap']);
+  } catch (e) { Trackie.UI.toastError(e, "Couldn't update that routine."); }
+}
+
+async function setRoutineRestDay(on) {
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/routines.php`, { action: 'rest_day', on: on ? 1 : 0 });
+    if (!res.success) return Trackie.UI.toastError(res, "Couldn't update today.");
+    Trackie.Toast.success(on ? 'Rest day — nothing is expected today.' : 'Back to your normal routine.');
+    Trackie.refreshFragments(['routinesListWrap']);
+  } catch (e) { Trackie.UI.toastError(e, "Couldn't update today."); }
+}
+
 function setRoutineChecked(btn, on) {
   btn.classList.toggle('checked', on);
   btn.setAttribute('aria-checked', on ? 'true' : 'false');
@@ -350,11 +388,13 @@ function setRoutineChecked(btn, on) {
 }
 
 function updateRoutineProgress() {
-  const rows = document.querySelectorAll('.routine-row');
-  const done = document.querySelectorAll('.routine-row.is-done').length;
+  // Expected = done + due; skipped and rest-day rows never count against today.
+  const done = document.querySelectorAll('#routinesListWrap .routine-row.is-done').length;
+  const due  = document.querySelectorAll('#routinesListWrap .routine-row:not(.is-done):not(.is-skipped):not(.is-rest)').length;
+  const expected = done + due;
   const fill = document.getElementById('routineProgressFill');
-  if (!rows.length || !fill) return;
-  const pct = Math.round(done / rows.length * 100);
+  if (!expected || !fill) return;
+  const pct = Math.round(done / expected * 100);
   fill.style.width = pct + '%';
   const bar = fill.parentElement;
   bar?.setAttribute('aria-valuenow', pct);
