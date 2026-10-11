@@ -12,7 +12,7 @@
     <?php endif; ?>
   </div>
 
-  <div class="d-card-body" style="text-align:center">
+  <div class="d-card-body u-text-center">
     <?php if ($spotifyState === 'not_configured'): ?>
       <div class="spotify-logo-circle" aria-hidden="true"><i class="fab fa-spotify"></i></div>
       <div class="spotify-connect-title">Not configured</div>
@@ -20,7 +20,7 @@
     <?php elseif ($spotifyState === 'not_connected'): ?>
       <div class="spotify-logo-circle" aria-hidden="true"><i class="fab fa-spotify"></i></div>
       <div class="spotify-connect-title">Connect Spotify</div>
-      <div class="spotify-connect-desc" style="margin-bottom:.75rem">See what's playing and sync playlists with focus sessions.</div>
+      <div class="spotify-connect-desc u-mb-3">See what's playing and sync playlists with focus sessions.</div>
       <a href="<?= APP_BASE ?>/pages/spotify_callback.php" class="btn btn-primary btn-sm"><i class="fab fa-spotify"></i> Connect</a>
     <?php else: ?>
       <div id="spotify-now-playing">

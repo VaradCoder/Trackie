@@ -45,7 +45,7 @@
   </div>
 </form>
 
-<div id="nutriEntries" class="card" style="margin-bottom:1.5rem"></div>
+<div id="nutriEntries" class="card u-mb-6"></div>
 
 <div class="fit-section-head"><h2 class="fit-h2">Last 7 days</h2></div>
 <div id="nutriRecent" class="card"></div>
@@ -57,7 +57,7 @@
       <button class="btn btn-icon btn-ghost btn-sm" data-close-modal="nutriTargetsModal" aria-label="Close dialog">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="form-hint" style="margin-top:0">Your own targets — Trackie doesn't calculate these for you. Leave any blank to skip it.</p>
+      <p class="form-hint u-mt-0">Your own targets — Trackie doesn't calculate these for you. Leave any blank to skip it.</p>
       <div class="form-group"><label for="tgtCalories" class="form-label">Calories (kcal)</label><input id="tgtCalories" type="number" class="form-input" min="500" max="10000" step="10"></div>
       <div class="form-group"><label for="tgtProtein" class="form-label">Protein (g)</label><input id="tgtProtein" type="number" class="form-input" min="0" max="1000" step="1"></div>
       <div class="form-group"><label for="tgtWater" class="form-label">Water (ml)</label><input id="tgtWater" type="number" class="form-input" min="250" max="10000" step="250"></div>

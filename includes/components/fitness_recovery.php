@@ -34,13 +34,13 @@ $fitScale = function (string $name, string $legend, array $labels) {
     <label for="recNotes" class="form-label">Notes <span class="form-hint">(optional)</span></label>
     <input id="recNotes" class="form-input" maxlength="255" placeholder="e.g. tight hamstrings, slept badly">
   </div>
-  <div style="display:flex;justify-content:flex-end">
+  <div class="u-flex u-justify-end">
     <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Save check-in</button>
   </div>
 </form>
 
 <div class="fit-section-head"><h2 class="fit-h2">Last 7 days</h2></div>
-<div id="recoveryWeek" class="grid-stats" style="margin-bottom:1.25rem" aria-live="polite"></div>
+<div id="recoveryWeek" class="grid-stats u-mb-5" aria-live="polite"></div>
 
 <div class="fit-section-head"><h2 class="fit-h2">Last 14 days</h2></div>
-<div class="card" style="overflow-x:auto"><div id="recoveryDays"><p class="form-hint" style="padding:1rem">Loading…</p></div></div>
+<div class="card" style="overflow-x:auto"><div id="recoveryDays"><p class="form-hint u-p-4">Loading…</p></div></div>

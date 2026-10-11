@@ -111,10 +111,10 @@ require_once '../includes/head.php';
   ];
   foreach ($sc as $s): ?>
     <div class="stat-card">
-      <div style="display:flex;align-items:center;gap:.625rem">
+      <div class="u-flex u-items-center u-gap-2h">
         <i class="fas <?= $s['icon'] ?>" style="font-size:1.25rem;color:<?= $s['c'] ?>"></i>
         <div>
-          <div class="stat-val" style="font-size:1.375rem"><?= $s['v'] ?></div>
+          <div class="stat-val u-fs-22"><?= $s['v'] ?></div>
           <div class="stat-label"><?= $s['l'] ?></div>
         </div>
       </div>
@@ -125,20 +125,20 @@ require_once '../includes/head.php';
 <?= renderInsight($todosInsight) ?>
 
 <!-- View toggle: List (filtered) vs. Timeline (everything, grouped by date) -->
-<div style="display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-3);flex-wrap:wrap">
+<div class="u-flex u-items-center u-justify-between u-gap-3 u-mb-3 u-flex-wrap">
   <div class="filter-tabs">
     <a class="filter-tab <?= $view==='list'?'active':'' ?>" href="?filter=<?= h($filter) ?><?= $search ? '&search='.urlencode($search) : '' ?>">
-      <i class="fas fa-list" style="font-size:.75rem"></i> List
+      <i class="fas fa-list u-fs-12"></i> List
     </a>
     <a class="filter-tab <?= $view==='timeline'?'active':'' ?>" href="?view=timeline">
-      <i class="fas fa-timeline" style="font-size:.75rem"></i> Timeline
+      <i class="fas fa-timeline u-fs-12"></i> Timeline
     </a>
   </div>
 </div>
 
 <?php if ($view === 'list'): ?>
 <!-- Filters + search -->
-<div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap">
+<div class="u-flex u-items-center u-gap-3 u-mb-4 u-flex-wrap">
   <div class="filter-tabs">
     <?php
     $tabs = ['all'=>'All','pending'=>'Pending','completed'=>'Done','overdue'=>'Overdue','today'=>'Today'];
@@ -154,7 +154,7 @@ require_once '../includes/head.php';
   </div>
   <form method="GET" style="display:flex;gap:var(--sp-2);flex:1;max-width:300px">
     <input type="hidden" name="filter" value="<?= h($filter) ?>">
-    <input name="search" class="form-input" style="font-size:.875rem"
+    <input name="search" class="form-input u-fs-14"
            placeholder="Search todos…" value="<?= h($search) ?>">
     <button type="submit" class="btn btn-secondary btn-sm" aria-label="Search todos">
             <i class="fas fa-search" aria-hidden="true"></i>
@@ -177,7 +177,7 @@ require_once '../includes/head.php';
         <p>Try a different keyword, or clear the search to see everything.</p>
       <?php else: ?>
         <p>Add your first task and start building momentum.</p>
-        <button class="btn btn-primary" style="margin-top:var(--sp-3)" onclick="openModal('todoModal')">
+        <button class="btn btn-primary u-mt-3" onclick="openModal('todoModal')">
           <i class="fas fa-plus"></i> Add your first todo
         </button>
       <?php endif; ?>
@@ -194,8 +194,8 @@ require_once '../includes/head.php';
                <?= $t['completed'] ? 'checked' : '' ?>
                onchange="toggleTodo(<?= $t['id'] ?>, this.checked, this)">
 
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap">
+        <div class="u-flex-1 u-min-w-0">
+          <div class="u-flex u-items-center u-gap-2 u-flex-wrap">
             <span class="todo-title"><?= h($t['title']) ?></span>
             <?php if ($t['category']): ?>
               <span class="category-badge"><?= h($t['category']) ?></span>
@@ -207,22 +207,22 @@ require_once '../includes/head.php';
             <?php endif; ?>
           </div>
           <?php if ($t['description']): ?>
-            <div class="todo-meta" style="margin-top:.125rem"><?= h($t['description']) ?></div>
+            <div class="todo-meta u-mt-0h"><?= h($t['description']) ?></div>
           <?php endif; ?>
-          <div class="todo-meta" style="margin-top:var(--sp-1)">
+          <div class="todo-meta u-mt-1">
             <?php if ($t['due_date']): ?>
               <span style="<?= $overdue ? 'color:var(--accent)' : '' ?>">
-                <i class="fas fa-calendar" style="font-size:.7rem"></i>
+                <i class="fas fa-calendar u-fs-11-2"></i>
                 <?= formatDate($t['due_date']) ?>
                 <?= $overdue ? '· <strong>Overdue</strong>' : '' ?>
               </span>
             <?php endif; ?>
             <span class="badge <?= $badgeCls ?>"><?= ucfirst($t['priority']) ?></span>
             <?php if (($t['recurring'] ?? 'none') !== 'none'): ?>
-              <span class="badge badge-gray"><i class="fas fa-rotate" style="font-size:.7rem"></i> <?= ucfirst($t['recurring']) ?></span>
+              <span class="badge badge-gray"><i class="fas fa-rotate u-fs-11-2"></i> <?= ucfirst($t['recurring']) ?></span>
             <?php endif; ?>
             <?php if ($t['location']): ?>
-              <span><i class="fas fa-map-marker-alt" style="font-size:.7rem"></i> <?= h($t['location']) ?></span>
+              <span><i class="fas fa-map-marker-alt u-fs-11-2"></i> <?= h($t['location']) ?></span>
             <?php endif; ?>
           </div>
         </div>
@@ -245,7 +245,7 @@ require_once '../includes/head.php';
                   onclick="editTodo(<?= $t['id'] ?>)">
             <i class="fas fa-pen"></i>
           </button>
-          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm" title="Delete" style="color:var(--accent)"
+          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm u-c-accent" title="Delete"
                   onclick="deleteTodo(<?= $t['id'] ?>)">
             <i class="fas fa-trash"></i>
           </button>
@@ -256,9 +256,9 @@ require_once '../includes/head.php';
       <div id="subtasks-<?= $t['id'] ?>" class="subtask-panel hidden"
            style="padding:.375rem 1rem .5rem 3rem;background:var(--surface2)">
         <div class="subtask-list" id="subtask-list-<?= $t['id'] ?>">
-          <div style="font-size:.8rem;color:var(--muted)"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+          <div class="u-fs-12-8 u-c-muted"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
         </div>
-        <div style="display:flex;gap:var(--sp-2);margin-top:var(--sp-2);flex-wrap:wrap">
+        <div class="u-flex u-gap-2 u-mt-2 u-flex-wrap">
           <input type="text" class="form-input" style="font-size:.8125rem;flex:1;min-width:80px"
                  id="subtask-input-<?= $t['id'] ?>"
                  placeholder="Add subtask…"
@@ -291,7 +291,7 @@ require_once '../includes/head.php';
     $anyShown = true;
     $gm = $groupMeta[$label];
   ?>
-    <div style="margin-bottom:var(--sp-5)">
+    <div class="u-mb-6">
       <div style="font-size:.8125rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.625rem;display:flex;align-items:center;gap:var(--sp-2)">
         <i class="fas <?= $gm['icon'] ?>" style="color:<?= $gm['color'] ?>"></i>
         <?= h($label) ?>
@@ -304,7 +304,7 @@ require_once '../includes/head.php';
                    onchange="toggleTodo(<?= $t['id'] ?>, this.checked, this)"
                    aria-label="Mark <?= h($t['title']) ?> as done">
             <span class="priority-pip <?= h($t['priority']) ?>" aria-hidden="true"></span>
-            <div style="flex:1;min-width:0">
+            <div class="u-flex-1 u-min-w-0">
               <div class="todo-title"><?= h($t['title']) ?></div>
               <?php if ($t['due_date'] && $label !== 'Today'): ?>
                 <div class="todo-meta"><?= formatDate($t['due_date']) ?></div>
@@ -321,7 +321,7 @@ require_once '../includes/head.php';
         <div class="empty-state-icon"><i class="fas fa-timeline"></i></div>
         <div class="empty-state-title">Nothing on the timeline yet</div>
         <p>Add a task to see it grouped by when it's due.</p>
-        <button class="btn btn-primary" style="margin-top:var(--sp-3)" onclick="openModal('todoModal')">
+        <button class="btn btn-primary u-mt-3" onclick="openModal('todoModal')">
           <i class="fas fa-plus"></i> Add your first todo
         </button>
       </div>
@@ -340,7 +340,7 @@ require_once '../includes/head.php';
     <div class="modal-body">
       <input type="hidden" id="todoId">
       <div class="form-group">
-        <label for="todoTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label>
+        <label for="todoTitle" class="form-label">Title <span class="u-c-accent">*</span></label>
         <input id="todoTitle" class="form-input" placeholder="Todo title" required>
       </div>
       <div class="form-group">
@@ -391,7 +391,7 @@ require_once '../includes/head.php';
           </select>
         </div>
         <div class="form-group">
-          <label for="todoTags" class="form-label">Tags <span class="form-hint" style="margin:0">(comma-separated)</span></label>
+          <label for="todoTags" class="form-label">Tags <span class="form-hint u-m-0">(comma-separated)</span></label>
           <input id="todoTags" class="form-input" placeholder="e.g. urgent, physics">
         </div>
       </div>
@@ -482,20 +482,20 @@ function escSub(s) {
 async function loadSubtasks(id) {
   const list = document.getElementById('subtask-list-' + id);
   if (!list) return;
-  list.innerHTML = '<div style="font-size:.8rem;color:var(--muted)"><i class="fas fa-spinner fa-spin"></i> Loading\u2026</div>';
+  list.innerHTML = '<div class="u-fs-12-8 u-c-muted"><i class="fas fa-spinner fa-spin"></i> Loading\u2026</div>';
   try {
     const res = await Trackie.API.post(API_BASE + '/todos.php', {action:'subtasks', parent_id:id});
-    if (!res.success) { list.innerHTML = '<div style="font-size:.8rem;color:var(--muted)">Could not load subtasks.</div>'; return; }
-    if (!res.subtasks.length) { list.innerHTML = '<div style="font-size:.8rem;color:var(--muted)">No subtasks yet.</div>'; return; }
+    if (!res.success) { list.innerHTML = '<div class="u-fs-12-8 u-c-muted">Could not load subtasks.</div>'; return; }
+    if (!res.subtasks.length) { list.innerHTML = '<div class="u-fs-12-8 u-c-muted">No subtasks yet.</div>'; return; }
     list.innerHTML = res.subtasks.map(function(s) {
       return '<div style="display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-1) 0">' +
         '<input type="checkbox" ' + (s.completed ? 'checked' : '') + ' onchange="toggleSubtask(' + s.id + ', this.checked, ' + id + ')">' +
         '<span style="flex:1;font-size:.8125rem;' + (s.completed ? 'text-decoration:line-through;color:var(--muted)' : '') + '">' + escSub(s.title) + '</span>' +
-        '<button class="btn btn-icon btn-ghost btn-sm" title="Delete subtask" aria-label="Delete subtask" onclick="deleteSubtask(' + s.id + ', ' + id + ')"><i class="fas fa-trash" style="font-size:.7rem"></i></button>' +
+        '<button class="btn btn-icon btn-ghost btn-sm" title="Delete subtask" aria-label="Delete subtask" onclick="deleteSubtask(' + s.id + ', ' + id + ')"><i class="fas fa-trash u-fs-11-2"></i></button>' +
         '</div>';
     }).join('');
   } catch (e) {
-    list.innerHTML = '<div style="font-size:.8rem;color:var(--muted)">Network error.</div>';
+    list.innerHTML = '<div class="u-fs-12-8 u-c-muted">Network error.</div>';
   }
 }
 

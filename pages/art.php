@@ -34,21 +34,21 @@ require_once '../includes/head.php';
 <div class="page-content" id="page-main">
 
 <div class="rd-head">
-  <h1><i class="fas fa-palette" style="color:var(--accent)"></i> Art</h1>
+  <h1><i class="fas fa-palette u-c-accent"></i> Art</h1>
   <div class="rd-head-actions">
     <button class="btn btn-secondary btn-sm" onclick="openPractice()"><i class="fas fa-stopwatch"></i> Log practice</button>
     <button class="btn btn-primary btn-sm" onclick="openArt()"><i class="fas fa-plus"></i> Add piece</button>
   </div>
 </div>
 
-<div class="grid-stats" style="margin-bottom:1.25rem">
+<div class="grid-stats u-mb-5">
   <div class="stat-card"><div class="stat-val">🔥 <?= (int)$streak['current'] ?></div><div class="stat-label">Practice streak<?= $streak['best'] > $streak['current'] ? ' · best ' . (int)$streak['best'] : '' ?></div></div>
   <div class="stat-card"><div class="stat-val"><?= $fmtMin($weekMin) ?></div><div class="stat-label">Practised this week</div></div>
   <div class="stat-card"><div class="stat-val"><?= count(array_filter($artworks, fn($a) => $a['status'] === 'in_progress')) ?></div><div class="stat-label">In progress</div></div>
   <div class="stat-card"><div class="stat-val"><?= count(array_filter($artworks, fn($a) => $a['status'] === 'completed')) ?></div><div class="stat-label">Completed</div></div>
 </div>
 
-<div class="filter-tabs" style="margin-bottom:1.25rem" id="artTabs" role="tablist">
+<div class="filter-tabs u-mb-5" id="artTabs" role="tablist">
   <button class="filter-tab active" data-tab="gallery" role="tab" aria-selected="true">Gallery</button>
   <button class="filter-tab" data-tab="practice" role="tab" aria-selected="false" tabindex="-1">Practice log</button>
 </div>
@@ -57,7 +57,7 @@ require_once '../includes/head.php';
   <?php if (!$artworks): ?>
     <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-palette"></i></div>
       <div class="empty-state-title">Your gallery is empty</div><p>Add a piece with a photo of your work, and log practice time to build a streak.</p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openArt()"><i class="fas fa-plus"></i> Add your first piece</button></div></div>
+      <button class="btn btn-primary u-mt-3" onclick="openArt()"><i class="fas fa-plus"></i> Add your first piece</button></div></div>
   <?php else: ?>
     <div class="ph-masonry">
       <?php foreach ($artworks as $a): ?>
@@ -83,9 +83,9 @@ require_once '../includes/head.php';
     <div class="card">
       <?php foreach ($sessions as $s): ?>
         <div class="todo-row" id="asess-<?= (int)$s['id'] ?>">
-          <div style="flex:1;min-width:0"><span class="todo-title"><?= $fmtMin((int)$s['minutes']) ?></span><?php if ($s['title']): ?> <span class="category-badge"><?= h($s['title']) ?></span><?php endif; ?>
+          <div class="u-flex-1 u-min-w-0"><span class="todo-title"><?= $fmtMin((int)$s['minutes']) ?></span><?php if ($s['title']): ?> <span class="category-badge"><?= h($s['title']) ?></span><?php endif; ?>
             <div class="todo-meta"><span><?= h(formatDate($s['session_date'])) ?></span><?php if ($s['notes']): ?><span><?= h($s['notes']) ?></span><?php endif; ?></div></div>
-          <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="deletePractice(<?= (int)$s['id'] ?>)" aria-label="Delete practice"><i class="fas fa-trash"></i></button>
+          <button class="btn btn-icon btn-ghost btn-sm u-c-accent" onclick="deletePractice(<?= (int)$s['id'] ?>)" aria-label="Delete practice"><i class="fas fa-trash"></i></button>
         </div>
       <?php endforeach; ?>
     </div>
@@ -101,7 +101,7 @@ require_once '../includes/head.php';
       <div id="arPreview" class="art-preview hidden"></div>
       <div class="form-group"><label for="arImage" class="form-label">Photo of the piece</label><input id="arImage" type="file" accept="image/jpeg,image/png,image/webp" class="form-input">
         <p class="form-hint">Stored privately; resized and location data removed before upload.</p></div>
-      <div class="form-group"><label for="arTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label><input id="arTitle" class="form-input" maxlength="150"></div>
+      <div class="form-group"><label for="arTitle" class="form-label">Title <span class="u-c-accent">*</span></label><input id="arTitle" class="form-input" maxlength="150"></div>
       <div class="rd-form-row">
         <div class="form-group"><label for="arMedium" class="form-label">Medium</label><input id="arMedium" class="form-input" maxlength="60" placeholder="e.g. Watercolor, Procreate"></div>
         <div class="form-group"><label for="arStatus" class="form-label">Status</label><select id="arStatus" class="form-input"><option value="in_progress">In progress</option><option value="completed">Completed</option></select></div>
@@ -109,7 +109,7 @@ require_once '../includes/head.php';
       <div class="form-group"><label for="arNotes" class="form-label">Notes</label><textarea id="arNotes" class="form-input" rows="2" maxlength="500"></textarea></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost btn-sm hidden" id="arDelete" style="color:var(--accent);margin-right:auto" onclick="deleteArt()"><i class="fas fa-trash"></i> Delete</button>
+      <button class="btn btn-ghost btn-sm hidden u-c-accent u-mr-auto" id="arDelete" onclick="deleteArt()"><i class="fas fa-trash"></i> Delete</button>
       <button class="btn btn-secondary btn-sm" data-close-modal="artModal">Cancel</button>
       <button class="btn btn-primary btn-sm" id="arSave" onclick="saveArt()"><i class="fas fa-save"></i> Save</button>
     </div>
@@ -122,7 +122,7 @@ require_once '../includes/head.php';
     <div class="modal-header"><span class="modal-title">Log practice</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="practiceModal" aria-label="Close dialog">&times;</button></div>
     <div class="modal-body">
       <div class="rd-form-row">
-        <div class="form-group"><label for="apMin" class="form-label">Minutes <span style="color:var(--accent)">*</span></label><input id="apMin" type="number" min="1" max="1440" class="form-input" value="30"></div>
+        <div class="form-group"><label for="apMin" class="form-label">Minutes <span class="u-c-accent">*</span></label><input id="apMin" type="number" min="1" max="1440" class="form-input" value="30"></div>
         <div class="form-group"><label for="apDate" class="form-label">Date</label><input id="apDate" type="date" class="form-input" max="<?= $today ?>"></div>
       </div>
       <div class="form-group"><label for="apArt" class="form-label">Piece</label><select id="apArt" class="form-input"><option value="">General practice / studies</option><?php foreach ($artworks as $a): ?><option value="<?= (int)$a['id'] ?>"><?= h($a['title']) ?></option><?php endforeach; ?></select></div>

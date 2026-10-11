@@ -22,7 +22,7 @@ require_once '../includes/head.php';
 <div class="auth-wrap">
   <div style="width:100%;max-width:440px">
 
-    <div class="text-center" style="margin-bottom:1.5rem">
+    <div class="text-center u-mb-6">
       <div class="auth-logo-ring" style="overflow:hidden;padding:0;background:none">
         <img src="<?= APP_BASE ?>/assets/images/logo.png" alt="Trackie" style="width:56px;height:56px;border-radius:50%;object-fit:cover">
       </div>
@@ -56,16 +56,16 @@ require_once '../includes/head.php';
         <div class="form-group">
           <label id="authlbl-2" class="form-label">Password</label>
           <div style="position:relative">
-            <input aria-labelledby="authlbl-2" name="password" type="password" class="form-input" required autocomplete="current-password" placeholder="••••••••" style="padding-right:2.5rem">
+            <input aria-labelledby="authlbl-2" name="password" type="password" class="form-input u-pr-10" required autocomplete="current-password" placeholder="••••••••">
             <button type="button" data-toggle-pw aria-label="Show or hide password" style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted)"><i class="fas fa-eye"></i></button>
           </div>
         </div>
         <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;color:var(--muted);cursor:pointer;margin-bottom:1rem">
           <input name="remember" type="checkbox" checked style="accent-color:var(--accent)"> Keep me signed in
         </label>
-        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">Sign in</button>
-        <p style="text-align:center;margin-top:.875rem;font-size:.8125rem">
-          <a href="<?= APP_BASE ?>/pages/forgot_password.php" style="color:var(--muted)">Forgot password?</a>
+        <button type="submit" class="btn btn-primary u-w-full u-justify-center">Sign in</button>
+        <p class="u-text-center u-mt-3h u-fs-13">
+          <a href="<?= APP_BASE ?>/pages/forgot_password.php" class="u-c-muted">Forgot password?</a>
         </p>
       </form>
 
@@ -99,8 +99,8 @@ require_once '../includes/head.php';
           </div>
           <div class="pw-meter-text" id="pwMeterText" aria-live="polite"></div>
         </div>
-        <div class="form-hint" id="pwMatchHint" aria-live="polite" style="margin-top:.25rem"></div>
-        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:.25rem">Create account &amp; continue</button>
+        <div class="form-hint u-mt-1" id="pwMatchHint" aria-live="polite"></div>
+        <button type="submit" class="btn btn-primary u-w-full u-justify-center u-mt-1">Create account &amp; continue</button>
         <p class="form-hint" style="text-align:center;margin:.75rem 0 0">
           By creating an account you agree to the <a href="<?= APP_BASE ?>/pages/terms.php" data-no-spa>Terms</a>
           and <a href="<?= APP_BASE ?>/pages/privacy.php" data-no-spa>Privacy Policy</a>.

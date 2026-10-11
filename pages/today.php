@@ -129,15 +129,15 @@ require_once '../includes/head.php';
   'sub'  => date('l, F j'),
 ]) ?>
 
-<div class="grid-stats" id="todayStatsWrap" style="margin-bottom:var(--sp-4)">
+<div class="grid-stats u-mb-4" id="todayStatsWrap">
   <?= renderStatCard($priDone . '/' . $priTotal, 'Priorities done', 'fa-list-check', 'var(--accent)') ?>
   <?= renderStatCard($habitsDone . '/' . count($habits), 'Habits done', 'fa-heart', 'var(--ok)') ?>
   <?= renderStatCard($streakData['current'] . 'd', 'Trackie streak', 'fa-fire', '#f59e0b') ?>
   <?= renderStatCard($scoreData['has_data'] ? (string)$scoreData['score'] : '—', 'Trackie Score', 'fa-gauge-high', 'var(--info)') ?>
 </div>
 
-<div class="card card-body" style="margin-bottom:var(--sp-4)">
-  <h3 style="font-size:.9375rem;font-weight:600;margin:0 0 var(--sp-3)"><i class="fas fa-list-check" style="color:var(--accent);margin-right:.375rem"></i>Priorities</h3>
+<div class="card card-body u-mb-4">
+  <h3 style="font-size:.9375rem;font-weight:600;margin:0 0 var(--sp-3)"><i class="fas fa-list-check u-c-accent u-mr-1h"></i>Priorities</h3>
   <div id="todayPriorities">
     <?php if (!$priorities): ?>
       <?= renderEmptyState('fa-mug-hot', 'Nothing due today', 'Todos and study tasks due today will show up here.') ?>
@@ -155,8 +155,8 @@ require_once '../includes/head.php';
   </div>
 </div>
 
-<div class="card card-body" style="margin-bottom:var(--sp-4)">
-  <h3 style="font-size:.9375rem;font-weight:600;margin:0 0 var(--sp-3)"><i class="fas fa-heart" style="color:var(--accent);margin-right:.375rem"></i>Habits</h3>
+<div class="card card-body u-mb-4">
+  <h3 style="font-size:.9375rem;font-weight:600;margin:0 0 var(--sp-3)"><i class="fas fa-heart u-c-accent u-mr-1h"></i>Habits</h3>
   <div id="todayHabits">
     <?php if (!$habits): ?>
       <?= renderEmptyState('fa-heart', 'No habits yet', 'Habits you track will show up here every day.') ?>
@@ -176,15 +176,15 @@ require_once '../includes/head.php';
 </div>
 
 <?php if ($routinesToday): ?>
-<div class="card card-body" style="margin-bottom:var(--sp-4)">
-  <h3 style="font-size:.9375rem;font-weight:600;margin:0 0 var(--sp-3)"><i class="fas fa-clock" style="color:var(--accent);margin-right:.375rem"></i>Routines</h3>
+<div class="card card-body u-mb-4">
+  <h3 style="font-size:.9375rem;font-weight:600;margin:0 0 var(--sp-3)"><i class="fas fa-clock u-c-accent u-mr-1h"></i>Routines</h3>
   <div id="todayRoutines">
     <?php foreach ($routinesToday as $r): ?>
       <label class="cal-board-check" style="padding:var(--sp-2) 0;border-bottom:1px solid var(--border)">
         <input type="checkbox" <?= $r['done_today'] ? 'checked' : '' ?>
                onchange="toggleTodayRoutine(<?= (int)$r['id'] ?>, this)">
         <span style="flex:1;<?= $r['done_today'] ? 'text-decoration:line-through;opacity:.5' : '' ?>">
-          <b style="font-weight:600;color:var(--muted);margin-right:.375rem"><?= date('g:i A', strtotime($r['time_slot'])) ?></b><?= h($r['title']) ?>
+          <b class="u-fw-6 u-c-muted u-mr-1h"><?= date('g:i A', strtotime($r['time_slot'])) ?></b><?= h($r['title']) ?>
         </span>
       </label>
     <?php endforeach; ?>
@@ -193,28 +193,28 @@ require_once '../includes/head.php';
 <?php endif; ?>
 
 <?php if ($remindersToday): ?>
-<div class="card card-body" style="margin-bottom:var(--sp-4)">
-  <h3 style="font-size:.9375rem;font-weight:600;margin:0 0 var(--sp-3)"><i class="fas fa-bell" style="color:var(--accent);margin-right:.375rem"></i>Later today</h3>
+<div class="card card-body u-mb-4">
+  <h3 style="font-size:.9375rem;font-weight:600;margin:0 0 var(--sp-3)"><i class="fas fa-bell u-c-accent u-mr-1h"></i>Later today</h3>
   <?php foreach ($remindersToday as $r): ?>
     <div style="display:flex;gap:var(--sp-3);padding:var(--sp-2) 0;border-bottom:1px solid var(--border);font-size:.875rem">
       <b style="width:4.5rem;flex-shrink:0;color:var(--muted);font-weight:600"><?= date('g:i A', strtotime($r['next_fire_at'])) ?></b>
       <span><?= h($r['title']) ?></span>
     </div>
   <?php endforeach; ?>
-  <a href="<?= APP_BASE ?>/pages/reminders.php" class="btn btn-secondary btn-sm" style="margin-top:var(--sp-3)">All reminders</a>
+  <a href="<?= APP_BASE ?>/pages/reminders.php" class="btn btn-secondary btn-sm u-mt-3">All reminders</a>
 </div>
 <?php endif; ?>
 
 <?php if ($goals): ?>
 <div class="card card-body">
-  <h3 style="font-size:.9375rem;font-weight:600;margin:0 0 var(--sp-3)"><i class="fas fa-bullseye" style="color:var(--accent);margin-right:.375rem"></i>Goal progress</h3>
+  <h3 style="font-size:.9375rem;font-weight:600;margin:0 0 var(--sp-3)"><i class="fas fa-bullseye u-c-accent u-mr-1h"></i>Goal progress</h3>
   <?php foreach ($goals as $g):
     $pct = $g['target_value'] > 0 ? min(100, (int)round($g['progress'] / $g['target_value'] * 100)) : 0;
   ?>
-    <div style="margin-bottom:var(--sp-3)">
-      <div style="display:flex;justify-content:space-between;font-size:.8125rem;margin-bottom:.25rem">
+    <div class="u-mb-3">
+      <div class="u-flex u-justify-between u-fs-13 u-mb-1">
         <span><?= h($g['goal_name']) ?></span>
-        <span style="color:var(--muted)"><?= $pct ?>%</span>
+        <span class="u-c-muted"><?= $pct ?>%</span>
       </div>
       <div class="progress-track"><div class="progress-fill" style="width:<?= $pct ?>%"></div></div>
     </div>

@@ -150,11 +150,11 @@ $bnMid   = (int)ceil(count($bnItems) / 2);
 <div id="quickAddModal" class="modal-backdrop hidden" role="dialog" aria-label="Quick add">
   <div class="modal-box" style="max-width:440px">
     <div class="modal-header">
-      <span class="modal-title" id="quickAddTitleBar"><i class="fas fa-bolt" style="color:var(--accent);margin-right:.375rem"></i>Quick Add</span>
+      <span class="modal-title" id="quickAddTitleBar"><i class="fas fa-bolt u-c-accent u-mr-1h"></i>Quick Add</span>
       <button class="btn btn-icon btn-ghost btn-sm" data-close-modal="quickAddModal" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body">
-      <div class="filter-tabs" id="quickAddTypeTabs" role="tablist" style="margin-bottom:var(--sp-3)">
+      <div class="filter-tabs u-mb-3" id="quickAddTypeTabs" role="tablist">
         <button type="button" class="filter-tab active" data-qa-type="todo"    role="tab" aria-selected="true"><i class="fas fa-check-square"></i> Todo</button>
         <button type="button" class="filter-tab"        data-qa-type="habit"  role="tab" aria-selected="false"><i class="fas fa-heart"></i> Habit</button>
         <button type="button" class="filter-tab"        data-qa-type="goal"   role="tab" aria-selected="false"><i class="fas fa-bullseye"></i> Goal</button>
@@ -174,11 +174,11 @@ $bnMid   = (int)ceil(count($bnItems) / 2);
 
       <!-- Todo fields -->
       <div class="quick-add-fields form-grid-2" data-qa-fields="todo">
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group u-mb-0">
           <label for="quickAddDue" class="form-label">Due</label>
           <input id="quickAddDue" class="form-input" type="date">
         </div>
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group u-mb-0">
           <label for="quickAddPriority" class="form-label">Priority</label>
           <select id="quickAddPriority" class="form-input">
             <option value="low">Low</option>
@@ -190,14 +190,14 @@ $bnMid   = (int)ceil(count($bnItems) / 2);
 
       <!-- Habit fields -->
       <div class="quick-add-fields form-grid-2 hidden" data-qa-fields="habit">
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group u-mb-0">
           <label for="quickAddHabitFreq" class="form-label">Frequency</label>
           <select id="quickAddHabitFreq" class="form-input">
             <option value="daily" selected>Daily</option>
             <option value="weekly">Weekly</option>
           </select>
         </div>
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group u-mb-0">
           <label for="quickAddHabitColor" class="form-label">Color</label>
           <input id="quickAddHabitColor" class="form-input" type="color" value="#ef4444" style="height:2.5rem;padding:.25rem">
         </div>
@@ -205,11 +205,11 @@ $bnMid   = (int)ceil(count($bnItems) / 2);
 
       <!-- Goal fields -->
       <div class="quick-add-fields form-grid-2 hidden" data-qa-fields="goal">
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group u-mb-0">
           <label for="quickAddGoalTarget" class="form-label">Target value</label>
           <input id="quickAddGoalTarget" class="form-input" type="number" min="1" placeholder="e.g. 10">
         </div>
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group u-mb-0">
           <label for="quickAddGoalDeadline" class="form-label">Deadline</label>
           <input id="quickAddGoalDeadline" class="form-input" type="date">
         </div>
@@ -217,11 +217,11 @@ $bnMid   = (int)ceil(count($bnItems) / 2);
 
       <!-- Study fields -->
       <div class="quick-add-fields form-grid-2 hidden" data-qa-fields="study">
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group u-mb-0">
           <label for="quickAddStudySubject" class="form-label">Subject</label>
           <input id="quickAddStudySubject" class="form-input" placeholder="e.g. Physics">
         </div>
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group u-mb-0">
           <label for="quickAddStudyDue" class="form-label">Due</label>
           <input id="quickAddStudyDue" class="form-input" type="date">
         </div>
@@ -230,15 +230,15 @@ $bnMid   = (int)ceil(count($bnItems) / 2);
       <!-- Workout fields -->
       <div class="quick-add-fields hidden" data-qa-fields="workout">
         <div class="form-grid-3">
-          <div class="form-group" style="margin-bottom:0">
+          <div class="form-group u-mb-0">
             <label for="quickAddWoSets" class="form-label">Sets</label>
             <input id="quickAddWoSets" class="form-input" type="number" min="1" value="3">
           </div>
-          <div class="form-group" style="margin-bottom:0">
+          <div class="form-group u-mb-0">
             <label for="quickAddWoReps" class="form-label">Reps</label>
             <input id="quickAddWoReps" class="form-input" type="number" min="1" value="10">
           </div>
-          <div class="form-group" style="margin-bottom:0">
+          <div class="form-group u-mb-0">
             <label for="quickAddWoWeight" class="form-label">Weight</label>
             <input id="quickAddWoWeight" class="form-input" type="number" min="0" step="0.5" placeholder="kg">
           </div>

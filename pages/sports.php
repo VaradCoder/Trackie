@@ -39,12 +39,12 @@ require_once '../includes/head.php';
 <div class="page-content" id="page-main">
 
 <div class="rd-head">
-  <h1><i class="fas fa-futbol" style="color:var(--accent)"></i> Sports</h1>
+  <h1><i class="fas fa-futbol u-c-accent"></i> Sports</h1>
   <div class="rd-head-actions"><button class="btn btn-primary btn-sm" onclick="openLogSession()"><i class="fas fa-plus"></i> Log session</button></div>
 </div>
 
 <div id="sportsStatsWrap">
-  <div class="grid-stats" style="margin-bottom:1.25rem">
+  <div class="grid-stats u-mb-5">
     <div class="stat-card"><div class="stat-val">🔥 <?= (int)$streak['current'] ?></div><div class="stat-label">Day streak<?= $streak['best'] > $streak['current'] ? ' · best ' . (int)$streak['best'] : '' ?></div></div>
     <div class="stat-card"><div class="stat-val"><?= (int)$stats['total'] ?></div><div class="stat-label">Sessions logged</div></div>
     <div class="stat-card"><div class="stat-val"><?= $fmtMin((int)$stats['minutes']) ?></div><div class="stat-label">Time played</div></div>
@@ -52,7 +52,7 @@ require_once '../includes/head.php';
   </div>
 </div>
 
-<div class="filter-tabs" style="margin-bottom:1.25rem" id="sportsTabs" role="tablist">
+<div class="filter-tabs u-mb-5" id="sportsTabs" role="tablist">
   <button class="filter-tab active" data-tab="log" role="tab" aria-selected="true">Sessions</button>
   <button class="filter-tab" data-tab="sports" role="tab" aria-selected="false" tabindex="-1">By sport</button>
 </div>
@@ -62,20 +62,20 @@ require_once '../includes/head.php';
   <?php if (!$sessions): ?>
     <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-futbol"></i></div>
       <div class="empty-state-title">No sessions yet</div><p>Log training, practice and matches — results and scores build your record per sport.</p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openLogSession()"><i class="fas fa-plus"></i> Log your first session</button></div></div>
+      <button class="btn btn-primary u-mt-3" onclick="openLogSession()"><i class="fas fa-plus"></i> Log your first session</button></div></div>
   <?php else: ?>
     <div class="card">
       <?php foreach ($sessions as $s): ?>
         <div class="todo-row" id="session-<?= (int)$s['id'] ?>">
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <div class="u-flex-1 u-min-w-0">
+            <div class="u-flex u-items-center u-gap-2 u-flex-wrap">
               <span class="todo-title"><?= h($s['sport']) ?></span>
               <span class="category-badge"><?= h($typeLabel[$s['session_type']] ?? ucfirst($s['session_type'])) ?></span>
               <?php if ($s['result']): ?>
                 <span class="badge <?= ['win' => 'badge-green', 'loss' => 'badge-red', 'draw' => 'badge-gray'][$s['result']] ?? 'badge-gray' ?>"><?= ucfirst($s['result']) ?><?= $s['score'] ? ' · ' . h($s['score']) : '' ?></span>
               <?php endif; ?>
             </div>
-            <div class="todo-meta" style="margin-top:.125rem">
+            <div class="todo-meta u-mt-0h">
               <span><?= h(formatDate($s['session_date'])) ?></span>
               <?php if ($s['duration_min']): ?><span><?= $fmtMin((int)$s['duration_min']) ?></span><?php endif; ?>
               <?php if ($s['intensity']): ?><span>Intensity <?= str_repeat('●', (int)$s['intensity']) . str_repeat('○', 5 - (int)$s['intensity']) ?></span><?php endif; ?>
@@ -84,7 +84,7 @@ require_once '../includes/head.php';
           </div>
           <div class="todo-actions">
             <button class="btn btn-icon btn-ghost btn-sm" onclick="editSession(<?= (int)$s['id'] ?>)" aria-label="Edit session" title="Edit"><i class="fas fa-pen"></i></button>
-            <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="deleteSession(<?= (int)$s['id'] ?>)" aria-label="Delete session" title="Delete"><i class="fas fa-trash"></i></button>
+            <button class="btn btn-icon btn-ghost btn-sm u-c-accent" onclick="deleteSession(<?= (int)$s['id'] ?>)" aria-label="Delete session" title="Delete"><i class="fas fa-trash"></i></button>
           </div>
         </div>
       <?php endforeach; ?>
@@ -100,7 +100,7 @@ require_once '../includes/head.php';
     <div class="grid-cards">
       <?php foreach ($bySport as $b): $games = (int)$b['wins'] + (int)$b['losses'] + (int)$b['draws']; ?>
         <div class="habit-card">
-          <div class="rd-title" style="margin-bottom:.5rem"><?= h($b['sport']) ?></div>
+          <div class="rd-title u-mb-2"><?= h($b['sport']) ?></div>
           <div class="hb-row"><span>Sessions</span><b><?= (int)$b['sessions'] ?></b></div>
           <div class="hb-row"><span>Time</span><b><?= $fmtMin((int)$b['minutes']) ?></b></div>
           <div class="hb-row"><span>Last played</span><b><?= h(formatDate($b['last'], 'M j')) ?></b></div>
@@ -123,7 +123,7 @@ require_once '../includes/head.php';
     <div class="modal-body">
       <input type="hidden" id="sessId">
       <div class="rd-form-row">
-        <div class="form-group"><label for="sessSport" class="form-label">Sport <span style="color:var(--accent)">*</span></label>
+        <div class="form-group"><label for="sessSport" class="form-label">Sport <span class="u-c-accent">*</span></label>
           <input id="sessSport" class="form-input" list="sportList" maxlength="50" placeholder="e.g. Football, Badminton">
           <datalist id="sportList"><?php foreach ($sportNames as $n): ?><option value="<?= h($n) ?>"><?php endforeach; ?></datalist></div>
         <div class="form-group"><label for="sessType" class="form-label">Type</label>

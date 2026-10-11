@@ -59,14 +59,14 @@ $sb_pic = ($sb_pic && file_exists(ROOT_PATH . '/' . $sb_pic))
   <?php if (isLoggedIn()): ?>
     <a href="<?= APP_BASE ?>/pages/profile.php" class="sidebar-identity">
       <img src="<?= h($sb_pic) ?>" alt="" width="36" height="36" loading="lazy" decoding="async">
-      <div style="min-width:0">
+      <div class="u-min-w-0">
         <div class="sidebar-identity-name"><?= h($_SESSION['user_name'] ?? 'You') ?></div>
         <div class="sidebar-identity-meta">
           <?php if ($sb_xp): ?>
-            <span><i class="fas fa-bolt" style="color:var(--accent)" aria-hidden="true"></i>Level <b data-live="level" style="font-weight:inherit"><?= (int)$sb_xp['level'] ?></b></span>
+            <span><i class="fas fa-bolt u-c-accent" aria-hidden="true"></i>Level <b data-live="level" style="font-weight:inherit"><?= (int)$sb_xp['level'] ?></b></span>
           <?php endif; ?>
           <?php if ($sb_streak !== null): ?>
-            <span title="Trackie streak"><i class="fas fa-fire" style="color:#f59e0b" aria-hidden="true"></i><b data-live="streak" style="font-weight:inherit"><?= (int)$sb_streak ?></b>d</span>
+            <span title="Trackie streak"><i class="fas fa-fire u-c-warn" aria-hidden="true"></i><b data-live="streak" style="font-weight:inherit"><?= (int)$sb_streak ?></b>d</span>
           <?php endif; ?>
         </div>
       </div>

@@ -156,7 +156,7 @@ require_once '../includes/head.php';
 <?php
 $scCol = $score['score'] >= 75 ? 'var(--ok)' : ($score['score'] >= 50 ? '#f59e0b' : 'var(--accent)');
 ?>
-<div class="card card-body" style="margin-bottom:1.25rem;display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap">
+<div class="card card-body u-mb-5 u-flex u-items-center u-gap-5 u-flex-wrap">
   <div style="width:84px;height:84px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
               background:conic-gradient(<?= $scCol ?> <?= (int)$score['score'] * 3.6 ?>deg, var(--border) 0);">
     <div style="width:66px;height:66px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;
@@ -165,8 +165,8 @@ $scCol = $score['score'] >= 75 ? 'var(--ok)' : ($score['score'] >= 50 ? '#f59e0b
     </div>
   </div>
   <div style="flex:1;min-width:160px">
-    <div style="font-size:1.0625rem;font-weight:700;color:var(--text)">Trackie Score<?= $score['has_data'] ? ' · '.h($score['band']) : '' ?></div>
-    <div style="font-size:.8125rem;color:var(--muted);margin-top:.25rem">
+    <div class="u-fs-17 u-fw-7 u-c-text">Trackie Score<?= $score['has_data'] ? ' · '.h($score['band']) : '' ?></div>
+    <div class="u-fs-13 u-c-muted u-mt-1">
       <?= $score['has_data']
           ? 'Your daily productivity index from todos, habits, streak, focus &amp; goals.'
           : 'Log habits, complete todos or run a focus session to generate your score.' ?>
@@ -175,9 +175,9 @@ $scCol = $score['score'] >= 75 ? 'var(--ok)' : ($score['score'] >= 50 ? '#f59e0b
 </div>
 
 <!-- Across Trackie (activity log) -->
-<div class="card card-body an-across" style="margin-bottom:1.5rem">
+<div class="card card-body an-across u-mb-6">
   <div class="an-head">
-    <div style="font-size:.9375rem;font-weight:600">Across Trackie</div>
+    <div class="u-fs-15 u-fw-6">Across Trackie</div>
     <div class="an-range" role="tablist" aria-label="Range">
       <?php foreach ([7, 30, 90] as $r): ?>
         <a href="?range=<?= $r ?>" class="an-range-btn<?= $r === $range ? ' active' : '' ?>" <?= $r === $range ? 'aria-current="true"' : '' ?>><?= $r ?>d</a>
@@ -207,7 +207,7 @@ $scCol = $score['score'] >= 75 ? 'var(--ok)' : ($score['score'] >= 50 ? '#f59e0b
     foreach ($ov['modules'] as $m): ?>
       <div class="an-mod">
         <span class="an-mod-l"><?= h($m['label']) ?></span>
-        <div class="progress-track" style="flex:1"><div class="progress-fill" style="width:<?= round($m['count'] / $maxMod * 100) ?>%"></div></div>
+        <div class="progress-track u-flex-1"><div class="progress-fill" style="width:<?= round($m['count'] / $maxMod * 100) ?>%"></div></div>
         <span class="an-mod-v" title="<?= $m['days'] ?> active day<?= $m['days'] === 1 ? '' : 's' ?>"><?= $m['count'] ?></span>
       </div>
     <?php endforeach; ?>
@@ -237,7 +237,7 @@ $scCol = $score['score'] >= 75 ? 'var(--ok)' : ($score['score'] >= 50 ? '#f59e0b
   ];
   foreach ($oc as $s): ?>
     <div class="stat-card">
-      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.375rem">
+      <div class="u-flex u-items-center u-gap-2 u-mb-1h">
         <i class="fas <?= $s['i'] ?>" style="color:<?= $s['c'] ?>;font-size:1rem"></i>
         <span class="stat-label"><?= $s['l'] ?></span>
       </div>
@@ -246,14 +246,14 @@ $scCol = $score['score'] >= 75 ? 'var(--ok)' : ($score['score'] >= 50 ? '#f59e0b
   <?php endforeach; ?>
 </div>
 
-<div class="grid-2" style="margin-bottom:1.5rem">
+<div class="grid-2 u-mb-6">
 
   <!-- Habit chart -->
   <div class="card card-body">
-    <div style="font-size:.9375rem;font-weight:600;margin-bottom:.375rem">Habit completions — last 7 days</div>
+    <div class="u-fs-15 u-fw-6 u-mb-1h">Habit completions — last 7 days</div>
     <?php if ($habitInsight): ?>
-      <div style="font-size:.8125rem;color:var(--accent);margin-bottom:.875rem;display:flex;align-items:center;gap:.375rem">
-        <i class="fas fa-lightbulb" style="font-size:.75rem"></i> <?= h($habitInsight) ?>
+      <div class="u-fs-13 u-c-accent u-mb-3h u-flex u-items-center u-gap-1h">
+        <i class="fas fa-lightbulb u-fs-12"></i> <?= h($habitInsight) ?>
       </div>
     <?php endif; ?>
     <?php if (array_sum($chartData) === 0): ?>
@@ -268,16 +268,16 @@ $scCol = $score['score'] >= 75 ? 'var(--ok)' : ($score['score'] >= 50 ? '#f59e0b
 
   <!-- Top habits -->
   <div class="card card-body">
-    <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">Top habits (all time)</div>
+    <div class="u-fs-15 u-fw-6 u-mb-4">Top habits (all time)</div>
     <?php if (empty($topHabits) || $topHabits[0]['cnt'] == 0): ?>
-      <div class="empty-state"><p style="color:var(--muted)">No logs yet.</p></div>
+      <div class="empty-state"><p class="u-c-muted">No logs yet.</p></div>
     <?php else:
       $maxCnt = max(array_column($topHabits, 'cnt'));
       foreach ($topHabits as $i => $h): $pct = $maxCnt > 0 ? round($h['cnt'] / $maxCnt * 100) : 0; ?>
-        <div style="margin-bottom:.875rem">
-          <div style="display:flex;justify-content:space-between;font-size:.875rem;margin-bottom:.25rem">
-            <span style="font-weight:500;color:var(--text)"><?= h($h['name']) ?></span>
-            <span style="color:var(--muted)"><?= $h['cnt'] ?> logs</span>
+        <div class="u-mb-3h">
+          <div class="u-flex u-justify-between u-fs-14 u-mb-1">
+            <span class="u-fw-5 u-c-text"><?= h($h['name']) ?></span>
+            <span class="u-c-muted"><?= $h['cnt'] ?> logs</span>
           </div>
           <div class="progress-track" style="height:.4rem">
             <div class="progress-fill" style="width:<?= $pct ?>%"></div>
@@ -299,8 +299,8 @@ $scCol = $score['score'] >= 75 ? 'var(--ok)' : ($score['score'] >= 50 ? '#f59e0b
   ];
   foreach ($bars as $b): ?>
     <div class="card card-body">
-      <div style="display:flex;justify-content:space-between;font-size:.875rem;margin-bottom:.5rem">
-        <span style="color:var(--muted)"><?= $b['l'] ?></span>
+      <div class="u-flex u-justify-between u-fs-14 u-mb-2">
+        <span class="u-c-muted"><?= $b['l'] ?></span>
         <strong><?= $b['v'] ?>%</strong>
       </div>
       <div class="progress-track">
@@ -316,8 +316,8 @@ $useActivity = activityReady();
 if ($useActivity) $heatmap = $ov['heatmap'];
 $weeks = $useActivity ? 26 : 12;
 ?>
-<div class="card card-body" style="margin-bottom:1.5rem">
-  <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem"><?= $useActivity ? '26-week activity heatmap' : '12-week habit heatmap' ?></div>
+<div class="card card-body u-mb-6">
+  <div class="u-fs-15 u-fw-6 u-mb-4"><?= $useActivity ? '26-week activity heatmap' : '12-week habit heatmap' ?></div>
   <?php
   // Start from the Sunday (7*weeks - 1) days ago
   $back  = $weeks * 7 - 2;
@@ -342,10 +342,10 @@ $weeks = $useActivity ? 26 : 12;
     <?php endfor; ?>
   </div>
   </div><!-- /.heatmap-scroll -->
-  <div style="display:flex;align-items:center;gap:.375rem;margin-top:.75rem;font-size:.75rem;color:var(--muted)">
+  <div class="u-flex u-items-center u-gap-1h u-mt-3 u-fs-12 u-c-muted">
     Less
     <?php for ($l = 0; $l <= 4; $l++): ?>
-      <div class="heatmap-cell" data-level="<?= $l ?>" style="flex-shrink:0"></div>
+      <div class="heatmap-cell u-shrink-0" data-level="<?= $l ?>"></div>
     <?php endfor; ?>
     More
   </div>
@@ -354,8 +354,8 @@ $weeks = $useActivity ? 26 : 12;
 <!-- Routines by category -->
 <?php if (($routineStats['total'] ?? 0) > 0): ?>
 <div class="card card-body">
-  <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">Routines by category</div>
-  <div style="display:flex;flex-direction:column;gap:.625rem">
+  <div class="u-fs-15 u-fw-6 u-mb-4">Routines by category</div>
+  <div class="u-flex u-flex-col u-gap-2h">
     <?php
     $catData = [
       'Fitness'  => ['cnt'=>$routineStats['fitness']  ?? 0,'c'=>'#ef4444'],
@@ -369,9 +369,9 @@ $weeks = $useActivity ? 26 : 12;
       if ($data['cnt'] === 0) continue;
       $pct = round($data['cnt'] / $maxCat * 100);
     ?>
-      <div style="display:flex;align-items:center;gap:.75rem">
+      <div class="u-flex u-items-center u-gap-3">
         <span style="width:70px;font-size:.875rem;color:var(--muted)"><?= $cat ?></span>
-        <div class="progress-track" style="flex:1">
+        <div class="progress-track u-flex-1">
           <div class="progress-fill" style="width:<?= $pct ?>%;background:<?= $data['c'] ?>"></div>
         </div>
         <span style="width:20px;text-align:right;font-size:.875rem;font-weight:600"><?= $data['cnt'] ?></span>

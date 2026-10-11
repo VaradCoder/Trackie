@@ -66,6 +66,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 
   <!-- App styles (version = file mtime, forces browser to re-fetch after edits) -->
+  <link rel="stylesheet" href="<?= assetUrl('assets/css/utilities.css') ?>">
   <link rel="stylesheet" href="<?= assetUrl('assets/css/app.css') ?>">
 
   <?php if (!empty($extraCss)): ?>

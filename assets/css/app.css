@@ -937,6 +937,13 @@ a:hover { color: var(--accent-h); }
   margin:     .25rem 0 0;
 }
 .page-header-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.page-header-center { align-items: center; }
+.page-header-title .badge { vertical-align: middle; margin-left: .25rem; }
+/* One title style everywhere: module pages still using .rd-head / .page-toolbar
+   markup share the .page-header-title look. */
+.rd-head h1, .page-toolbar > h1, .page-toolbar > div > h1 {
+  font-size: 1.25rem; font-weight: 700; line-height: 1.2; color: var(--text); margin: 0;
+}
 @media (max-width: 520px) {
   .page-header-actions { width: 100%; }
   .page-header-actions .btn { flex: 1; justify-content: center; }
@@ -4162,7 +4169,6 @@ html { overflow-x: clip; }
 
 /* ── Reading V2 (pages/library.php) ──────────────────────────────── */
 .rd-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
-.rd-head h1 { font-size: 1.125rem; font-weight: 600; margin: 0; }
 .rd-head-actions { display: flex; gap: .5rem; }
 .rd-timer-banner { display: flex; align-items: center; gap: .75rem; background: var(--accent-bg); border: 1px solid var(--accent); color: var(--text); border-radius: var(--radius); padding: .5rem .75rem; margin-bottom: 1rem; font-size: .875rem; }
 .rd-timer-banner > span { flex: 1; min-width: 0; }

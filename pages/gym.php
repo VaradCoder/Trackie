@@ -257,24 +257,24 @@ require_once '../includes/head.php';
 </div>
 
 <!-- Today at a glance — all figures come from today's logged sets/sessions -->
-<div class="grid-stats" style="margin-bottom:1.5rem" id="gymStatsWrap" aria-label="Today">
+<div class="grid-stats u-mb-6" id="gymStatsWrap" aria-label="Today">
   <div class="stat-card">
-    <div class="stat-icon-chip" style="color:var(--accent)"><i class="fas fa-weight-hanging"></i></div>
+    <div class="stat-icon-chip u-c-accent"><i class="fas fa-weight-hanging"></i></div>
     <div class="stat-val"><?= $todayVolume > 0 ? number_format($todayVolume, 0) . ' kg' : '—' ?></div>
     <div class="stat-label">Volume · Today</div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon-chip" style="color:var(--info)"><i class="fas fa-list-check"></i></div>
+    <div class="stat-icon-chip u-c-info"><i class="fas fa-list-check"></i></div>
     <div class="stat-val"><?= $todaySets ?: '—' ?></div>
     <div class="stat-label">Sets · Today</div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon-chip" style="color:var(--ok)"><i class="fas fa-stopwatch"></i></div>
+    <div class="stat-icon-chip u-c-ok"><i class="fas fa-stopwatch"></i></div>
     <div class="stat-val"><?= $todayTrainingSec >= 60 ? round($todayTrainingSec / 60) . ' min' : '—' ?></div>
     <div class="stat-label">Workout time · Today</div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon-chip" style="color:#f59e0b"><i class="fas fa-trophy"></i></div>
+    <div class="stat-icon-chip u-c-warn"><i class="fas fa-trophy"></i></div>
     <div class="stat-val"><?= $todayPrs ?: '—' ?></div>
     <div class="stat-label">PRs · Today</div>
   </div>
@@ -285,7 +285,7 @@ require_once '../includes/head.php';
 <?php endif; ?>
 
 <!-- Module tabs -->
-<div class="filter-tabs fit-tabs" style="margin-bottom:1.25rem" id="gymTabs" role="tablist" aria-label="Fitness sections">
+<div class="filter-tabs fit-tabs u-mb-5" id="gymTabs" role="tablist" aria-label="Fitness sections">
   <button class="filter-tab active" data-tab="overview" role="tab" id="gymtab-overview" aria-controls="tab-overview" aria-selected="true">Dashboard</button>
   <button class="filter-tab" data-tab="practice" role="tab" id="gymtab-practice" aria-controls="tab-practice" aria-selected="false" tabindex="-1">Workouts</button>
   <button class="filter-tab" data-tab="library" role="tab" id="gymtab-library" aria-controls="tab-library" aria-selected="false" tabindex="-1">Exercises</button>
@@ -298,7 +298,7 @@ require_once '../includes/head.php';
 <!-- ═══ Overview ═══ -->
 <div id="tab-overview" class="gym-tab-panel" role="tabpanel" aria-labelledby="gymtab-overview">
 
-  <div class="fit-grid" style="margin-bottom:1.5rem">
+  <div class="fit-grid u-mb-6">
     <div class="fit-col">
 
       <!-- Today's Workout — the primary card -->
@@ -315,7 +315,7 @@ require_once '../includes/head.php';
               <span class="fit-today-chip" title="Average of your last finished sessions of this plan"><i class="fas fa-clock"></i> usually <?= $todaysPlanAvgMin ?> min</span>
             <?php endif; ?>
           </div>
-          <button class="btn btn-primary" style="width:100%" onclick="startPlanWorkout(<?= $todaysPlan['id'] ?>, '<?= h(addslashes($todaysPlan['name'])) ?>')">
+          <button class="btn btn-primary u-w-full" onclick="startPlanWorkout(<?= $todaysPlan['id'] ?>, '<?= h(addslashes($todaysPlan['name'])) ?>')">
             <i class="fas fa-play"></i> Start Workout
           </button>
         <?php else: ?>
@@ -348,7 +348,7 @@ require_once '../includes/head.php';
           <?php else: foreach ($recentWorkouts as $w): ?>
             <div class="fit-recent-row" onclick="showWorkoutHistory()">
               <span class="fit-recent-dot"></span>
-              <div style="flex:1;min-width:0">
+              <div class="u-flex-1 u-min-w-0">
                 <div class="fit-recent-name"><?= h($w['plan_name'] ?: 'Workout') ?></div>
                 <div class="fit-recent-meta">
                   <?= h(formatDate($w['log_date'])) ?> · <?= (int)$w['exercise_count'] ?> exercise<?= $w['exercise_count']==1?'':'s' ?> · <?= (int)$w['total_sets'] ?> sets
@@ -376,7 +376,7 @@ require_once '../includes/head.php';
               <?php elseif ($st['plan']): ?>
                 <button class="fit-week-mark planned" title="Start <?= h($st['plan']['name']) ?>" onclick="startPlanWorkout(<?= $st['plan']['id'] ?>, '<?= h(addslashes($st['plan']['name'])) ?>')"></button>
               <?php else: ?>
-                <div class="fit-week-mark rest" title="Rest day"><i class="fas fa-minus" style="font-size:.625rem"></i></div>
+                <div class="fit-week-mark rest" title="Rest day"><i class="fas fa-minus u-fs-10"></i></div>
               <?php endif; ?>
             </div>
           <?php endforeach; ?>
@@ -402,15 +402,15 @@ require_once '../includes/head.php';
 
       <!-- Daily Goal -->
       <?php if ($scheduledDaysThisWeek > 0): $goalPct = min(100, round($sessionsThisWeek / $scheduledDaysThisWeek * 100)); ?>
-        <div class="card card-body" id="gymDailyGoalWrap" style="text-align:center">
-          <div class="fit-card-label" style="justify-content:center">Weekly goal</div>
+        <div class="card card-body u-text-center" id="gymDailyGoalWrap">
+          <div class="fit-card-label u-justify-center">Weekly goal</div>
           <div class="fit-goal-ring" style="--pct:<?= $goalPct ?>">
             <div class="fit-goal-ring-inner">
               <div class="fit-goal-ring-frac"><?= $sessionsThisWeek ?>/<?= $scheduledDaysThisWeek ?></div>
               <div class="fit-goal-ring-label">workouts</div>
             </div>
           </div>
-          <div style="font-size:.8125rem;color:var(--muted)">Keep it up, <?= h($userName) ?>! 💪</div>
+          <div class="u-fs-13 u-c-muted">Keep it up, <?= h($userName) ?>! 💪</div>
         </div>
       <?php endif; ?>
 
@@ -589,8 +589,8 @@ require_once '../includes/head.php';
 <!-- ═══ Workouts (plans · history · journal) ═══ -->
 <div id="tab-practice" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gymtab-practice">
 
-<div style="font-size:.9375rem;font-weight:600;margin-bottom:.75rem">This Week</div>
-<div class="gym-week-grid" style="margin-bottom:1.75rem">
+<div class="u-fs-15 u-fw-6 u-mb-3">This Week</div>
+<div class="gym-week-grid u-mb-7">
   <?php
   // $weekDays/$plansByDay computed once near the top of the file (shared
   // with the Overview dashboard's weekly plan card).
@@ -611,39 +611,39 @@ require_once '../includes/head.php';
   <?php endforeach; ?>
 </div>
 
-<div style="font-size:.9375rem;font-weight:600;margin-bottom:.75rem">My Workout Plans</div>
+<div class="u-fs-15 u-fw-6 u-mb-3">My Workout Plans</div>
 <div id="gymPlansWrap">
 <?php if (empty($plans)): ?>
-  <div class="card" style="margin-bottom:1.5rem">
+  <div class="card u-mb-6">
     <div class="empty-state">
       <div class="empty-state-icon"><i class="fas fa-clipboard-list"></i></div>
       <div class="empty-state-title">No workout plans yet</div>
       <p>Create a plan (e.g. "Push Day") with the exercises you want to track.</p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openAddPlan()"><i class="fas fa-plus"></i> Create a plan</button>
+      <button class="btn btn-primary u-mt-3" onclick="openAddPlan()"><i class="fas fa-plus"></i> Create a plan</button>
     </div>
   </div>
 <?php else: ?>
-  <div class="grid-cards" style="margin-bottom:1.5rem">
+  <div class="grid-cards u-mb-6">
     <?php foreach ($plans as $p): $isToday = $p['day_of_week'] === $todayName; ?>
       <div class="habit-card" id="plan-<?= $p['id'] ?>" <?= $isToday ? 'style="border-color:var(--accent)"' : '' ?>>
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.5rem">
-          <div style="font-weight:600;font-size:.9375rem;color:var(--text)"><i class="fas fa-list-check" style="color:var(--accent);margin-right:.375rem"></i><?= h($p['name']) ?></div>
-          <div style="display:flex;gap:.125rem;flex-shrink:0">
+        <div class="u-flex u-items-start u-justify-between u-mb-2">
+          <div class="u-fw-6 u-fs-15 u-c-text"><i class="fas fa-list-check u-c-accent u-mr-1h"></i><?= h($p['name']) ?></div>
+          <div class="u-flex u-gap-0h u-shrink-0">
             <button aria-label="Edit workout plan" class="btn btn-icon btn-ghost btn-sm" onclick="openEditPlan(<?= $p['id'] ?>)" title="Edit">
               <i class="fas fa-pen"></i>
             </button>
-            <button aria-label="Delete workout plan" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="deletePlan(<?= $p['id'] ?>)" title="Delete">
+            <button aria-label="Delete workout plan" class="btn btn-icon btn-ghost btn-sm u-c-accent" onclick="deletePlan(<?= $p['id'] ?>)" title="Delete">
               <i class="fas fa-trash"></i>
             </button>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.875rem">
+        <div class="u-flex u-items-center u-gap-2 u-mb-3h">
           <span class="badge <?= $isToday ? 'badge-red' : 'badge-gray' ?>">
             <?= $isToday ? '<i class="fas fa-star" style="font-size:.65rem"></i> Today · ' : '' ?><?= h($p['day_of_week']) ?>
           </span>
-          <span style="font-size:.8125rem;color:var(--muted)"><?= (int)$p['item_count'] ?> exercise<?= $p['item_count']==1?'':'s' ?></span>
+          <span class="u-fs-13 u-c-muted"><?= (int)$p['item_count'] ?> exercise<?= $p['item_count']==1?'':'s' ?></span>
         </div>
-        <button class="btn btn-primary btn-sm" style="width:100%" onclick="startPlanWorkout(<?= $p['id'] ?>, '<?= h(addslashes($p['name'])) ?>')">
+        <button class="btn btn-primary btn-sm u-w-full" onclick="startPlanWorkout(<?= $p['id'] ?>, '<?= h(addslashes($p['name'])) ?>')">
           <i class="fas fa-play"></i> Start workout
         </button>
       </div>
@@ -660,10 +660,10 @@ require_once '../includes/head.php';
 <div style="text-align:center;margin:.75rem 0 1.75rem"><button id="historyMore" class="btn btn-secondary btn-sm hidden" type="button">Load older workouts</button></div>
 
 <div class="fit-section-head"><h2 class="fit-h2">Training journal</h2></div>
-<div class="card card-body" style="margin-bottom:1.25rem">
+<div class="card card-body u-mb-5">
     <label for="journalBody" class="form-label">New entry</label>
     <textarea id="journalBody" class="form-input" rows="3" placeholder="How did today's session go? Any PRs, soreness, notes for next time…"></textarea>
-    <div style="display:flex;justify-content:flex-end;margin-top:.625rem">
+    <div class="u-flex u-justify-end u-mt-2h">
       <button class="btn btn-primary btn-sm" onclick="addJournalEntry()"><i class="fas fa-plus"></i> Add entry</button>
     </div>
   </div>
@@ -671,12 +671,12 @@ require_once '../includes/head.php';
     <?php if (empty($journalEntries)): ?>
       <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-book-open"></i></div><div class="empty-state-title">No journal entries yet</div><p>Jot down how your training is going — form notes, energy levels, what worked.</p></div></div>
     <?php else: foreach ($journalEntries as $j): ?>
-      <div class="card card-body" style="margin-bottom:.75rem" id="journal-<?= $j['id'] ?>">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem">
+      <div class="card card-body u-mb-3" id="journal-<?= $j['id'] ?>">
+        <div class="u-flex u-justify-between u-items-start u-gap-3">
           <div style="font-size:.875rem;color:var(--text);white-space:pre-wrap;flex:1"><?= h($j['body']) ?></div>
-          <button aria-label="Delete journal entry" class="btn btn-icon btn-ghost btn-sm" onclick="deleteJournalEntry(<?= $j['id'] ?>)"><i class="fas fa-trash" style="font-size:.75rem"></i></button>
+          <button aria-label="Delete journal entry" class="btn btn-icon btn-ghost btn-sm" onclick="deleteJournalEntry(<?= $j['id'] ?>)"><i class="fas fa-trash u-fs-12"></i></button>
         </div>
-        <div style="font-size:.75rem;color:var(--subtle);margin-top:.5rem"><?= formatDate($j['entry_date']) ?></div>
+        <div class="u-fs-12 u-c-subtle u-mt-2"><?= formatDate($j['entry_date']) ?></div>
       </div>
     <?php endforeach; endif; ?>
   </div>
@@ -684,8 +684,8 @@ require_once '../includes/head.php';
 
 <!-- ═══ Exercises ═══ -->
 <div id="tab-library" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gymtab-library">
-  <div class="card card-body" style="margin-bottom:1.25rem">
-    <div style="display:flex;gap:.625rem;flex-wrap:wrap">
+  <div class="card card-body u-mb-5">
+    <div class="u-flex u-gap-2h u-flex-wrap">
       <input id="libSearch" class="form-input" placeholder="Search exercises…" aria-label="Search exercises" style="flex:2;min-width:180px">
       <select id="libMuscle" class="form-input" aria-label="Filter by muscle group" style="flex:1;min-width:140px">
         <option value="">All muscle groups</option>
@@ -702,7 +702,7 @@ require_once '../includes/head.php';
       <button class="btn btn-secondary btn-sm" onclick="openAddExercise()"><i class="fas fa-plus"></i> Custom exercise</button>
     </div>
   </div>
-  <div id="libVideoBanner" class="hidden" style="margin-bottom:1.25rem"></div>
+  <div id="libVideoBanner" class="hidden u-mb-5"></div>
   <p class="form-hint hidden" id="libRemoteHint" style="margin:0 0 .75rem"></p>
   <div id="libResults" class="fx-grid" aria-live="polite"></div>
 </div>
@@ -738,7 +738,7 @@ require_once '../includes/head.php';
             <label class="fx-add-num"><span>Reps</span><input id="fxAddReps" type="number" min="1" max="100" value="10" class="form-input"></label>
           </div>
         <?php else: ?>
-          <p class="form-hint" style="margin:0">Create a workout plan first, then add exercises to it from here.</p>
+          <p class="form-hint u-m-0">Create a workout plan first, then add exercises to it from here.</p>
         <?php endif; ?>
       </div>
     </div>
@@ -754,20 +754,20 @@ require_once '../includes/head.php';
 
 <!-- ═══ Progress ═══ -->
 <div id="tab-progress" class="gym-tab-panel hidden" role="tabpanel" aria-labelledby="gymtab-progress">
-  <div style="font-size:.9375rem;font-weight:600;margin-bottom:.75rem">Achievements</div>
-  <div class="grid-stats" style="margin-bottom:1.5rem" id="gymAchievementsWrap">
+  <div class="u-fs-15 u-fw-6 u-mb-3">Achievements</div>
+  <div class="grid-stats u-mb-6" id="gymAchievementsWrap">
     <?php foreach ($gymAchKeys as $key): $def = $allAchDefs[$key]; $unlocked = in_array($key, $unlockedKeys, true); ?>
       <div class="stat-card" style="<?= $unlocked ? '' : 'opacity:.45' ?>">
-        <div style="font-size:1.5rem"><?= $def['emoji'] ?></div>
-        <div class="stat-label" style="margin-top:.25rem"><?= h($def['name']) ?></div>
-        <div style="font-size:.6875rem;color:var(--muted);margin-top:.125rem"><?= h($def['desc']) ?></div>
+        <div class="u-fs-24"><?= $def['emoji'] ?></div>
+        <div class="stat-label u-mt-1"><?= h($def['name']) ?></div>
+        <div class="u-fs-11 u-c-muted u-mt-0h"><?= h($def['desc']) ?></div>
       </div>
     <?php endforeach; ?>
   </div>
 
 
 
-  <div class="grid-stats" style="margin-bottom:1.5rem" id="progTotalsWrap">
+  <div class="grid-stats u-mb-6" id="progTotalsWrap">
     <div class="stat-card"><div class="stat-val" id="progTotalSets">—</div><div class="stat-label">Total sets</div></div>
     <div class="stat-card"><div class="stat-val" id="progTotalReps">—</div><div class="stat-label">Total reps</div></div>
     <div class="stat-card"><div class="stat-val" id="progTrainingTime">—</div><div class="stat-label">Training time</div></div>
@@ -796,9 +796,9 @@ require_once '../includes/head.php';
     </div>
   </div>
 
-  <div class="card card-body" style="margin-bottom:1.25rem">
+  <div class="card card-body u-mb-5">
     <div class="chart-card-header"><span class="d-card-title">Body weight (optional)</span></div>
-    <div style="display:flex;gap:.625rem;flex-wrap:wrap;margin-bottom:.875rem">
+    <div class="u-flex u-gap-2h u-flex-wrap u-mb-3h">
       <input id="bodyWeightInput" type="number" step="0.1" min="0" class="form-input" placeholder="Weight (kg)" style="max-width:140px">
       <input id="bodyFatInput" type="number" step="0.1" min="0" class="form-input" placeholder="Body fat % (optional)" style="max-width:170px">
       <input id="bodyDateInput" type="date" class="form-input" value="<?= $today ?>" style="max-width:160px">
@@ -833,7 +833,7 @@ require_once '../includes/head.php';
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label for="planName" class="form-label">Plan name <span style="color:var(--accent)">*</span></label>
+        <label for="planName" class="form-label">Plan name <span class="u-c-accent">*</span></label>
         <input id="planName" class="form-input" placeholder="e.g. Push Day, Leg Day">
       </div>
       <div class="form-group">
@@ -847,7 +847,7 @@ require_once '../includes/head.php';
       </div>
       <label class="form-label" id="lbl-plan-exercises">Exercises</label>
       <div id="planItems" role="group" aria-labelledby="lbl-plan-exercises"></div>
-      <button type="button" class="btn btn-ghost btn-sm" onclick="addExerciseCard()" style="margin-top:.5rem">
+      <button type="button" class="btn btn-ghost btn-sm u-mt-2" onclick="addExerciseCard()">
         <i class="fas fa-plus"></i> Add exercise
       </button>
     </div>
@@ -867,7 +867,7 @@ require_once '../includes/head.php';
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label for="logExercise" class="form-label">Exercise <span style="color:var(--accent)">*</span></label>
+        <label for="logExercise" class="form-label">Exercise <span class="u-c-accent">*</span></label>
         <input id="logExercise" class="form-input" placeholder="e.g. Bench Press">
       </div>
       <div class="form-grid-2">
@@ -896,7 +896,7 @@ require_once '../includes/head.php';
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label for="exName" class="form-label">Name <span style="color:var(--accent)">*</span></label>
+        <label for="exName" class="form-label">Name <span class="u-c-accent">*</span></label>
         <input id="exName" class="form-input" placeholder="e.g. Cable Lateral Raise">
       </div>
       <div class="form-grid-2">
@@ -980,7 +980,7 @@ require_once '../includes/head.php';
       <span class="modal-title" id="wvTitle">Exercise</span>
       <button class="btn btn-icon btn-ghost btn-sm" data-close-modal="watchVideoModal" aria-label="Close dialog">&times;</button>
     </div>
-    <div class="modal-body" style="padding:0">
+    <div class="modal-body u-p-0">
       <video id="wvPlayer" controls autoplay loop style="width:100%;display:block;background:#000;max-height:70vh"></video>
     </div>
   </div>
@@ -1581,7 +1581,7 @@ function exCardTemplate(v = {}) {
         <button type="button" class="btn btn-icon btn-ghost btn-sm" data-ex="up"   aria-label="Move exercise up"><i class="fas fa-chevron-up"></i></button>
         <button type="button" class="btn btn-icon btn-ghost btn-sm" data-ex="down" aria-label="Move exercise down"><i class="fas fa-chevron-down"></i></button>
         <button type="button" class="btn btn-icon btn-ghost btn-sm" data-ex="dup"  aria-label="Duplicate exercise"><i class="fas fa-clone"></i></button>
-        <button type="button" class="btn btn-icon btn-ghost btn-sm" data-ex="del"  aria-label="Remove exercise" style="color:var(--accent)"><i class="fas fa-trash"></i></button>
+        <button type="button" class="btn btn-icon btn-ghost btn-sm u-c-accent" data-ex="del"  aria-label="Remove exercise"><i class="fas fa-trash"></i></button>
       </div>
     </div>
     <div class="ex-card-grid">
@@ -2754,12 +2754,12 @@ async function checkVideoBanner() {
     const res = await Trackie.API.post(`${API_BASE}/gym.php`, {action:'exercise_video_list'});
     if (!res.success || !res.unassigned.length) { banner.classList.add('hidden'); return; }
     banner.innerHTML = `
-      <div class="card card-body" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:.75rem">
-          <i class="fas fa-clapperboard" style="font-size:1.25rem;color:var(--accent)"></i>
+      <div class="card card-body u-flex u-items-center u-justify-between u-gap-4 u-flex-wrap">
+        <div class="u-flex u-items-center u-gap-3">
+          <i class="fas fa-clapperboard u-fs-20 u-c-accent"></i>
           <div>
-            <div style="font-weight:600;font-size:.875rem;color:var(--text)">${res.unassigned.length} exercise video${res.unassigned.length===1?'':'s'} need matching</div>
-            <div style="font-size:.8125rem;color:var(--muted)">Preview each clip and match it to an exercise.</div>
+            <div class="u-fw-6 u-fs-14 u-c-text">${res.unassigned.length} exercise video${res.unassigned.length===1?'':'s'} need matching</div>
+            <div class="u-fs-13 u-c-muted">Preview each clip and match it to an exercise.</div>
           </div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="openVideoAssignFlow()"><i class="fas fa-play"></i> Match now</button>
@@ -2952,7 +2952,7 @@ function renderPrList(records) {
   }
   wrap.innerHTML = records.slice(0, 8).map(r => `
     <div class="qstat-item">
-      <span class="qstat-label"><i class="fas fa-trophy" style="color:#f59e0b"></i> ${escHtml(r.exercise_name)}</span>
+      <span class="qstat-label"><i class="fas fa-trophy u-c-warn"></i> ${escHtml(r.exercise_name)}</span>
       <span class="qstat-value">${escHtml(r.weight_kg)} kg${r.reps ? ` × ${escHtml(r.reps)}` : ''}</span>
     </div>`).join('');
 }
@@ -2989,9 +2989,9 @@ async function loadBodyStats() {
     wrap.innerHTML = bodyTrendSvg(res.entries) + res.entries.map(e => `
       <div class="qstat-item" id="bodystat-${e.id}">
         <span class="qstat-label">${e.log_date}${e.body_fat_pct ? ` · ${e.body_fat_pct}% BF` : ''}</span>
-        <span style="display:flex;align-items:center;gap:.625rem">
+        <span class="u-flex u-items-center u-gap-2h">
           <span class="qstat-value">${e.weight_kg ? e.weight_kg + ' kg' : '—'}</span>
-          <button class="btn btn-icon btn-ghost btn-sm" aria-label="Delete entry" onclick="deleteBodyStat(${e.id})"><i class="fas fa-trash" style="font-size:.7rem"></i></button>
+          <button class="btn btn-icon btn-ghost btn-sm" aria-label="Delete entry" onclick="deleteBodyStat(${e.id})"><i class="fas fa-trash u-fs-11-2"></i></button>
         </span>
       </div>`).join('');
   } catch { wrap.innerHTML = '<p class="form-hint">Network error.</p>'; }

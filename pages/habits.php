@@ -86,22 +86,22 @@ if ($totalHabits > 0) {
     }
 }
 ?>
-<div class="grid-stats" style="margin-bottom:var(--sp-5)" id="habitsStatsWrap">
+<div class="grid-stats u-mb-6" id="habitsStatsWrap">
   <div class="stat-card">
     <div class="stat-val"><?= $totalHabits ?></div>
     <div class="stat-label"><i class="fas fa-list" style="color:#64748b"></i> Total habits</div>
   </div>
   <div class="stat-card">
     <div class="stat-val"><?= $loggedToday ?></div>
-    <div class="stat-label"><i class="fas fa-check-circle" style="color:var(--ok)"></i> Logged today</div>
+    <div class="stat-label"><i class="fas fa-check-circle u-c-ok"></i> Logged today</div>
   </div>
   <div class="stat-card">
     <div class="stat-val"><?= $completionRate ?>%</div>
-    <div class="stat-label"><i class="fas fa-gauge-high" style="color:var(--info)"></i> Today's rate</div>
+    <div class="stat-label"><i class="fas fa-gauge-high u-c-info"></i> Today's rate</div>
   </div>
   <div class="stat-card">
-    <div class="stat-val" style="color:#f59e0b"><?= $habitStreak ?> d</div>
-    <div class="stat-label"><i class="fas fa-fire" style="color:#f59e0b"></i> Current streak</div>
+    <div class="stat-val u-c-warn"><?= $habitStreak ?> d</div>
+    <div class="stat-label"><i class="fas fa-fire u-c-warn"></i> Current streak</div>
   </div>
 </div>
 
@@ -109,16 +109,16 @@ if ($totalHabits > 0) {
 
 <div id="habitsSuggestionsWrap">
 <?php if (!empty($suggestions)): ?>
-  <div class="card card-body" style="margin-bottom:var(--sp-5)">
-    <div style="font-size:.875rem;font-weight:600;margin-bottom:var(--sp-1)">
-      <i class="fas fa-wand-magic-sparkles" style="color:var(--accent)"></i> Suggested for you
+  <div class="card card-body u-mb-6">
+    <div class="u-fs-14 u-fw-6 u-mb-1">
+      <i class="fas fa-wand-magic-sparkles u-c-accent"></i> Suggested for you
     </div>
-    <p class="form-hint" style="margin-bottom:var(--sp-3)">Based on the hobbies you picked in Profile.</p>
-    <div style="display:flex;flex-wrap:wrap;gap:.625rem">
+    <p class="form-hint u-mb-3">Based on the hobbies you picked in Profile.</p>
+    <div class="u-flex u-flex-wrap u-gap-2h">
       <?php foreach ($suggestions as $sg): ?>
         <button type="button" class="hobby-chip" style="border-radius:.625rem"
                 onclick="addSuggested('<?= h(addslashes($sg['name'])) ?>','<?= h($sg['freq']) ?>','<?= h($sg['color']) ?>',this)">
-          <i class="fas fa-plus" style="font-size:.7rem;margin-right:.375rem"></i><?= h($sg['name']) ?>
+          <i class="fas fa-plus u-fs-11-2 u-mr-1h"></i><?= h($sg['name']) ?>
           <span style="opacity:.7;font-weight:400"> · <?= h($sg['hobby']) ?></span>
         </button>
       <?php endforeach; ?>
@@ -134,7 +134,7 @@ if ($totalHabits > 0) {
       <div class="empty-state-icon"><i class="fas fa-heart"></i></div>
       <div class="empty-state-title">No habits yet</div>
       <p>Start building positive habits for a better life.</p>
-      <button class="btn btn-primary" style="margin-top:var(--sp-3)" onclick="openAddHabit()">
+      <button class="btn btn-primary u-mt-3" onclick="openAddHabit()">
         <i class="fas fa-plus"></i> Add your first habit
       </button>
     </div>
@@ -151,38 +151,38 @@ if ($totalHabits > 0) {
       $dueToday = habitDueOn($h, date('Y-m-d'), $hLogs, $weekStart);
     ?>
       <div class="habit-card" id="habit-<?= $h['id'] ?>">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.875rem">
-          <div style="display:flex;align-items:center;gap:.625rem">
+        <div class="u-flex u-items-start u-justify-between u-mb-3h">
+          <div class="u-flex u-items-center u-gap-2h">
             <span class="habit-dot" style="background:<?= h($h['color']) ?>"></span>
             <div>
-              <div style="font-weight:600;font-size:.9375rem;color:var(--text)"><?= h($h['name']) ?></div>
-              <span class="badge badge-gray" style="margin-top:var(--sp-1)"><?= h(habitScheduleLabel($h)) ?></span>
+              <div class="u-fw-6 u-fs-15 u-c-text"><?= h($h['name']) ?></div>
+              <span class="badge badge-gray u-mt-1"><?= h(habitScheduleLabel($h)) ?></span>
               <?php if ($hStreak['current'] > 0): ?>
                 <span class="badge" style="margin-top:var(--sp-1);background:rgba(245,158,11,.15);color:#f59e0b">🔥 <?= (int)$hStreak['current'] ?> <?= $h['frequency'] === 'weekly' ? 'wk' : 'd' ?></span>
               <?php endif; ?>
             </div>
           </div>
           <button class="btn btn-icon btn-ghost btn-sm" onclick="openEditHabit(<?= $h['id'] ?>)" title="Edit" aria-label="Edit habit"><i class="fas fa-pen"></i></button>
-          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)"
+          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm u-c-accent"
                   onclick="deleteHabit(<?= $h['id'] ?>)" title="Delete">
             <i class="fas fa-trash"></i>
           </button>
         </div>
 
         <!-- Stats -->
-        <div style="display:flex;gap:var(--sp-4);margin-bottom:.875rem;font-size:.8125rem;color:var(--muted)">
-          <span>Total: <strong style="color:var(--text)"><?= $h['total_logs'] ?></strong></span>
-          <span>This week: <strong style="color:var(--text)"><?= $achieved ?>/<?= $target ?></strong></span>
-          <span>Best: <strong style="color:var(--text)"><?= (int)$hStreak['best'] ?></strong></span>
+        <div class="u-flex u-gap-4 u-mb-3h u-fs-13 u-c-muted">
+          <span>Total: <strong class="u-c-text"><?= $h['total_logs'] ?></strong></span>
+          <span>This week: <strong class="u-c-text"><?= $achieved ?>/<?= $target ?></strong></span>
+          <span>Best: <strong class="u-c-text"><?= (int)$hStreak['best'] ?></strong></span>
         </div>
 
         <!-- Progress bar (this week) -->
-        <div style="margin-bottom:.875rem">
-          <div style="display:flex;justify-content:space-between;font-size:.8125rem;margin-bottom:var(--sp-1)">
-            <span style="color:var(--muted)">
+        <div class="u-mb-3h">
+          <div class="u-flex u-justify-between u-fs-13 u-mb-1">
+            <span class="u-c-muted">
               <?= $h['frequency'] === 'weekly' ? 'Done this week' : 'Week progress' ?>
             </span>
-            <span style="font-weight:600;color:var(--text)"><?= $pct ?>%</span>
+            <span class="u-fw-6 u-c-text"><?= $pct ?>%</span>
           </div>
           <div class="progress-track">
             <div class="progress-fill <?= $pct >= 100 ? 'green' : '' ?>"
@@ -202,11 +202,11 @@ if ($totalHabits > 0) {
         </div>
 
         <!-- History toggle -->
-        <div style="margin-top:var(--sp-3)">
-          <button class="btn btn-ghost btn-sm" style="width:100%;font-size:.75rem" onclick="toggleHabitHistory(<?= $h['id'] ?>)">
+        <div class="u-mt-3">
+          <button class="btn btn-ghost btn-sm u-w-full u-fs-12" onclick="toggleHabitHistory(<?= $h['id'] ?>)">
             <i class="fas fa-calendar-alt"></i> View history
           </button>
-          <div id="habit-history-<?= $h['id'] ?>" class="habit-history hidden" style="margin-top:var(--sp-2)"></div>
+          <div id="habit-history-<?= $h['id'] ?>" class="habit-history hidden u-mt-2"></div>
         </div>
       </div>
     <?php endforeach; ?>
@@ -223,7 +223,7 @@ if ($totalHabits > 0) {
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label for="habitName" class="form-label">Habit name <span style="color:var(--accent)">*</span></label>
+        <label for="habitName" class="form-label">Habit name <span class="u-c-accent">*</span></label>
         <input type="hidden" id="habitId">
         <input id="habitName" class="form-input" placeholder="e.g. Exercise, Read, Meditate">
       </div>
@@ -389,11 +389,11 @@ async function toggleHabitHistory(id) {
 async function loadHabitHistory(id) {
   const panel = document.getElementById('habit-history-' + id);
   if (!panel) return;
-  panel.innerHTML = '<div style="font-size:.75rem;color:var(--muted)"><i class="fas fa-spinner fa-spin"></i> Loading\u2026</div>';
+  panel.innerHTML = '<div class="u-fs-12 u-c-muted"><i class="fas fa-spinner fa-spin"></i> Loading\u2026</div>';
   try {
     const days = 84;
     const res = await Trackie.API.post(API_BASE + '/habits.php', {action:'history', habit_id:id, days:days});
-    if (!res.success) { panel.innerHTML = '<div style="font-size:.75rem;color:var(--muted)">Could not load history.</div>'; return; }
+    if (!res.success) { panel.innerHTML = '<div class="u-fs-12 u-c-muted">Could not load history.</div>'; return; }
     const loggedSet = {};
     res.dates.forEach(function(d){ loggedSet[d] = true; });
     const card = document.getElementById('habit-' + id);
@@ -409,9 +409,9 @@ async function loadHabitHistory(id) {
       cells += '<div title="' + iso + (on ? ' \u2014 done' : '') + '" style="width:.6rem;height:.6rem;border-radius:2px;background:' + (on ? color : 'var(--surface2)') + '"></div>';
     }
     panel.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:2px;max-width:100%">' + cells + '</div>' +
-      '<div style="font-size:.6875rem;color:var(--muted);margin-top:.375rem">Last ' + days + ' days</div>';
+      '<div class="u-fs-11 u-c-muted u-mt-1h">Last ' + days + ' days</div>';
   } catch (e) {
-    panel.innerHTML = '<div style="font-size:.75rem;color:var(--muted)">Network error.</div>';
+    panel.innerHTML = '<div class="u-fs-12 u-c-muted">Network error.</div>';
   }
 }
 

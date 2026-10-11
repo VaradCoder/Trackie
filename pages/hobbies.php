@@ -29,11 +29,13 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem">
-  <h1 style="font-size:1.125rem;font-weight:600;margin:0"><i class="fas fa-star" style="color:var(--accent)"></i> Your Hobbies</h1>
-  <button type="button" class="btn btn-secondary btn-sm" onclick="openEditHobbies()"><i class="fas fa-pen"></i> Edit hobbies</button>
+<div class="page-header page-header-center">
+  <div class="page-header-text">
+    <h1 class="page-header-title"><i class="fas fa-star u-c-accent" aria-hidden="true"></i> Your Hobbies</h1>
+    <p class="page-header-sub">Trackie personalizes around what you picked — built modules open below; the rest are on the roadmap.</p>
+  </div>
+  <div class="page-header-actions"><button type="button" class="btn btn-secondary btn-sm" onclick="openEditHobbies()"><i class="fas fa-pen"></i> Edit hobbies</button></div>
 </div>
-<p class="form-hint" style="margin-bottom:1.5rem">Trackie personalizes around what you picked — built modules open below; the rest are on the roadmap.</p>
 
 <div id="hobbiesListWrap">
 <?php if (empty($userHobbyList)): ?>
@@ -42,7 +44,7 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-star"></i></div>
       <div class="empty-state-title">No hobbies picked yet</div>
       <p>Pick a few hobbies and Trackie will build around them — starter habits, workout tracking, project management, and more.</p>
-      <button type="button" class="btn btn-primary" style="margin-top:.75rem" onclick="openEditHobbies()"><i class="fas fa-star"></i> Pick your hobbies</button>
+      <button type="button" class="btn btn-primary u-mt-3" onclick="openEditHobbies()"><i class="fas fa-star"></i> Pick your hobbies</button>
     </div>
   </div>
 <?php else: ?>
@@ -53,14 +55,14 @@ require_once '../includes/head.php';
       $hasModule = (bool)$m['module'];
     ?>
       <div class="habit-card">
-        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
+        <div class="u-flex u-items-center u-gap-3 u-mb-3">
           <div style="width:44px;height:44px;border-radius:.75rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;
                       background:color-mix(in srgb, <?= $m['color'] ?> 15%, transparent);color:<?= $m['color'] ?>">
-            <i class="fas <?= $m['icon'] ?>" style="font-size:1.125rem"></i>
+            <i class="fas <?= $m['icon'] ?> u-fs-18"></i>
           </div>
-          <div style="min-width:0">
-            <div style="font-weight:600;font-size:.9375rem;color:var(--text)"><?= h($hobby) ?></div>
-            <?php if (!$hasModule): ?><span class="badge badge-gray" style="margin-top:.125rem">Coming soon</span><?php endif; ?>
+          <div class="u-min-w-0">
+            <div class="u-fw-6 u-fs-15 u-c-text"><?= h($hobby) ?></div>
+            <?php if (!$hasModule): ?><span class="badge badge-gray u-mt-0h">Coming soon</span><?php endif; ?>
           </div>
         </div>
         <p style="font-size:.8125rem;color:var(--muted);margin-bottom:.75rem;min-height:2.25em"><?= h($m['desc'] ?? '') ?></p>
@@ -74,11 +76,11 @@ require_once '../includes/head.php';
           </div>
         <?php endif; ?>
         <?php if ($hasModule): ?>
-          <a href="<?= APP_BASE ?>/pages/<?= $m['module'] ?>" class="btn btn-primary btn-sm" style="width:100%">
+          <a href="<?= APP_BASE ?>/pages/<?= $m['module'] ?>" class="btn btn-primary btn-sm u-w-full">
             <i class="fas fa-arrow-right"></i> Open <?= h($m['moduleLabel']) ?>
           </a>
         <?php else: ?>
-          <button class="btn btn-secondary btn-sm" style="width:100%" disabled>
+          <button class="btn btn-secondary btn-sm u-w-full" disabled>
             <i class="fas fa-hourglass-half"></i> Not built yet
           </button>
         <?php endif; ?>
@@ -88,8 +90,8 @@ require_once '../includes/head.php';
     <!-- Add more hobbies card -->
     <button type="button" class="habit-card" onclick="openEditHobbies()"
             style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;border-style:dashed;min-height:180px;background:transparent;cursor:pointer">
-      <i class="fas fa-plus" style="font-size:1.5rem;color:var(--muted);margin-bottom:.5rem"></i>
-      <span style="font-size:.875rem;color:var(--muted);font-weight:600">Add more hobbies</span>
+      <i class="fas fa-plus u-fs-24 u-c-muted u-mb-2"></i>
+      <span class="u-fs-14 u-c-muted u-fw-6">Add more hobbies</span>
     </button>
   </div>
 <?php endif; ?>
@@ -103,11 +105,11 @@ require_once '../includes/head.php';
       <button class="btn btn-icon btn-ghost btn-sm" data-close-modal="editHobbiesModal" aria-label="Close dialog">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="form-hint" style="margin-bottom:.875rem">Pick up to 8 — Trackie personalizes habits, this page, and your sidebar around them.</p>
-      <div id="hobbyChipsModal" style="display:flex;flex-wrap:wrap;gap:.5rem">
+      <p class="form-hint u-mb-3h">Pick up to 8 — Trackie personalizes habits, this page, and your sidebar around them.</p>
+      <div id="hobbyChipsModal" class="u-flex u-flex-wrap u-gap-2">
         <?php foreach ($meta as $hobbyName => $hm): $active = in_array($hobbyName, $userHobbyList, true); ?>
           <button type="button" class="hobby-chip<?= $active ? ' is-active' : '' ?>" data-hobby="<?= h($hobbyName) ?>">
-            <i class="fas <?= $hm['icon'] ?>" style="margin-right:.375rem;font-size:.75rem"></i><?= h($hobbyName) ?>
+            <i class="fas <?= $hm['icon'] ?> u-mr-1h u-fs-12"></i><?= h($hobbyName) ?>
           </button>
         <?php endforeach; ?>
       </div>

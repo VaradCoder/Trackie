@@ -63,9 +63,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="auth-wrap">
   <div style="width:100%;max-width:420px">
 
-    <div class="text-center" style="margin-bottom:1.5rem">
+    <div class="text-center u-mb-6">
       <div class="auth-logo-ring"><i class="fas fa-rocket"></i></div>
-      <h1 style="font-size:1.5rem;font-weight:700;color:var(--text);margin:0">Trackie</h1>
+      <h1 class="u-fs-24 u-fw-7 u-c-text u-m-0">Trackie</h1>
       <p style="color:var(--muted);font-size:.875rem;margin:.25rem 0 0">Password recovery</p>
     </div>
 
@@ -101,13 +101,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input id="email" name="email" type="email" class="form-input" required autofocus
                    value="<?= h($_POST['email'] ?? '') ?>" placeholder="you@example.com">
           </div>
-          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">
+          <button type="submit" class="btn btn-primary u-w-full u-justify-center">
             Send reset link
           </button>
         </form>
       <?php endif; ?>
 
-      <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:var(--muted)">
+      <p class="u-text-center u-mt-5 u-fs-14 u-c-muted">
         Remembered it? <a href="<?= APP_BASE ?>/pages/login.php">Back to login</a>
       </p>
     </div>

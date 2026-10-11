@@ -86,7 +86,7 @@ require_once '../includes/head.php';
 <?= renderInsight($goalsInsight) ?>
 
 <!-- Filter tabs -->
-<div style="margin-bottom:var(--sp-4)">
+<div class="u-mb-4">
   <div class="filter-tabs">
     <?php foreach (['all'=>'All','active'=>'Active','completed'=>'Completed'] as $k=>$lbl): ?>
       <a class="filter-tab <?= $statusFilter===$k?'active':'' ?>" href="?status=<?= $k ?>">
@@ -103,7 +103,7 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-bullseye"></i></div>
       <div class="empty-state-title">No goals yet</div>
       <p>Set a goal and start tracking your progress.</p>
-      <button class="btn btn-primary" style="margin-top:var(--sp-3)" onclick="openNewGoal()">
+      <button class="btn btn-primary u-mt-3" onclick="openNewGoal()">
         <i class="fas fa-plus"></i> Add your first goal
       </button>
     </div>
@@ -115,29 +115,29 @@ require_once '../includes/head.php';
       $done = $pct >= 100;
     ?>
       <div class="card card-body" id="goal-<?= $g['id'] ?>">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.875rem">
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:.9375rem;color:var(--text)" class="truncate">
+        <div class="u-flex u-items-start u-justify-between u-mb-3h">
+          <div class="u-flex-1 u-min-w-0">
+            <div class="truncate u-fw-6 u-fs-15 u-c-text">
               <?= h($g['goal_name']) ?>
-              <?php if ($done): ?><span class="badge badge-green" style="margin-left:.375rem"><i class="fas fa-trophy"></i> Done</span><?php endif; ?>
+              <?php if ($done): ?><span class="badge badge-green u-ml-1h"><i class="fas fa-trophy"></i> Done</span><?php endif; ?>
             </div>
             <?php if ($g['description']): ?>
-              <div style="font-size:.8125rem;color:var(--muted);margin-top:var(--sp-1)"><?= h($g['description']) ?></div>
+              <div class="u-fs-13 u-c-muted u-mt-1"><?= h($g['description']) ?></div>
             <?php endif; ?>
             <?php if (!empty($g['source'])): ?>
               <div class="goal-source"><i class="fas fa-link" aria-hidden="true"></i> <?= h(goalSourceLabel($g, $userHabits)) ?></div>
             <?php endif; ?>
           </div>
-          <button class="btn btn-icon btn-ghost btn-sm" style="flex-shrink:0" onclick="openEditGoal(<?= $g['id'] ?>)" aria-label="Edit goal" title="Edit"><i class="fas fa-pen"></i></button>
-          <button aria-label="Delete goal" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent);flex-shrink:0"
+          <button class="btn btn-icon btn-ghost btn-sm u-shrink-0" onclick="openEditGoal(<?= $g['id'] ?>)" aria-label="Edit goal" title="Edit"><i class="fas fa-pen"></i></button>
+          <button aria-label="Delete goal" class="btn btn-icon btn-ghost btn-sm u-c-accent u-shrink-0"
                   onclick="deleteGoal(<?= $g['id'] ?>)">
             <i class="fas fa-trash"></i>
           </button>
         </div>
 
-        <div style="margin-bottom:var(--sp-3)">
-          <div style="display:flex;justify-content:space-between;font-size:.8125rem;margin-bottom:.375rem">
-            <span style="color:var(--muted)"><?= (int)$g['progress'] ?> / <?= (int)$g['target_value'] ?><?= !empty($g['source']) ? ' ' . h(GOAL_SOURCES[$g['source']][1] ?? '') : '' ?></span>
+        <div class="u-mb-3">
+          <div class="u-flex u-justify-between u-fs-13 u-mb-1h">
+            <span class="u-c-muted"><?= (int)$g['progress'] ?> / <?= (int)$g['target_value'] ?><?= !empty($g['source']) ? ' ' . h(GOAL_SOURCES[$g['source']][1] ?? '') : '' ?></span>
             <strong style="color:<?= $done ? 'var(--ok)' : 'var(--text)' ?>"><?= $pct ?>%</strong>
           </div>
           <div class="progress-track">
@@ -146,17 +146,17 @@ require_once '../includes/head.php';
         </div>
 
         <?php if ($g['deadline']): ?>
-          <div style="font-size:.8125rem;color:var(--muted);margin-bottom:var(--sp-3)">
+          <div class="u-fs-13 u-c-muted u-mb-3">
             <i class="fas fa-calendar"></i> <?= formatDate($g['deadline']) ?>
           </div>
         <?php endif; ?>
 
         <?php if (!$done && empty($g['source'])): ?>
-          <div style="display:flex;gap:var(--sp-2);align-items:center">
+          <div class="u-flex u-gap-2 u-items-center">
             <input type="number" id="prog-<?= $g['id'] ?>"
                    min="0" max="<?= $g['target_value'] ?>"
                    value="<?= $g['progress'] ?>"
-                   class="form-input" style="font-size:.875rem">
+                   class="form-input u-fs-14">
             <button class="btn btn-secondary btn-sm"
                     onclick="updateProgress(<?= $g['id'] ?>, <?= $g['target_value'] ?>)">
               Update
@@ -165,18 +165,18 @@ require_once '../includes/head.php';
         <?php endif; ?>
 
         <!-- Check-ins -->
-        <div style="margin-top:var(--sp-3)">
-          <button class="btn btn-ghost btn-sm" style="width:100%;font-size:.75rem" onclick="toggleGoalCheckins(<?= $g['id'] ?>)">
+        <div class="u-mt-3">
+          <button class="btn btn-ghost btn-sm u-w-full u-fs-12" onclick="toggleGoalCheckins(<?= $g['id'] ?>)">
             <i class="fas fa-clipboard-list"></i> Check-ins
           </button>
-          <div id="goal-checkins-<?= $g['id'] ?>" class="goal-checkins hidden" style="margin-top:var(--sp-2)">
-          <div style="display:flex;gap:var(--sp-2);margin-bottom:var(--sp-2);flex-wrap:wrap">
+          <div id="goal-checkins-<?= $g['id'] ?>" class="goal-checkins hidden u-mt-2">
+          <div class="u-flex u-gap-2 u-mb-2 u-flex-wrap">
             <input type="text" class="form-input" style="font-size:.8125rem;flex:1;min-width:80px" id="checkin-input-<?= $g['id'] ?>"
                      placeholder="What did you do today?"
                      onkeydown="if(event.key==='Enter'){addGoalCheckin(<?= $g['id'] ?>)}">
               <button class="btn btn-primary btn-sm" onclick="addGoalCheckin(<?= $g['id'] ?>)" aria-label="Add check-in"><i class="fas fa-plus" aria-hidden="true"></i></button>
             </div>
-            <div id="checkin-list-<?= $g['id'] ?>" style="font-size:.75rem;color:var(--muted)"><i class="fas fa-spinner fa-spin"></i> Loading\u2026</div>
+            <div id="checkin-list-<?= $g['id'] ?>" class="u-fs-12 u-c-muted"><i class="fas fa-spinner fa-spin"></i> Loading\u2026</div>
           </div>
         </div>      </div>
     <?php endforeach; ?>
@@ -193,7 +193,7 @@ require_once '../includes/head.php';
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label for="goalName" class="form-label">Goal name <span style="color:var(--accent)">*</span></label>
+        <label for="goalName" class="form-label">Goal name <span class="u-c-accent">*</span></label>
         <input type="hidden" id="goalId">
         <input id="goalName" class="form-input" placeholder="e.g. Read 50 books, Save $10,000">
       </div>
@@ -366,9 +366,9 @@ async function loadGoalCheckins(id) {
     if (!res.checkins.length) { list.innerHTML = 'No check-ins yet.'; return; }
     list.innerHTML = res.checkins.map(function(c) {
       const when = new Date(c.created_at.replace(' ', 'T')).toLocaleDateString(undefined, {month:'short', day:'numeric'});
-      const prog = c.progress_snapshot !== null ? ' <strong style="color:var(--text)">(' + c.progress_snapshot + ')</strong>' : '';
+      const prog = c.progress_snapshot !== null ? ' <strong class="u-c-text">(' + c.progress_snapshot + ')</strong>' : '';
       const note = c.note ? escCheckin(c.note) : '<em>Progress updated</em>';
-      return '<div style="padding:.375rem 0;border-bottom:1px solid var(--surface2)"><span style="color:var(--muted)">' + when + '</span> \u2014 ' + note + prog + '</div>';
+      return '<div style="padding:.375rem 0;border-bottom:1px solid var(--surface2)"><span class="u-c-muted">' + when + '</span> \u2014 ' + note + prog + '</div>';
     }).join('');
   } catch (e) {
     list.innerHTML = 'Network error.';

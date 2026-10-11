@@ -50,7 +50,7 @@ require_once '../includes/head.php';
   <a class="btn btn-secondary btn-sm" href="?w=<?= $prev ?>" aria-label="Previous week"><i class="fas fa-chevron-left"></i></a>
   <span class="rv-range">
     <?= h(date('j M', strtotime($rv['from']))) ?> – <?= h(date('j M Y', strtotime($rv['to']))) ?>
-    <?= $isCurrent ? '<span class="text-muted" style="font-weight:400"> · this week so far</span>' : '' ?>
+    <?= $isCurrent ? '<span class="text-muted u-fw-4"> · this week so far</span>' : '' ?>
   </span>
   <?php if (!$isCurrent): ?>
     <a class="btn btn-secondary btn-sm" href="?w=<?= $next ?>" aria-label="Next week"><i class="fas fa-chevron-right"></i></a>
@@ -59,7 +59,7 @@ require_once '../includes/head.php';
 
 <?php if ($rv['active_days'] === 0 && $rv['prev_active_days'] === 0): ?>
   <div class="card card-body">
-    <p class="text-muted" style="margin:0">Nothing was logged this week or the week before. Your review fills in as you tick habits, finish todos and log hobbies.</p>
+    <p class="text-muted u-m-0">Nothing was logged this week or the week before. Your review fills in as you tick habits, finish todos and log hobbies.</p>
   </div>
 <?php else: ?>
 
@@ -80,9 +80,9 @@ require_once '../includes/head.php';
   <?php endforeach; ?>
 </div>
 
-<div class="grid-2" style="margin-bottom:1.5rem">
+<div class="grid-2 u-mb-6">
   <div class="card card-body">
-    <div style="font-size:.9375rem;font-weight:600;margin-bottom:.75rem">By area</div>
+    <div class="u-fs-15 u-fw-6 u-mb-3">By area</div>
     <?php if ($rv['modules']): ?>
     <table class="rv-table">
       <thead><tr><th>Area</th><th class="num">This week</th><th class="num">Week before</th></tr></thead>
@@ -93,22 +93,22 @@ require_once '../includes/head.php';
       </tbody>
     </table>
     <?php else: ?>
-      <p class="text-muted" style="margin:0;font-size:.875rem">No activity yet.</p>
+      <p class="text-muted u-m-0 u-fs-14">No activity yet.</p>
     <?php endif; ?>
   </div>
 
   <div class="card card-body">
-    <div style="font-size:.9375rem;font-weight:600;margin-bottom:.75rem">Highlights</div>
+    <div class="u-fs-15 u-fw-6 u-mb-3">Highlights</div>
     <?php if ($rv['new']): ?>
-      <div style="font-size:.8125rem;color:var(--muted)">Picked up this week</div>
+      <div class="u-fs-13 u-c-muted">Picked up this week</div>
       <div class="rv-chips"><?php foreach ($rv['new'] as $m): ?><span class="rv-chip"><?= h($m['label']) ?></span><?php endforeach; ?></div>
     <?php endif; ?>
     <?php if ($rv['dropped']): ?>
-      <div style="font-size:.8125rem;color:var(--muted);margin-top:.875rem">Active the week before, quiet this week</div>
+      <div class="u-fs-13 u-c-muted u-mt-3h">Active the week before, quiet this week</div>
       <div class="rv-chips"><?php foreach ($rv['dropped'] as $m): ?><span class="rv-chip"><?= h($m['label']) ?></span><?php endforeach; ?></div>
     <?php endif; ?>
     <?php if (!$rv['new'] && !$rv['dropped']): ?>
-      <p class="text-muted" style="margin:0;font-size:.875rem">Same areas as the week before — steady.</p>
+      <p class="text-muted u-m-0 u-fs-14">Same areas as the week before — steady.</p>
     <?php endif; ?>
     <a href="<?= APP_BASE ?>/pages/analytics.php" class="an-review-link">See full analytics <i class="fas fa-arrow-right"></i></a>
   </div>

@@ -39,11 +39,11 @@ require_once '../includes/head.php';
 <div class="page-content" id="page-main">
 
 <div class="rd-head">
-  <h1><i class="fas fa-seedling" style="color:var(--accent)"></i> Gardening</h1>
+  <h1><i class="fas fa-seedling u-c-accent"></i> Gardening</h1>
   <div class="rd-head-actions"><button class="btn btn-primary btn-sm" onclick="openPlant()"><i class="fas fa-plus"></i> Add plant</button></div>
 </div>
 
-<div class="grid-stats" style="margin-bottom:1.25rem">
+<div class="grid-stats u-mb-5">
   <div class="stat-card"><div class="stat-val"><?= count($plants) ?></div><div class="stat-label">Plants</div></div>
   <div class="stat-card"><div class="stat-val" style="color:<?= $due ? 'var(--info)' : 'inherit' ?>"><?= count($due) ?></div><div class="stat-label">Need water today</div></div>
   <div class="stat-card"><div class="stat-val"><?= count(array_filter($plants, fn($p) => $p['status'] === 'needs_attention')) ?></div><div class="stat-label">Need attention</div></div>
@@ -51,8 +51,8 @@ require_once '../includes/head.php';
 </div>
 
 <?php if ($plants): ?>
-<div class="card card-body" style="margin-bottom:1.25rem">
-  <div class="fit-card-label"><i class="fas fa-droplet" style="color:var(--info)"></i> Today's tasks</div>
+<div class="card card-body u-mb-5">
+  <div class="fit-card-label"><i class="fas fa-droplet u-c-info"></i> Today's tasks</div>
   <?php if (!$due): ?><p class="hb-empty-line">Nothing needs water today 🌿<?= $upcoming ? ' · next: ' . h(implode(', ', array_map(fn($p) => $p['name'] . ' (' . formatDate($p['next_water'], 'D') . ')', array_slice($upcoming, 0, 4)))) : '' ?></p><?php endif; ?>
   <?php foreach ($due as $p): ?>
     <div class="hb-row" id="due-<?= (int)$p['id'] ?>">
@@ -66,17 +66,17 @@ require_once '../includes/head.php';
 <?php if (!$plants): ?>
   <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-seedling"></i></div>
     <div class="empty-state-title">No plants yet</div><p>Add your plants with how often they need water — Trackie tells you what's due each day.</p>
-    <button class="btn btn-primary" style="margin-top:.75rem" onclick="openPlant()"><i class="fas fa-plus"></i> Add your first plant</button></div></div>
+    <button class="btn btn-primary u-mt-3" onclick="openPlant()"><i class="fas fa-plus"></i> Add your first plant</button></div></div>
 <?php else: ?>
   <div class="grid-cards">
     <?php foreach ($plants as $p): ?>
       <div class="habit-card" id="plant-<?= (int)$p['id'] ?>">
         <button class="rd-title rd-link" onclick="viewPlant(<?= (int)$p['id'] ?>)"><?= h($p['name']) ?></button>
         <div class="rd-author"><?= h(implode(' · ', array_filter([$p['species'], $p['location']]))) ?: '&nbsp;' ?></div>
-        <div class="hb-row" style="margin-top:.5rem"><span>Water every</span><b><?= (int)$p['water_frequency_days'] ?> day<?= (int)$p['water_frequency_days'] === 1 ? '' : 's' ?></b></div>
+        <div class="hb-row u-mt-2"><span>Water every</span><b><?= (int)$p['water_frequency_days'] ?> day<?= (int)$p['water_frequency_days'] === 1 ? '' : 's' ?></b></div>
         <div class="hb-row"><span>Last watered</span><b><?= $p['last_watered'] ? h(formatDate($p['last_watered'], 'M j')) : '—' ?></b></div>
         <div class="hb-row"><span>Next</span><b style="color:<?= $p['due'] ? 'var(--info)' : 'inherit' ?>"><?= $p['status'] === 'dormant' ? 'Dormant' : ($p['due'] ? 'Due now' : h(formatDate($p['next_water'], 'D M j'))) ?></b></div>
-        <div class="rd-book-actions" style="margin-top:.625rem">
+        <div class="rd-book-actions u-mt-2h">
           <select class="form-input" aria-label="Health" onchange="setPlantStatus(<?= (int)$p['id'] ?>, this.value)">
             <?php foreach ($statusMeta as $k => $l): ?><option value="<?= $k ?>" <?= $p['status'] === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?>
           </select>
@@ -95,7 +95,7 @@ require_once '../includes/head.php';
     <div class="modal-body">
       <input type="hidden" id="plId">
       <div class="rd-form-row">
-        <div class="form-group"><label for="plName" class="form-label">Name <span style="color:var(--accent)">*</span></label><input id="plName" class="form-input" maxlength="100" placeholder="e.g. Monstera"></div>
+        <div class="form-group"><label for="plName" class="form-label">Name <span class="u-c-accent">*</span></label><input id="plName" class="form-input" maxlength="100" placeholder="e.g. Monstera"></div>
         <div class="form-group"><label for="plSpecies" class="form-label">Species</label><input id="plSpecies" class="form-input" maxlength="100" placeholder="Optional"></div>
       </div>
       <div class="rd-form-row">
@@ -153,10 +153,10 @@ async function viewPlant(id) {
       `<button class="btn btn-secondary btn-sm" onclick="care(${+p.id}, '${k}')"><i class="fas ${ic}"></i> ${l}</button>`).join('')}</div>
     <div class="rd-inline-note" style="grid-template-columns:1fr auto"><textarea id="pvNote" class="form-input" rows="2" placeholder="Growth journal: new leaf, flowering, pests…" aria-label="Journal note"></textarea>
       <button class="btn btn-primary btn-sm" onclick="care(${+p.id}, 'note', document.getElementById('pvNote').value)">Add note</button></div>
-    <div class="fit-card-label" style="margin-top:1rem">Care log</div>
+    <div class="fit-card-label u-mt-4">Care log</div>
     ${p.logs.length ? p.logs.map(l => `<div class="hb-row"><span><i class="fas ${CARE[l.kind]?.[1] || 'fa-circle'}" style="color:var(--muted);width:16px"></i> ${escHtml(CARE[l.kind]?.[0] || l.kind)}${l.note ? ' — ' + escHtml(l.note) : ''}</span><b>${escHtml(l.log_date)}</b></div>`).join('') : '<p class="hb-empty-line">No care logged yet.</p>'}
     <div class="rd-current-actions"><button class="btn btn-ghost btn-sm" onclick="editPlant(${+p.id})"><i class="fas fa-pen"></i> Edit</button>
-      <button class="btn btn-ghost btn-sm" style="color:var(--accent);margin-left:auto" onclick="deletePlant(${+p.id})"><i class="fas fa-trash"></i> Delete</button></div>`;
+      <button class="btn btn-ghost btn-sm u-c-accent u-ml-auto" onclick="deletePlant(${+p.id})"><i class="fas fa-trash"></i> Delete</button></div>`;
   window.__plant = p;
   Trackie.openModal('plantViewModal');
 }

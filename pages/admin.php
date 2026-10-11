@@ -176,9 +176,9 @@ $config = [
     ['Email (password reset)', $mailVia ? "Configured · {$mailVia}" : 'Not configured — reset links can\'t be emailed (use "Copy link" on a user instead)', (bool)$mailVia,
         $mailVia ? null : 'Free option: create a <a href="https://app.brevo.com/settings/keys/api" target="_blank" rel="noopener">Brevo API key</a>, verify your sender address in Brevo, then add to <code>config/env.php</code> on the server:<pre>define(\'BREVO_API_KEY\', \'xkeysib-…\');</pre>'],
     ['Web Push keys (keys/vapid.php)', $pushReady ? 'Installed' : 'Missing — reminders cannot reach closed browsers', $pushReady,
-        $pushReady ? null : 'Creates a key pair on the server in <code>keys/vapid.php</code> (web-blocked). Browser reminders start working once people allow notifications. The Android app doesn\'t need this — it uses Firebase.<br><button type="button" class="btn btn-primary btn-sm" style="margin-top:.5rem" onclick="genVapid(this)"><i class="fas fa-key"></i> Generate push keys</button>'],
+        $pushReady ? null : 'Creates a key pair on the server in <code>keys/vapid.php</code> (web-blocked). Browser reminders start working once people allow notifications. The Android app doesn\'t need this — it uses Firebase.<br><button type="button" class="btn btn-primary btn-sm u-mt-2" onclick="genVapid(this)"><i class="fas fa-key"></i> Generate push keys</button>'],
     ['Cron token', $cronReady ? 'Set' : 'Missing — web cron disabled', $cronReady,
-        $cronReady ? null : 'Creates a random token on the server in <code>keys/cron_token.txt</code> (web-blocked) and shows the cron URL once. Then add that URL at a free cron service (e.g. cron-job.org) every 5–15 minutes, so due reminders and pushes go out even when nobody has Trackie open.<br><button type="button" class="btn btn-primary btn-sm" style="margin-top:.5rem" onclick="genCron(this)"><i class="fas fa-clock"></i> Generate cron token</button>'],
+        $cronReady ? null : 'Creates a random token on the server in <code>keys/cron_token.txt</code> (web-blocked) and shows the cron URL once. Then add that URL at a free cron service (e.g. cron-job.org) every 5–15 minutes, so due reminders and pushes go out even when nobody has Trackie open.<br><button type="button" class="btn btn-primary btn-sm u-mt-2" onclick="genCron(this)"><i class="fas fa-clock"></i> Generate cron token</button>'],
     ['Token encryption key', $isSet('TRACKIE_ENCRYPTION_KEY') ? 'Set' : 'Missing — connecting GitHub/Google/Spotify will fail', $isSet('TRACKIE_ENCRYPTION_KEY'), null],
     ['GitHub sign-in', $isSet('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'), null],
     ['Google sign-in', $isSet('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET') ? 'Configured' : 'Off', $isSet('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'), null],
@@ -229,11 +229,11 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div class="page-toolbar">
-  <h1 style="font-size:1.125rem;font-weight:600;margin:0;color:var(--text)"><i class="fas fa-shield-halved" style="color:var(--accent);margin-right:.375rem" aria-hidden="true"></i>
-    Admin <span class="badge badge-red">restricted</span>
-  </h1>
-  <span style="font-size:.8125rem;color:var(--muted)">System overview &amp; user management</span>
+<div class="page-header page-header-center">
+  <div class="page-header-text">
+    <h1 class="page-header-title"><i class="fas fa-shield-halved u-c-accent" aria-hidden="true"></i> Admin <span class="badge badge-red">restricted</span></h1>
+    <p class="page-header-sub">System overview &amp; user management</p>
+  </div>
 </div>
 
 <!-- Users & activity -->
@@ -257,7 +257,7 @@ require_once '../includes/head.php';
 
 <div class="grid-2" style="margin:1rem 0 1.25rem">
   <div class="card card-body">
-    <div class="ad-card-title">Website vs app <span class="form-hint" style="margin:0">— users active in the last 30 days</span></div>
+    <div class="ad-card-title">Website vs app <span class="form-hint u-m-0">— users active in the last 30 days</span></div>
     <?php $splitTotal = max(1, array_sum($split)); ?>
     <div class="ad-split" role="img" aria-label="Website only <?= $split['web'] ?>, app only <?= $split['app'] ?>, both <?= $split['both'] ?>">
       <?php foreach (['web' => '#3b82f6', 'both' => '#a855f7', 'app' => '#22c55e'] as $k => $c): ?>
@@ -269,7 +269,7 @@ require_once '../includes/head.php';
         <strong><?= number_format($split[$k]) ?> <small><?= round($split[$k] / $splitTotal * 100) ?>%</small></strong></div>
     <?php endforeach; ?>
     <div class="ad-row"><span><i class="fab fa-android" style="color:#22c55e"></i> App installed (signed in)</span><strong><?= number_format($appInstalls) ?></strong></div>
-    <p class="form-hint" style="margin-top:.5rem">
+    <p class="form-hint u-mt-2">
       <?php if (!$hasPresence): ?>Run migration <code>2026-10-07_user_presence.sql</code> to start tracking website vs app use.
       <?php elseif ($trackingSince): ?>Visit tracking started <?= h(formatDate($trackingSince)) ?>; earlier days show sign-ups and logged activity only.
       <?php else: ?>Visit tracking is on — numbers appear as people use Trackie.<?php endif; ?>
@@ -293,7 +293,7 @@ require_once '../includes/head.php';
 </div>
 
 <div class="ad-users-head">
-  <div class="ad-card-title" style="margin:0">Users <span class="form-hint" style="margin:0" id="adCount"><?= count($users) ?></span></div>
+  <div class="ad-card-title u-m-0">Users <span class="form-hint u-m-0" id="adCount"><?= count($users) ?></span></div>
   <div class="ad-filters" role="group" aria-label="Filter users">
     <?php foreach (['' => 'All', 'online' => 'Online', 'active' => 'Active 7d', 'new' => 'New 7d', 'app' => 'App', 'web' => 'Website', 'inactive' => 'Inactive 30d+'] as $k => $l): ?>
       <button type="button" class="filter-tab<?= $k === '' ? ' active' : '' ?>" data-seg="<?= $k ?>"><?= $l ?></button>
@@ -301,7 +301,7 @@ require_once '../includes/head.php';
   </div>
   <input type="search" class="form-input ad-search" id="adSearch" placeholder="Search name or email…" aria-label="Search users">
 </div>
-<div class="table-wrap" style="margin-bottom:1.5rem">
+<div class="table-wrap u-mb-6">
   <table class="data-table ad-table">
     <thead>
       <tr><th>User · ID</th><th>Last seen</th><th>Uses</th><th title="Days active in the last 30">Days · 30d</th><th>Phone app</th><th>Joined</th><th>Data</th><th>XP</th><th>Role</th><th>Actions</th></tr>
@@ -312,7 +312,7 @@ require_once '../includes/head.php';
           <td>
             <div class="ad-user">
               <span class="ad-avatar"><?php if ($u['pic']): ?><img src="<?= h($u['pic']) ?>" alt=""><?php else: ?><?= h(mb_strtoupper(mb_substr($u['name'], 0, 1))) ?><?php endif; ?><?php if ($u['online']): ?><i class="ad-dot" title="Online now"></i><?php endif; ?></span>
-              <div style="min-width:0"><button type="button" class="ad-name ad-link" onclick="openProfile(<?= (int)$u['id'] ?>)"><?= h($u['name']) ?></button> <small class="ad-id" title="SQL users.id">ID <?= (int)$u['id'] ?></small>
+              <div class="u-min-w-0"><button type="button" class="ad-name ad-link" onclick="openProfile(<?= (int)$u['id'] ?>)"><?= h($u['name']) ?></button> <small class="ad-id" title="SQL users.id">ID <?= (int)$u['id'] ?></small>
                 <div class="ad-email"><?= h($u['email']) ?>
                   <?php if ($u['google']): ?><i class="fab fa-google" title="Signs in with Google"></i><?php endif; ?>
                   <?php if (!$u['has_pw']): ?><span class="badge badge-gray" title="No password — Google only">no password</span><?php endif; ?></div></div>
@@ -346,7 +346,7 @@ require_once '../includes/head.php';
               <button class="btn btn-icon btn-ghost btn-sm" onclick="sendReset(<?= (int)$u['id'] ?>, this)" title="Send password reset link" aria-label="Send password reset link to <?= h($u['name']) ?>"><i class="fas fa-key"></i></button>
               <?php if ((int)$u['id'] !== $uid): ?>
                 <button class="btn btn-icon btn-ghost btn-sm" id="adm-<?= (int)$u['id'] ?>" onclick="toggleAdmin(<?= (int)$u['id'] ?>)" title="<?= $u['is_admin'] ? 'Revoke admin' : 'Make admin' ?>" aria-label="<?= $u['is_admin'] ? 'Revoke admin' : 'Make admin' ?>"><i class="fas <?= $u['is_admin'] ? 'fa-user-minus' : 'fa-user-shield' ?>"></i></button>
-                <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="deleteUser(<?= (int)$u['id'] ?>, <?= h(json_encode($u['email'])) ?>, <?= h(json_encode($u['name'])) ?>)" title="Delete user" aria-label="Delete <?= h($u['name']) ?>"><i class="fas fa-trash"></i></button>
+                <button class="btn btn-icon btn-ghost btn-sm u-c-accent" onclick="deleteUser(<?= (int)$u['id'] ?>, <?= h(json_encode($u['email'])) ?>, <?= h(json_encode($u['name'])) ?>)" title="Delete user" aria-label="Delete <?= h($u['name']) ?>"><i class="fas fa-trash"></i></button>
               <?php else: ?><span class="ad-sub" style="display:inline">you</span><?php endif; ?>
             </div>
           </td>
@@ -362,10 +362,10 @@ require_once '../includes/head.php';
 <div class="grid-stats">
   <?php foreach ($stats as [$label, $val, $icon, $color]): ?>
     <div class="stat-card">
-      <div style="display:flex;align-items:center;gap:.625rem">
+      <div class="u-flex u-items-center u-gap-2h">
         <i class="fas <?= $icon ?>" style="font-size:1.25rem;color:<?= $color ?>"></i>
         <div>
-          <div class="stat-val" style="font-size:1.375rem"><?= number_format($val) ?></div>
+          <div class="stat-val u-fs-22"><?= number_format($val) ?></div>
           <div class="stat-label"><?= $label ?></div>
         </div>
       </div>
@@ -376,26 +376,26 @@ require_once '../includes/head.php';
 <!-- Health -->
 <div style="margin:1.25rem 0">
   <div class="card card-body">
-    <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">System health</div>
+    <div class="u-fs-15 u-fw-6 u-mb-4">System health</div>
     <?php foreach ([
-      ['Status', '<span style="color:var(--ok)">● Operational</span>'],
+      ['Status', '<span class="u-c-ok">● Operational</span>'],
       ['PHP version', h(PHP_VERSION)],
       ['Database', h(DB_NAME)],
       ['MySQL/MariaDB', h($dbVersion)],
       ['Tables', $tableCount],
     ] as [$l, $v]): ?>
       <div style="display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.875rem">
-        <span style="color:var(--muted)"><?= $l ?></span><strong style="color:var(--text)"><?= $v ?></strong>
+        <span class="u-c-muted"><?= $l ?></span><strong class="u-c-text"><?= $v ?></strong>
       </div>
     <?php endforeach; ?>
-    <p class="form-hint" style="margin-top:.625rem">Backups: use vPanel → MySQL → Backups (InfinityFree), or export <code>database/final.sql</code>.</p>
+    <p class="form-hint u-mt-2h">Backups: use vPanel → MySQL → Backups (InfinityFree), or export <code>database/final.sql</code>.</p>
   </div>
 </div>
 
 <!-- Configuration + migrations -->
-<div class="grid-2" style="margin-bottom:1.5rem">
+<div class="grid-2 u-mb-6">
   <div class="card card-body">
-    <div class="ad-card-title">Configuration <span class="form-hint" style="margin:0">— secret values are never displayed</span></div>
+    <div class="ad-card-title">Configuration <span class="form-hint u-m-0">— secret values are never displayed</span></div>
 
     <form id="cfgForm" class="ad-cfg-form" onsubmit="saveConfig(event)">
       <?php foreach ($editable as $key => [$label, $help, $type, $suggest]): $val = env($key); $locked = $fromEnv($key); ?>
@@ -407,7 +407,7 @@ require_once '../includes/head.php';
         </div>
       <?php endforeach; ?>
       <?php if ($hasAppConfig): ?>
-        <div style="display:flex;gap:.5rem;align-items:center"><button class="btn btn-primary btn-sm" type="submit"><i class="fas fa-save"></i> Save settings</button>
+        <div class="u-flex u-gap-2 u-items-center"><button class="btn btn-primary btn-sm" type="submit"><i class="fas fa-save"></i> Save settings</button>
           <button class="btn btn-ghost btn-sm" type="button" onclick="fillSuggested()">Use suggested values</button></div>
       <?php else: ?><p class="form-hint">Run migration <code>2026-10-07_app_config.sql</code> to edit these here.</p><?php endif; ?>
     </form>
@@ -421,31 +421,31 @@ require_once '../includes/head.php';
     <?php endforeach; ?>
   </div>
   <div class="card card-body">
-    <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">
+    <div class="u-fs-15 u-fw-6 u-mb-4">
       Migrations
       <?= $pendingMig ? '<span class="badge badge-red">' . $pendingMig . ' pending</span>' : '<span class="badge badge-gray">all applied</span>' ?>
     </div>
     <div style="max-height:360px;overflow:auto">
     <?php foreach ($migrations as $m): ?>
       <div style="display:flex;justify-content:space-between;gap:1rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-size:.8125rem">
-        <code style="font-size:.75rem"><?= h($m['file']) ?></code>
+        <code class="u-fs-12"><?= h($m['file']) ?></code>
         <span style="white-space:nowrap;color:<?= ['applied' => 'var(--ok)', 'partial' => 'var(--warn)', 'missing' => 'var(--accent)'][$m['state']] ?? 'var(--muted)' ?>">
           <?= h($m['state']) ?><?= $m['need'] ? " ({$m['have']}/{$m['need']})" : '' ?>
         </span>
       </div>
     <?php endforeach; ?>
     </div>
-    <p class="form-hint" style="margin-top:.625rem">Pending? Run the file in phpMyAdmin (vPanel → MySQL). Every migration is additive and safe to re-run.</p>
+    <p class="form-hint u-mt-2h">Pending? Run the file in phpMyAdmin (vPanel → MySQL). Every migration is additive and safe to re-run.</p>
   </div>
 </div>
 
 <!-- Security log -->
 <div style="font-size:.9375rem;font-weight:600;margin:0 0 .75rem">
-  Security log <span class="form-hint" style="margin:0">— recent rate-limited actions</span>
+  Security log <span class="form-hint u-m-0">— recent rate-limited actions</span>
 </div>
-<div class="card" style="margin-bottom:1.5rem">
+<div class="card u-mb-6">
   <?php if (empty($secLog)): ?>
-    <div class="empty-state" style="padding:1.5rem"><p>No rate-limit activity recorded.</p></div>
+    <div class="empty-state u-p-6"><p>No rate-limit activity recorded.</p></div>
   <?php else: ?>
     <div class="table-wrap">
       <table class="data-table">
@@ -456,7 +456,7 @@ require_once '../includes/head.php';
               <td><?= h($s['identifier']) ?></td>
               <td><?= h($s['action']) ?></td>
               <td><span class="badge <?= $s['attempts'] >= 5 ? 'badge-red' : 'badge-gray' ?>"><?= (int)$s['attempts'] ?></span></td>
-              <td style="color:var(--muted);white-space:nowrap"><?= h($s['window_start']) ?></td>
+              <td class="u-c-muted u-nowrap"><?= h($s['window_start']) ?></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -516,7 +516,7 @@ async function openProfile(id) {
       <div class="ad-prof-head">
         <span class="ad-avatar ad-avatar-lg">${u.pic ? `<img src="${esc(u.pic)}" alt="">` : esc(u.name.slice(0, 1).toUpperCase())}</span>
         <div><div class="ad-prof-name">${esc(u.name)} ${u.is_admin ? '<span class="badge badge-red">Admin</span>' : ''}</div>
-          <div class="ad-email">${esc(u.email)}</div><div class="ad-sub" style="display:block">SQL id <code>users.id = ${+u.id}</code></div></div>
+          <div class="ad-email">${esc(u.email)}</div><div class="ad-sub u-block">SQL id <code>users.id = ${+u.id}</code></div></div>
       </div>
       ${row('Joined', fmtDT(u.joined))}
       ${row('Last seen', fmtDT(u.last_seen))}
@@ -535,7 +535,7 @@ async function openProfile(id) {
       ${days ? `<div class="ad-days">${days}</div><div class="ad-legend"><span><i style="background:#3b82f6"></i>Website</span><span><i style="background:#22c55e"></i>App</span><span><i style="background:#a855f7"></i>Both</span></div>` : '<p class="hb-empty-line">No visits recorded yet.</p>'}
       <div class="ad-prof-actions">
         <button class="btn btn-secondary btn-sm" onclick="sendReset(${+u.id}, this)"><i class="fas fa-key"></i> Send reset link</button>
-        ${u.id !== <?= (int)$uid ?> ? `<button class="btn btn-ghost btn-sm" style="color:var(--accent)" onclick='Trackie.closeModal("profileModal"); deleteUser(${+u.id}, ${JSON.stringify(u.email)}, ${JSON.stringify(u.name)})'><i class="fas fa-trash"></i> Delete user</button>` : ''}
+        ${u.id !== <?= (int)$uid ?> ? `<button class="btn btn-ghost btn-sm u-c-accent" onclick='Trackie.closeModal("profileModal"); deleteUser(${+u.id}, ${JSON.stringify(u.email)}, ${JSON.stringify(u.name)})'><i class="fas fa-trash"></i> Delete user</button>` : ''}
       </div>`;
   } catch (e) { body.innerHTML = `<p class="hb-error">${esc(e.message || 'Network error.')}</p>`; }
 }
@@ -547,9 +547,9 @@ async function sendReset(id, btn) {
     const r = await Trackie.API.post(ADMIN_API, { action: 'reset_link', user_id: id }, { button: btn });
     if (!r.success) { Trackie.Toast.error(r.error || 'Could not create a link.'); return; }
     document.getElementById('resetBody').innerHTML = `
-      <p style="margin:0 0 .75rem">${r.mailed ? '<i class="fas fa-check-circle" style="color:var(--ok)"></i> Emailed to the user.' : `<i class="fas fa-triangle-exclamation" style="color:var(--warn)"></i> Not emailed: ${esc(r.mail_error)} Share this link with the user yourself:`}</p>
-      <div style="display:flex;gap:.5rem"><input class="form-input" id="resetUrl" readonly value="${esc(r.url)}"><button class="btn btn-primary btn-sm" onclick="copyReset()"><i class="fas fa-copy"></i> Copy</button></div>
-      <p class="form-hint" style="margin-top:.5rem">Works once and expires in 1 hour. Treat it like a password.</p>`;
+      <p style="margin:0 0 .75rem">${r.mailed ? '<i class="fas fa-check-circle u-c-ok"></i> Emailed to the user.' : `<i class="fas fa-triangle-exclamation u-c-warn"></i> Not emailed: ${esc(r.mail_error)} Share this link with the user yourself:`}</p>
+      <div class="u-flex u-gap-2"><input class="form-input" id="resetUrl" readonly value="${esc(r.url)}"><button class="btn btn-primary btn-sm" onclick="copyReset()"><i class="fas fa-copy"></i> Copy</button></div>
+      <p class="form-hint u-mt-2">Works once and expires in 1 hour. Treat it like a password.</p>`;
     Trackie.openModal('resetModal');
   } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }
 }
@@ -591,9 +591,9 @@ async function genCron(btn, replace) {
     }
     if (!r.success) { Trackie.Toast.error(r.error || 'Could not create a token.'); return; }
     document.getElementById('resetBody').innerHTML = `
-      <p style="margin:0 0 .75rem"><i class="fas fa-check-circle" style="color:var(--ok)"></i> Cron token created. Add this URL to a cron service (e.g. cron-job.org), every 5–15 minutes:</p>
-      <div style="display:flex;gap:.5rem"><input class="form-input" id="resetUrl" readonly value="${esc(r.url)}"><button class="btn btn-primary btn-sm" onclick="copyReset()"><i class="fas fa-copy"></i> Copy</button></div>
-      <p class="form-hint" style="margin-top:.5rem">Shown only now — anyone with this URL can trigger the cron run.</p>`;
+      <p style="margin:0 0 .75rem"><i class="fas fa-check-circle u-c-ok"></i> Cron token created. Add this URL to a cron service (e.g. cron-job.org), every 5–15 minutes:</p>
+      <div class="u-flex u-gap-2"><input class="form-input" id="resetUrl" readonly value="${esc(r.url)}"><button class="btn btn-primary btn-sm" onclick="copyReset()"><i class="fas fa-copy"></i> Copy</button></div>
+      <p class="form-hint u-mt-2">Shown only now — anyone with this URL can trigger the cron run.</p>`;
     document.querySelector('#resetModal .modal-title').textContent = 'Cron URL';
     Trackie.openModal('resetModal');
   } catch (e) { Trackie.Toast.error(e.message || 'Network error.'); }

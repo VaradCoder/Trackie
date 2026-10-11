@@ -74,7 +74,7 @@ $scCol = $sc['score'] >= 75 ? 'var(--ok)' : ($sc['score'] >= 50 ? '#f59e0b' : 'v
 <div class="stat-row" role="list" aria-label="Today's stats at a glance">
 
   <div class="stat-pill stat-pill-level" role="listitem">
-    <div class="stat-pill-level-icon" style="color:#f59e0b"><i class="fas fa-bolt"></i></div>
+    <div class="stat-pill-level-icon u-c-warn"><i class="fas fa-bolt"></i></div>
     <div class="stat-pill-level-num">LEVEL <?= $lvl ?></div>
     <div class="stat-pill-level-title"><?= h($lvlTtl) ?></div>
     <div class="hero-xp-track" role="progressbar" aria-valuenow="<?= $lvlPct ?>" aria-valuemin="0" aria-valuemax="100"
@@ -86,7 +86,7 @@ $scCol = $sc['score'] >= 75 ? 'var(--ok)' : ($sc['score'] >= 50 ? '#f59e0b' : 'v
 
   <div class="stat-pill" role="listitem">
     <div class="stat-pill-top">
-      <span class="stat-pill-icon" style="color:#f59e0b"><i class="fas fa-fire"></i></span>
+      <span class="stat-pill-icon u-c-warn"><i class="fas fa-fire"></i></span>
       <span class="stat-pill-num"><?= $cur ?></span>
     </div>
     <div class="stat-pill-label">Day streak<br><span class="stat-pill-sub">Keep it up! 🔥</span></div>
@@ -94,7 +94,7 @@ $scCol = $sc['score'] >= 75 ? 'var(--ok)' : ($sc['score'] >= 50 ? '#f59e0b' : 'v
 
   <div class="stat-pill" role="listitem">
     <div class="stat-pill-top">
-      <span class="stat-pill-icon" style="color:var(--ok)"><i class="fas fa-circle-check"></i></span>
+      <span class="stat-pill-icon u-c-ok"><i class="fas fa-circle-check"></i></span>
       <span class="stat-pill-num"><?= $habitsDoneToday ?> / <?= $habitsTotalToday ?></span>
     </div>
     <div class="stat-pill-label">Habits today<br><span class="stat-pill-sub">Great progress!</span></div>
@@ -102,13 +102,13 @@ $scCol = $sc['score'] >= 75 ? 'var(--ok)' : ($sc['score'] >= 50 ? '#f59e0b' : 'v
 
   <div class="stat-pill" role="listitem">
     <div class="stat-pill-top">
-      <span class="stat-pill-icon" style="color:var(--accent)"><i class="fas fa-list-check"></i></span>
+      <span class="stat-pill-icon u-c-accent"><i class="fas fa-list-check"></i></span>
       <span class="stat-pill-num"><?= $pending ?></span>
     </div>
     <div class="stat-pill-label">Tasks left<br><span class="stat-pill-sub">Stay focused!</span></div>
   </div>
 
-  <a href="<?= APP_BASE ?>/pages/analytics.php" class="stat-pill" role="listitem" style="text-decoration:none"
+  <a href="<?= APP_BASE ?>/pages/analytics.php" class="stat-pill u-no-underline" role="listitem"
      title="Trackie Score — your daily productivity index">
     <div class="stat-pill-top">
       <span class="stat-pill-icon" style="color:<?= $sc['has_data'] ? $scCol : 'var(--muted)' ?>"><i class="fas fa-trophy"></i></span>
@@ -143,12 +143,12 @@ $scCol = $sc['score'] >= 75 ? 'var(--ok)' : ($sc['score'] >= 50 ? '#f59e0b' : 'v
         <span class="priority-pip <?= h($todayPriority['priority']) ?>" aria-hidden="true"></span>
         <?= h($todayPriority['title']) ?>
       </div>
-      <a href="<?= APP_BASE ?>/pages/todos.php" class="btn btn-primary btn-sm" style="margin-top:.5rem">
+      <a href="<?= APP_BASE ?>/pages/todos.php" class="btn btn-primary btn-sm u-mt-2">
         <i class="fas fa-arrow-right"></i> View Tasks
       </a>
     <?php else: ?>
       <div class="hero-priority-task hero-priority-done">🎉 All caught up.</div>
-      <a href="<?= APP_BASE ?>/pages/todos.php" class="btn btn-secondary btn-sm" style="margin-top:.5rem">
+      <a href="<?= APP_BASE ?>/pages/todos.php" class="btn btn-secondary btn-sm u-mt-2">
         <i class="fas fa-plus"></i> Plan a task
       </a>
     <?php endif; ?>

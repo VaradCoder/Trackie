@@ -60,8 +60,8 @@ require_once '../includes/head.php';
 ]) ?>
 
 <!-- Streaks (activity engine) -->
-<div class="card card-body" style="margin-bottom:1.25rem" id="streakBoard">
-  <div class="fit-section-head"><h2 class="hb-h2"><i class="fas fa-fire" style="color:#f59e0b"></i> Streaks</h2>
+<div class="card card-body u-mb-5" id="streakBoard">
+  <div class="fit-section-head"><h2 class="hb-h2"><i class="fas fa-fire u-c-warn"></i> Streaks</h2>
     <span class="rd-author">A day counts when you complete at least one real activity.</span></div>
   <div class="streak-board">
     <div class="streak-tile streak-tile-main">
@@ -81,14 +81,14 @@ require_once '../includes/head.php';
 </div>
 
 <!-- Level card -->
-<div class="card card-body" style="margin-bottom:1.25rem">
-  <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+<div class="card card-body u-mb-5">
+  <div class="u-flex u-items-center u-gap-4 u-flex-wrap">
     <div style="width:64px;height:64px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
                 background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;font-size:1.5rem;font-weight:800">
       <?= $xp['level'] ?>
     </div>
     <div style="flex:1;min-width:200px">
-      <div style="font-size:1.125rem;font-weight:800;color:var(--text)">Level <?= $xp['level'] ?> · <?= h($xp['title']) ?></div>
+      <div class="u-fs-18 u-fw-8 u-c-text">Level <?= $xp['level'] ?> · <?= h($xp['title']) ?></div>
       <div style="font-size:.8125rem;color:var(--muted);margin:.25rem 0 .5rem">
         <?= number_format($xp['total']) ?> XP total · <?= number_format($xp['to_next']) ?> XP to level <?= $xp['level'] + 1 ?>
       </div>
@@ -103,19 +103,19 @@ require_once '../includes/head.php';
 <div style="font-size:.9375rem;font-weight:600;margin:0 0 .75rem;color:var(--text)">
   Achievements <span class="badge badge-gray"><?= count($unlocked) ?>/<?= count($defs) ?></span>
 </div>
-<div class="grid-cards" style="margin-bottom:1.5rem">
+<div class="grid-cards u-mb-6">
   <?php foreach ($defs as $key => $a): $got = in_array($key, $unlocked, true); ?>
-    <div class="card card-body achievement <?= $got ? 'achievement-on' : 'achievement-off' ?>"
-         style="display:flex;align-items:center;gap:.875rem">
+    <div class="card card-body achievement <?= $got ? 'achievement-on' : 'achievement-off' ?> u-flex u-items-center u-gap-3h"
+        >
       <div style="font-size:2rem;line-height:1;<?= $got ? '' : 'filter:grayscale(1);opacity:.4' ?>"><?= $a['emoji'] ?></div>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;color:var(--text)"><?= h($a['name']) ?></div>
-        <div style="font-size:.8125rem;color:var(--muted)"><?= h($a['desc']) ?></div>
+      <div class="u-flex-1 u-min-w-0">
+        <div class="u-fw-7 u-c-text"><?= h($a['name']) ?></div>
+        <div class="u-fs-13 u-c-muted"><?= h($a['desc']) ?></div>
       </div>
       <?php if ($got): ?>
-        <i class="fas fa-circle-check" style="color:var(--ok)" title="Unlocked"></i>
+        <i class="fas fa-circle-check u-c-ok" title="Unlocked"></i>
       <?php else: ?>
-        <i class="fas fa-lock" style="color:var(--subtle)" title="Locked"></i>
+        <i class="fas fa-lock u-c-subtle" title="Locked"></i>
       <?php endif; ?>
     </div>
   <?php endforeach; ?>
@@ -132,11 +132,11 @@ require_once '../includes/head.php';
     </div>
   <?php else: foreach ($events as $e): ?>
     <div class="todo-row">
-      <div style="flex:1;min-width:0">
+      <div class="u-flex-1 u-min-w-0">
         <span class="todo-title"><?= h($actionLabel[$e['action']] ?? ucfirst($e['action'])) ?></span>
-        <div class="todo-meta" style="margin-top:.125rem"><?= timeAgo($e['created_at']) ?></div>
+        <div class="todo-meta u-mt-0h"><?= timeAgo($e['created_at']) ?></div>
       </div>
-      <strong style="color:#f59e0b;white-space:nowrap">+<?= (int)$e['xp'] ?> XP</strong>
+      <strong class="u-c-warn u-nowrap">+<?= (int)$e['xp'] ?> XP</strong>
     </div>
   <?php endforeach; endif; ?>
 </div>

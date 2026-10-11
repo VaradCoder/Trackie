@@ -115,7 +115,7 @@ require_once '../includes/head.php';
   <p class="settings-help" id="prefsStatus" aria-live="polite" style="margin:.25rem 0 0"></p>
 </div>
 
-<h3 class="settings-h3" style="margin-top:2rem">This device</h3>
+<h3 class="settings-h3 u-mt-8">This device</h3>
 <div class="card card-body settings-prefs" id="deviceCard">
   <div class="settings-row">
     <div><label for="prefTheme" class="settings-label">Theme</label>
@@ -129,14 +129,14 @@ require_once '../includes/head.php';
   <div class="settings-row" id="pushRow">
     <div><label for="prefPush" class="settings-label">Push notifications on this device</label>
       <p class="settings-help" id="pushHelp">Reminders reach this device even when Trackie is closed.</p></div>
-    <div class="settings-control" style="display:flex;align-items:center;gap:.5rem;justify-content:flex-end">
+    <div class="settings-control u-flex u-items-center u-gap-2 u-justify-end">
       <button type="button" class="btn btn-secondary btn-sm" id="pushTest" hidden>Send test</button>
       <label class="settings-switch"><input type="checkbox" id="prefPush" disabled><span></span></label>
     </div>
   </div>
 </div>
 
-<h3 class="settings-h3" style="margin-top:2rem">Phone app</h3>
+<h3 class="settings-h3 u-mt-8">Phone app</h3>
 <div class="card card-body settings-prefs" id="phoneAppCard">
   <div class="settings-row">
     <div><span class="settings-label">Trackie for Android</span>
@@ -150,10 +150,10 @@ require_once '../includes/head.php';
       <p class="settings-help" id="bgHelp">Checking…</p></div>
     <button type="button" class="btn btn-secondary btn-sm settings-control hidden" id="bgAllow">Allow</button>
   </div>
-  <div id="appDevices" aria-live="polite"><p class="settings-help" style="margin:0">Loading your devices…</p></div>
+  <div id="appDevices" aria-live="polite"><p class="settings-help u-m-0">Loading your devices…</p></div>
 </div>
 
-<h3 class="settings-h3" style="margin-top:2rem">Getting started</h3>
+<h3 class="settings-h3 u-mt-8">Getting started</h3>
 <div class="card card-body settings-prefs">
   <div class="settings-row">
     <div><span class="settings-label">Guided tour</span>
@@ -167,7 +167,7 @@ require_once '../includes/head.php';
   </div>
 </div>
 
-<h3 class="settings-h3" style="margin-top:2rem" id="signin-methods">Sign-in methods</h3>
+<h3 class="settings-h3 u-mt-8" id="signin-methods">Sign-in methods</h3>
 <div class="card card-body settings-prefs">
   <div class="settings-row">
     <div><span class="settings-label"><i class="fas fa-key" aria-hidden="true"></i> Email &amp; password</span>
@@ -179,7 +179,7 @@ require_once '../includes/head.php';
     <div><span class="settings-label"><i class="fab fa-google" aria-hidden="true"></i> Google</span>
       <p class="settings-help"><?= $googleId ? 'Linked to ' . h($googleId['email'] ?? 'your Google account') . ($googleId['last_login_at'] ? ' · last used ' . h(syncAgo($googleId['last_login_at'])) : '') : 'Sign in with one tap using your Google account.' ?></p></div>
     <?php if ($googleId): ?>
-      <button class="btn btn-ghost btn-sm settings-control" style="color:var(--accent)" onclick="unlinkGoogle(<?= $hasPassword ? 'true' : 'false' ?>)">Unlink</button>
+      <button class="btn btn-ghost btn-sm settings-control u-c-accent" onclick="unlinkGoogle(<?= $hasPassword ? 'true' : 'false' ?>)">Unlink</button>
     <?php else: ?>
       <a class="btn btn-secondary btn-sm settings-control" href="<?= APP_BASE ?>/pages/google_callback.php?mode=link" data-no-spa data-google-signin>Link Google</a>
     <?php endif; ?>
@@ -187,9 +187,9 @@ require_once '../includes/head.php';
   <?php endif; ?>
 </div>
 
-<h3 class="settings-h3" style="margin-top:2rem">Integrations</h3>
+<h3 class="settings-h3 u-mt-8">Integrations</h3>
 
-<div class="grid-stats" style="margin-bottom:1.5rem">
+<div class="grid-stats u-mb-6">
   <?= renderStatCard($summary['connected'], 'Connected', 'fa-plug', 'var(--ok)') ?>
   <?= renderStatCard($summary['active'], 'Available on this server', 'fa-server', 'var(--info)') ?>
   <?= renderStatCard($summary['total'] - $summary['active'], 'Need an API key', 'fa-key', 'var(--muted)') ?>
@@ -204,13 +204,13 @@ require_once '../includes/head.php';
       $sm = $statusMeta[$p['status']];
     ?>
       <div class="habit-card integration-card" data-status="<?= $p['status'] ?>">
-        <div style="display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.75rem">
+        <div class="u-flex u-items-start u-gap-3 u-mb-3">
           <div class="integration-icon" style="color:<?= h($p['color']) ?>;background:<?= h($p['color']) ?>18">
             <i class="<?= strpos($p['icon'],'fa-brands')===0 ? '' : 'fas ' ?><?= h($p['icon']) ?>"></i>
           </div>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:.9375rem;color:var(--text)"><?= h($p['name']) ?></div>
-            <span class="badge <?= $sm['badge'] ?>" style="margin-top:.25rem"><?= $sm['label'] ?></span>
+          <div class="u-flex-1 u-min-w-0">
+            <div class="u-fw-6 u-fs-15 u-c-text"><?= h($p['name']) ?></div>
+            <span class="badge <?= $sm['badge'] ?> u-mt-1"><?= $sm['label'] ?></span>
           </div>
         </div>
         <p style="font-size:.8125rem;color:var(--muted);margin:0 0 .875rem;line-height:1.45"><?= h($p['desc']) ?></p>
@@ -228,37 +228,37 @@ require_once '../includes/head.php';
             <p class="integration-error"><?= h($p['lastError']) ?></p>
           <?php endif; ?>
           <?php if (!$p['hasImpl']): ?>
-            <a href="<?= APP_BASE . h($p['connect']) ?>" class="btn btn-secondary btn-sm" style="width:100%"><i class="fas fa-arrow-right"></i> Manage on the <?= h($p['category']) ?> page</a>
+            <a href="<?= APP_BASE . h($p['connect']) ?>" class="btn btn-secondary btn-sm u-w-full"><i class="fas fa-arrow-right"></i> Manage on the <?= h($p['category']) ?> page</a>
           <?php else: ?>
-          <div style="display:flex;gap:.5rem">
-            <button class="btn btn-secondary btn-sm" style="flex:1" onclick="syncProvider('<?= h($p['impl']) ?>', this)">
+          <div class="u-flex u-gap-2">
+            <button class="btn btn-secondary btn-sm u-flex-1" onclick="syncProvider('<?= h($p['impl']) ?>', this)">
               <i class="fas fa-rotate"></i> Sync now
             </button>
-            <button class="btn btn-ghost btn-sm" style="color:var(--accent)"
+            <button class="btn btn-ghost btn-sm u-c-accent"
                     onclick="disconnectProvider('<?= h($p['impl']) ?>')" aria-label="Disconnect <?= h($p['name']) ?>">
               <i class="fas fa-link-slash"></i>
             </button>
           </div>
           <?php endif; ?>
         <?php elseif ($p['status'] === 'active'): ?>
-          <button class="btn btn-secondary btn-sm" style="width:100%" disabled>
-            <i class="fas fa-circle-check" style="color:var(--ok)"></i> Active
+          <button class="btn btn-secondary btn-sm u-w-full" disabled>
+            <i class="fas fa-circle-check u-c-ok"></i> Active
           </button>
         <?php elseif ($p['status'] === 'unavailable'): ?>
           <p class="integration-error"><?= h($p['lastError'] ?? '') ?></p>
-          <button class="btn btn-secondary btn-sm" style="width:100%" disabled>
-            <i class="fas fa-triangle-exclamation" style="color:var(--warn)"></i> Unavailable
+          <button class="btn btn-secondary btn-sm u-w-full" disabled>
+            <i class="fas fa-triangle-exclamation u-c-warn"></i> Unavailable
           </button>
         <?php elseif ($p['status'] === 'connect'): ?>
-          <a href="<?= APP_BASE . h($p['connect']) ?>" class="btn btn-primary btn-sm" style="width:100%"<?= str_contains($p['connect'], '_callback.php') ? ' data-no-spa' : '' ?>>
+          <a href="<?= APP_BASE . h($p['connect']) ?>" class="btn btn-primary btn-sm u-w-full"<?= str_contains($p['connect'], '_callback.php') ? ' data-no-spa' : '' ?>>
             <i class="fas fa-link"></i> Connect
           </a>
         <?php else: ?>
-          <button class="btn btn-secondary btn-sm" style="width:100%" disabled title="<?= h($p['setup']) ?>">
+          <button class="btn btn-secondary btn-sm u-w-full" disabled title="<?= h($p['setup']) ?>">
             <i class="fas fa-key"></i> Needs an API key
           </button>
           <div class="integration-setup">
-            <i class="fas fa-key" style="font-size:.6875rem"></i>
+            <i class="fas fa-key u-fs-11"></i>
             <a href="<?= h($p['docs']) ?>" target="_blank" rel="noopener">Get API key</a>
           </div>
         <?php endif; ?>
@@ -269,21 +269,21 @@ require_once '../includes/head.php';
 </div>
 
 <?php if ($unbuilt): ?>
-  <p class="form-hint" style="margin-top:1rem">Not built yet: <?= h(implode(', ', $unbuilt)) ?>. They appear here once Trackie actually uses them.</p>
+  <p class="form-hint u-mt-4">Not built yet: <?= h(implode(', ', $unbuilt)) ?>. They appear here once Trackie actually uses them.</p>
 <?php endif; ?>
 
-<div class="card card-body" style="margin-top:1.5rem">
-  <div style="font-size:.875rem;font-weight:600;margin-bottom:.375rem">
-    <i class="fas fa-circle-info" style="color:var(--info)"></i> For the developer
+<div class="card card-body u-mt-6">
+  <div class="u-fs-14 u-fw-6 u-mb-1h">
+    <i class="fas fa-circle-info u-c-info"></i> For the developer
   </div>
-  <p class="form-hint" style="margin:0">
+  <p class="form-hint u-m-0">
     API keys live in <code>config/env.php</code> (web-blocked, gitignored) and never
     reach the browser. A card marked “Needs an API key” turns on once its key is filled in.
   </p>
 </div>
 
 </div>
-<p class="legal-links" style="margin-top:2rem">
+<p class="legal-links u-mt-8">
   <a href="<?= APP_BASE ?>/pages/privacy.php" data-no-spa>Privacy Policy</a> ·
   <a href="<?= APP_BASE ?>/pages/terms.php" data-no-spa>Terms of Service</a>
 </p>
@@ -370,15 +370,15 @@ async function unlinkGoogle(hasPassword) {
   async function load() {
     try {
       const r = await Trackie.API.post(`${API_BASE}/device.php`, { action: 'list' }, { button: null, quiet: true });
-      if (!r.success) { box.innerHTML = `<p class="settings-help" style="margin:0">${escHtml(r.error || 'Could not load devices.')}</p>`; return; }
-      if (!r.devices.length) { box.innerHTML = '<p class="settings-help" style="margin:0">No phones signed in yet. Install the app and sign in to get reminder notifications.</p>'; return; }
+      if (!r.success) { box.innerHTML = `<p class="settings-help u-m-0">${escHtml(r.error || 'Could not load devices.')}</p>`; return; }
+      if (!r.devices.length) { box.innerHTML = '<p class="settings-help u-m-0">No phones signed in yet. Install the app and sign in to get reminder notifications.</p>'; return; }
       box.innerHTML = r.devices.map(d => `
         <div class="settings-row">
           <div><span class="settings-label"><i class="fas fa-mobile-screen" aria-hidden="true"></i> ${escHtml(d.name || 'Phone')}</span>
             <p class="settings-help">App ${escHtml(d.version || '')} · last synced ${escHtml(when(d.last_seen))}${d.push ? ' · push on' : ''}</p></div>
           <button type="button" class="btn btn-secondary btn-sm settings-control" data-revoke="${+d.id}">Sign out</button>
         </div>`).join('');
-    } catch (e) { box.innerHTML = `<p class="settings-help" style="margin:0">${escHtml(e.message || 'Could not load devices.')}</p>`; }
+    } catch (e) { box.innerHTML = `<p class="settings-help u-m-0">${escHtml(e.message || 'Could not load devices.')}</p>`; }
   }
   box.addEventListener('click', async e => {
     const b = e.target.closest('[data-revoke]');

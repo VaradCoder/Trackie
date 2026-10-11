@@ -34,18 +34,18 @@ require_once '../includes/head.php';
 <div class="page-content" id="page-main">
 
 <div class="rd-head">
-  <h1><i class="fas fa-pen-nib" style="color:var(--accent)"></i> Writing</h1>
+  <h1><i class="fas fa-pen-nib u-c-accent"></i> Writing</h1>
   <div class="rd-head-actions"><button class="btn btn-primary btn-sm" onclick="openNewPiece()"><i class="fas fa-plus"></i> New piece</button></div>
 </div>
 
-<div class="grid-stats" style="margin-bottom:1.25rem">
+<div class="grid-stats u-mb-5">
   <div class="stat-card"><div class="stat-val"><?= number_format($todayWords) ?><?= $goal ? '<small> / ' . number_format($goal) . '</small>' : '' ?></div><div class="stat-label">Words added today</div></div>
   <div class="stat-card"><div class="stat-val">🔥 <?= (int)$streak['current'] ?></div><div class="stat-label">Writing streak<?= $streak['best'] > $streak['current'] ? ' · best ' . (int)$streak['best'] : '' ?></div></div>
   <div class="stat-card"><div class="stat-val"><?= number_format($weekWords) ?></div><div class="stat-label">Words added · 7 days</div></div>
   <div class="stat-card"><div class="stat-val"><?= number_format($totalWords) ?></div><div class="stat-label">Words across <?= count($pieces) ?> pieces</div></div>
 </div>
 
-<div class="hb-grid2" style="margin-bottom:1.25rem">
+<div class="hb-grid2 u-mb-5">
   <div class="card card-body">
     <div class="fit-card-label">Words added · last 14 days</div>
     <?php $days = []; for ($i = 13; $i >= 0; $i--) { $d = date('Y-m-d', strtotime("-{$i} day")); $days[$d] = (int)($logs[$d] ?? 0); } $max = max(1, $goal, ...array_values($days)); ?>
@@ -59,7 +59,7 @@ require_once '../includes/head.php';
     <?php if ($goal): $pct = min(100, (int)round($todayWords / $goal * 100)); ?>
       <div class="rd-goal-num"><?= $pct ?>%</div><div class="hb-progress rd-progress-lg"><span style="width:<?= $pct ?>%"></span></div>
     <?php endif; ?>
-    <div class="rd-goal-form" style="margin-top:.75rem">
+    <div class="rd-goal-form u-mt-3">
       <div class="form-group"><label class="form-label" for="wGoal">Words per day</label><input id="wGoal" type="number" min="1" max="50000" class="form-input" value="<?= $goal ?: '' ?>" placeholder="e.g. 500"></div>
       <button class="btn btn-primary btn-sm" onclick="saveGoal()">Save</button>
     </div>
@@ -69,19 +69,19 @@ require_once '../includes/head.php';
 <?php if (!$pieces): ?>
   <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-pen-nib"></i></div>
     <div class="empty-state-title">Nothing written yet</div><p>Start a piece and write right here — it saves as you type.</p>
-    <button class="btn btn-primary" style="margin-top:.75rem" onclick="openNewPiece()"><i class="fas fa-plus"></i> Start writing</button></div></div>
+    <button class="btn btn-primary u-mt-3" onclick="openNewPiece()"><i class="fas fa-plus"></i> Start writing</button></div></div>
 <?php else: ?>
   <div class="grid-cards">
     <?php foreach ($pieces as $p): ?>
       <div class="habit-card" id="piece-<?= (int)$p['id'] ?>">
         <button class="rd-title rd-link" onclick="openEditor(<?= (int)$p['id'] ?>)"><?= h($p['title']) ?></button>
         <div class="rd-author"><?= h($typeMeta[$p['type']] ?? $p['type']) ?> · <?= number_format((int)$p['word_count']) ?> words<?= $p['updated_at'] ? ' · edited ' . h(formatDate($p['updated_at'], 'M j')) : '' ?></div>
-        <div class="rd-book-actions" style="margin-top:.75rem">
+        <div class="rd-book-actions u-mt-3">
           <select class="form-input" aria-label="Status" onchange="setStatus(<?= (int)$p['id'] ?>, this.value)">
             <?php foreach ($statusMeta as $k => $l): ?><option value="<?= $k ?>" <?= $p['status'] === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?>
           </select>
           <button class="btn btn-secondary btn-sm" onclick="openEditor(<?= (int)$p['id'] ?>)"><i class="fas fa-pen"></i> Write</button>
-          <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="deletePiece(<?= (int)$p['id'] ?>)" aria-label="Delete piece"><i class="fas fa-trash"></i></button>
+          <button class="btn btn-icon btn-ghost btn-sm u-c-accent" onclick="deletePiece(<?= (int)$p['id'] ?>)" aria-label="Delete piece"><i class="fas fa-trash"></i></button>
         </div>
       </div>
     <?php endforeach; ?>
@@ -93,7 +93,7 @@ require_once '../includes/head.php';
   <div class="modal-box">
     <div class="modal-header"><span class="modal-title">New piece</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="newPieceModal" aria-label="Close dialog">&times;</button></div>
     <div class="modal-body">
-      <div class="form-group"><label for="npTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label><input id="npTitle" class="form-input" maxlength="150"></div>
+      <div class="form-group"><label for="npTitle" class="form-label">Title <span class="u-c-accent">*</span></label><input id="npTitle" class="form-input" maxlength="150"></div>
       <div class="form-group"><label for="npType" class="form-label">Type</label><select id="npType" class="form-input"><?php foreach ($typeMeta as $k => $l): ?><option value="<?= $k ?>"><?= $l ?></option><?php endforeach; ?></select></div>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary btn-sm" data-close-modal="newPieceModal">Cancel</button><button class="btn btn-primary btn-sm" onclick="createPiece()">Create &amp; write</button></div>

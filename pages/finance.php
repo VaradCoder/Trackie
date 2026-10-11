@@ -201,9 +201,9 @@ require_once '../includes/head.php';
 
 <!-- Toolbar -->
 <div class="page-toolbar">
-  <div style="display:flex;align-items:center;gap:.625rem">
-    <h1 style="font-size:1.125rem;font-weight:600;margin:0;color:var(--text)"><i class="fas fa-wallet" style="color:var(--accent);margin-right:.375rem" aria-hidden="true"></i>Finance</h1>
-    <div style="display:flex;align-items:center;gap:.25rem">
+  <div class="u-flex u-items-center u-gap-2h">
+    <h1 class="page-header-title"><i class="fas fa-wallet u-c-accent" aria-hidden="true"></i> Finance</h1>
+    <div class="u-flex u-items-center u-gap-1">
       <a aria-label="Previous month" href="?m=<?= $prevM ?>" class="btn btn-icon btn-ghost btn-sm" title="Previous month"><i class="fas fa-chevron-left"></i></a>
       <span style="font-size:.875rem;font-weight:600;color:var(--muted);min-width:7.5rem;text-align:center"><?= $monthLabel ?></span>
       <?php if (!$isCurrent): ?>
@@ -211,7 +211,7 @@ require_once '../includes/head.php';
       <?php endif; ?>
     </div>
   </div>
-  <div style="display:flex;gap:.5rem">
+  <div class="u-flex u-gap-2">
     <button class="btn btn-secondary btn-sm" onclick="openAddSub()">
       <i class="fas fa-rotate"></i> Subscription
     </button>
@@ -224,19 +224,19 @@ require_once '../includes/head.php';
 <!-- Stat row -->
 <div class="grid-stats" id="financeStatsWrap">
   <div class="stat-card">
-    <div class="stat-val" style="color:var(--ok)"><?= rupee($income) ?></div>
-    <div class="stat-label"><i class="fas fa-arrow-down" style="font-size:.7rem"></i> Income</div>
+    <div class="stat-val u-c-ok"><?= rupee($income) ?></div>
+    <div class="stat-label"><i class="fas fa-arrow-down u-fs-11-2"></i> Income</div>
   </div>
   <div class="stat-card">
-    <div class="stat-val" style="color:var(--accent)"><?= rupee($expense) ?></div>
-    <div class="stat-label"><i class="fas fa-arrow-up" style="font-size:.7rem"></i> Expenses</div>
+    <div class="stat-val u-c-accent"><?= rupee($expense) ?></div>
+    <div class="stat-label"><i class="fas fa-arrow-up u-fs-11-2"></i> Expenses</div>
   </div>
   <div class="stat-card">
-    <div class="stat-val" style="color:var(--info)"><?= rupee($needs) ?></div>
+    <div class="stat-val u-c-info"><?= rupee($needs) ?></div>
     <div class="stat-label">Needs</div>
   </div>
   <div class="stat-card">
-    <div class="stat-val" style="color:var(--warn)"><?= rupee($wants) ?></div>
+    <div class="stat-val u-c-warn"><?= rupee($wants) ?></div>
     <div class="stat-label">Wants</div>
   </div>
   <div class="stat-card">
@@ -247,20 +247,20 @@ require_once '../includes/head.php';
 
 <?= renderInsight($financeInsight) ?>
 
-<div class="grid-2" style="margin-bottom:1.25rem">
+<div class="grid-2 u-mb-5">
 
   <!-- Left column -->
-  <div style="display:flex;flex-direction:column;gap:1.25rem">
+  <div class="u-flex u-flex-col u-gap-5">
 
     <!-- Monthly breakdown -->
     <div class="card card-body" id="breakdownCard">
-      <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">Monthly breakdown</div>
+      <div class="u-fs-15 u-fw-6 u-mb-4">Monthly breakdown</div>
       <?php if ($expense == 0 && $income == 0): ?>
         <div class="empty-state" style="padding:1.5rem 1rem">
           <p>No transactions for <?= $monthLabel ?> yet.</p>
         </div>
       <?php else: ?>
-        <div style="display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap">
+        <div class="u-flex u-items-center u-gap-5 u-flex-wrap">
           <div style="width:160px;height:160px;flex-shrink:0">
             <canvas id="breakdownChart" data-needs="<?= $needs ?>" data-wants="<?= $wants ?>" data-savings="<?= max(0, $saved) ?>"></canvas>
           </div>
@@ -273,9 +273,9 @@ require_once '../includes/head.php';
             ];
             $denom = max(1, $needs + $wants + max(0, $saved));
             foreach ($rows as [$lbl, $val, $col]): ?>
-              <div style="margin-bottom:.625rem">
-                <div style="display:flex;justify-content:space-between;font-size:.8125rem;margin-bottom:.25rem">
-                  <span style="display:flex;align-items:center;gap:.375rem">
+              <div class="u-mb-2h">
+                <div class="u-flex u-justify-between u-fs-13 u-mb-1">
+                  <span class="u-flex u-items-center u-gap-1h">
                     <span style="width:8px;height:8px;border-radius:50%;background:<?= $col ?>"></span><?= $lbl ?>
                   </span>
                   <strong><?= rupee($val) ?></strong>
@@ -292,14 +292,14 @@ require_once '../includes/head.php';
 
     <!-- Budgets -->
     <div class="card card-body" id="budgetsCard">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-        <span style="font-size:.9375rem;font-weight:600">Budgets</span>
+      <div class="u-flex u-items-center u-justify-between u-mb-4">
+        <span class="u-fs-15 u-fw-6">Budgets</span>
         <button class="btn btn-ghost btn-sm" onclick="openModal('budgetModal')">
           <i class="fas fa-plus"></i> Set budget
         </button>
       </div>
       <?php if (empty($budgets)): ?>
-        <p style="font-size:.875rem;color:var(--muted);margin:0">
+        <p class="u-fs-14 u-c-muted u-m-0">
           Set monthly limits per category — Trackie warns you when you cross them.
         </p>
       <?php else: ?>
@@ -309,16 +309,16 @@ require_once '../includes/head.php';
           $pct   = min(100, (int)round($spent / $limit * 100));
           $over  = $spent > $limit;
         ?>
-          <div style="margin-bottom:.75rem" id="budget-<?= $b['id'] ?>">
-            <div style="display:flex;justify-content:space-between;align-items:center;font-size:.8125rem;margin-bottom:.25rem">
-              <span style="font-weight:500"><?= h($b['category']) ?></span>
-              <span style="display:flex;align-items:center;gap:.5rem">
+          <div class="u-mb-3" id="budget-<?= $b['id'] ?>">
+            <div class="u-flex u-justify-between u-items-center u-fs-13 u-mb-1">
+              <span class="u-fw-5"><?= h($b['category']) ?></span>
+              <span class="u-flex u-items-center u-gap-2">
                 <?php if ($over): ?>
                   <span class="badge badge-red">Over by <?= rupee($spent - $limit) ?></span>
                 <?php endif; ?>
-                <span style="color:var(--muted)"><?= rupee($spent) ?> / <?= rupee($limit) ?></span>
+                <span class="u-c-muted"><?= rupee($spent) ?> / <?= rupee($limit) ?></span>
                 <button aria-label="Remove budget" class="btn btn-icon btn-ghost btn-sm" style="width:1.5rem;height:1.5rem" title="Remove budget"
-                        onclick="deleteBudget(<?= $b['id'] ?>)"><i class="fas fa-times" style="font-size:.7rem"></i></button>
+                        onclick="deleteBudget(<?= $b['id'] ?>)"><i class="fas fa-times u-fs-11-2"></i></button>
               </span>
             </div>
             <div class="progress-track" style="height:.4rem">
@@ -331,20 +331,20 @@ require_once '../includes/head.php';
 
     <!-- Savings goals -->
     <div class="card card-body">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-        <span style="font-size:.9375rem;font-weight:600">Savings goals</span>
+      <div class="u-flex u-items-center u-justify-between u-mb-4">
+        <span class="u-fs-15 u-fw-6">Savings goals</span>
         <a href="<?= APP_BASE ?>/pages/goals.php" class="d-card-link">Manage goals</a>
       </div>
       <?php if (empty($savingGoals)): ?>
-        <p style="font-size:.875rem;color:var(--muted);margin:0">
+        <p class="u-fs-14 u-c-muted u-m-0">
           Create a goal and tick <strong>Savings goal</strong> (e.g. "Buy laptop — 70000") to track it here.
         </p>
       <?php else: foreach ($savingGoals as $g):
         $pct = $g['target_value'] > 0 ? min(100, (int)round($g['progress'] / $g['target_value'] * 100)) : 0; ?>
-        <div style="margin-bottom:.75rem">
-          <div style="display:flex;justify-content:space-between;font-size:.8125rem;margin-bottom:.25rem">
-            <span style="font-weight:500"><?= h($g['goal_name']) ?></span>
-            <span style="color:var(--muted)"><?= rupee((float)$g['progress']) ?> / <?= rupee((float)$g['target_value']) ?> · <?= $pct ?>%</span>
+        <div class="u-mb-3">
+          <div class="u-flex u-justify-between u-fs-13 u-mb-1">
+            <span class="u-fw-5"><?= h($g['goal_name']) ?></span>
+            <span class="u-c-muted"><?= rupee((float)$g['progress']) ?> / <?= rupee((float)$g['target_value']) ?> · <?= $pct ?>%</span>
           </div>
           <div class="progress-track" style="height:.4rem">
             <div class="progress-fill green" style="width:<?= $pct ?>%"></div>
@@ -355,13 +355,13 @@ require_once '../includes/head.php';
   </div>
 
   <!-- Right column -->
-  <div style="display:flex;flex-direction:column;gap:1.25rem">
+  <div class="u-flex u-flex-col u-gap-5">
 
     <!-- Smart insights -->
     <div class="card card-body">
-      <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">💡 Smart insights</div>
+      <div class="u-fs-15 u-fw-6 u-mb-4">💡 Smart insights</div>
       <?php if (empty($insights)): ?>
-        <p style="font-size:.875rem;color:var(--muted);margin:0">
+        <p class="u-fs-14 u-c-muted u-m-0">
           Add a few transactions and Trackie will start spotting patterns.
         </p>
       <?php else:
@@ -369,29 +369,29 @@ require_once '../includes/head.php';
         foreach ($insights as $i): ?>
         <div style="display:flex;gap:.625rem;align-items:flex-start;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.875rem">
           <i class="fas <?= $i['icon'] ?>" style="color:<?= $toneColor[$i['tone']] ?>;margin-top:.2rem;width:1rem;text-align:center"></i>
-          <span style="color:var(--text)"><?= h($i['text']) ?></span>
+          <span class="u-c-text"><?= h($i['text']) ?></span>
         </div>
       <?php endforeach; endif; ?>
     </div>
 
     <!-- Subscriptions -->
     <div class="card card-body" id="subsCard">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-        <span style="font-size:.9375rem;font-weight:600">Subscriptions</span>
+      <div class="u-flex u-items-center u-justify-between u-mb-4">
+        <span class="u-fs-15 u-fw-6">Subscriptions</span>
         <span class="badge badge-gray"><?= rupee($subMonthly) ?>/mo</span>
       </div>
 
       <?php if (empty($subs)): ?>
-        <p style="font-size:.875rem;color:var(--muted);margin:0">
+        <p class="u-fs-14 u-c-muted u-m-0">
           Track Spotify, Netflix, coaching apps — see what they really cost you.
         </p>
       <?php else: ?>
         <?php foreach ($subs as $s): ?>
           <div style="display:flex;align-items:center;gap:.625rem;padding:.5rem 0;border-bottom:1px solid var(--border);<?= $s['active'] ? '' : 'opacity:.5' ?>"
                id="sub-<?= $s['id'] ?>">
-            <div style="flex:1;min-width:0">
-              <div style="font-size:.875rem;font-weight:500"><?= h($s['name']) ?></div>
-              <div style="font-size:.75rem;color:var(--muted)">
+            <div class="u-flex-1 u-min-w-0">
+              <div class="u-fs-14 u-fw-5"><?= h($s['name']) ?></div>
+              <div class="u-fs-12 u-c-muted">
                 <?= rupee((float)$s['amount']) ?>/<?= $s['billing_cycle'] === 'yearly' ? 'yr' : 'mo' ?>
                 <?php if ($s['active']): ?> · renews <?= formatDate($s['next_renewal']) ?><?php else: ?> · paused<?php endif; ?>
               </div>
@@ -400,20 +400,20 @@ require_once '../includes/head.php';
                     aria-label="<?= $s['active'] ? 'Pause' : 'Resume' ?> subscription <?= h($s['name']) ?>"
                     onclick="toggleSub(<?= $s['id'] ?>)"><i class="fas <?= $s['active'] ? 'fa-pause' : 'fa-play' ?>"></i></button>
             <button class="btn btn-icon btn-ghost btn-sm" title="Edit" aria-label="Edit" onclick="editSub(<?= $s['id'] ?>)"><i class="fas fa-pen"></i></button>
-            <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" title="Delete"
+            <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm u-c-accent" title="Delete"
                     onclick="deleteSub(<?= $s['id'] ?>)"><i class="fas fa-trash"></i></button>
           </div>
         <?php endforeach; ?>
 
         <?php if (!empty($upcoming)): ?>
-          <div style="margin-top:.875rem">
+          <div class="u-mt-3h">
             <div class="section-label" style="font-size:.6875rem;font-weight:700;color:var(--subtle);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.375rem">
               Upcoming renewals
             </div>
             <?php foreach ($upcoming as $s): ?>
               <div style="display:flex;justify-content:space-between;font-size:.8125rem;padding:.25rem 0">
                 <span><strong><?= date('j M', strtotime($s['next_renewal'])) ?></strong> · <?= h($s['name']) ?></span>
-                <span style="color:var(--muted)"><?= rupee((float)$s['amount']) ?></span>
+                <span class="u-c-muted"><?= rupee((float)$s['amount']) ?></span>
               </div>
             <?php endforeach; ?>
           </div>
@@ -424,8 +424,8 @@ require_once '../includes/head.php';
 </div>
 
 <!-- Transactions -->
-<div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem">
-  <span style="font-size:.9375rem;font-weight:600">Transactions — <?= $monthLabel ?></span>
+<div class="u-flex u-items-center u-justify-between u-gap-3 u-flex-wrap u-mb-3">
+  <span class="u-fs-15 u-fw-6">Transactions — <?= $monthLabel ?></span>
   <div class="filter-tabs">
     <?php foreach (['all' => 'All', 'income' => 'Income', 'expense' => 'Expenses'] as $k => $lbl): ?>
       <a class="filter-tab <?= $txFilter === $k ? 'active' : '' ?>" href="?m=<?= $m ?>&t=<?= $k ?>"><?= $lbl ?></a>
@@ -450,7 +450,7 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-wallet"></i></div>
       <div class="empty-state-title">No transactions</div>
       <p>Log your pocket money, freelance income, and expenses.</p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openAddTx()">
+      <button class="btn btn-primary u-mt-3" onclick="openAddTx()">
         <i class="fas fa-plus"></i> Add transaction
       </button>
     </div>
@@ -460,10 +460,10 @@ require_once '../includes/head.php';
         <div style="width:34px;height:34px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
                     background:<?= $isInc ? 'rgba(34,197,94,.12)' : 'rgba(239,68,68,.1)' ?>;
                     color:<?= $isInc ? 'var(--ok)' : 'var(--accent)' ?>">
-          <i class="fas <?= $isInc ? 'fa-arrow-down' : 'fa-arrow-up' ?>" style="font-size:.8125rem"></i>
+          <i class="fas <?= $isInc ? 'fa-arrow-down' : 'fa-arrow-up' ?> u-fs-13"></i>
         </div>
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <div class="u-flex-1 u-min-w-0">
+          <div class="u-flex u-items-center u-gap-2 u-flex-wrap">
             <span class="todo-title"><?= h($t['title']) ?></span>
             <span class="category-badge"><?= h($t['category']) ?></span>
             <?php if ($t['expense_class']): ?>
@@ -472,7 +472,7 @@ require_once '../includes/head.php';
               </span>
             <?php endif; ?>
           </div>
-          <div class="todo-meta" style="margin-top:.125rem">
+          <div class="todo-meta u-mt-0h">
             <span><?= formatDate($t['tx_date']) ?></span>
             <?php if ($t['notes']): ?><span><?= h($t['notes']) ?></span><?php endif; ?>
           </div>
@@ -482,7 +482,7 @@ require_once '../includes/head.php';
         </strong>
         <div class="todo-actions">
           <button class="btn btn-icon btn-ghost btn-sm" title="Edit" aria-label="Edit" onclick="editTx(<?= $t['id'] ?>)"><i class="fas fa-pen"></i></button>
-          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" title="Delete"
+          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm u-c-accent" title="Delete"
                   onclick="deleteTx(<?= $t['id'] ?>)"><i class="fas fa-trash"></i></button>
         </div>
       </div>
@@ -509,11 +509,11 @@ require_once '../includes/head.php';
 
       <div class="form-grid-2">
         <div class="form-group">
-          <label for="txTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label>
+          <label for="txTitle" class="form-label">Title <span class="u-c-accent">*</span></label>
           <input id="txTitle" class="form-input" placeholder="e.g. Swiggy, Pocket money" maxlength="150">
         </div>
         <div class="form-group">
-          <label for="txAmount" class="form-label">Amount (<?= h(trim($curSym)) ?>) <span style="color:var(--accent)">*</span></label>
+          <label for="txAmount" class="form-label">Amount (<?= h(trim($curSym)) ?>) <span class="u-c-accent">*</span></label>
           <input id="txAmount" class="form-input" type="number" min="1" step="0.01" placeholder="0">
         </div>
       </div>
@@ -538,7 +538,7 @@ require_once '../includes/head.php';
       </div>
 
       <div class="form-group">
-        <label for="txNotes" class="form-label">Notes <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+        <label for="txNotes" class="form-label">Notes <span class="u-fw-4 u-c-muted">(optional)</span></label>
         <input id="txNotes" class="form-input" maxlength="500">
       </div>
     </div>
@@ -560,11 +560,11 @@ require_once '../includes/head.php';
       <input type="hidden" id="subId">
       <div class="form-grid-2">
         <div class="form-group">
-          <label for="subName" class="form-label">Name <span style="color:var(--accent)">*</span></label>
+          <label for="subName" class="form-label">Name <span class="u-c-accent">*</span></label>
           <input id="subName" class="form-input" placeholder="e.g. Spotify" maxlength="100">
         </div>
         <div class="form-group">
-          <label for="subAmount" class="form-label">Amount (<?= h(trim($curSym)) ?>) <span style="color:var(--accent)">*</span></label>
+          <label for="subAmount" class="form-label">Amount (<?= h(trim($curSym)) ?>) <span class="u-c-accent">*</span></label>
           <input id="subAmount" class="form-input" type="number" min="1" step="0.01" placeholder="119">
         </div>
       </div>
@@ -577,7 +577,7 @@ require_once '../includes/head.php';
           </select>
         </div>
         <div class="form-group">
-          <label for="subRenewal" class="form-label">Next renewal <span style="color:var(--accent)">*</span></label>
+          <label for="subRenewal" class="form-label">Next renewal <span class="u-c-accent">*</span></label>
           <input id="subRenewal" class="form-input" type="date">
         </div>
       </div>

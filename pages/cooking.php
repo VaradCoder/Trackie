@@ -41,18 +41,18 @@ require_once '../includes/head.php';
 <div class="page-content" id="page-main">
 
 <div class="rd-head">
-  <h1><i class="fas fa-utensils" style="color:var(--accent)"></i> Cooking</h1>
+  <h1><i class="fas fa-utensils u-c-accent"></i> Cooking</h1>
   <div class="rd-head-actions"><button class="btn btn-primary btn-sm" onclick="openRecipe()"><i class="fas fa-plus"></i> Add recipe</button></div>
 </div>
 
-<div class="grid-stats" style="margin-bottom:1.25rem">
+<div class="grid-stats u-mb-5">
   <div class="stat-card"><div class="stat-val">🔥 <?= (int)$streak['current'] ?></div><div class="stat-label">Cooking streak<?= $streak['best'] > $streak['current'] ? ' · best ' . (int)$streak['best'] : '' ?></div></div>
   <div class="stat-card"><div class="stat-val"><?= $weekCooks ?></div><div class="stat-label">Meals cooked this week</div></div>
   <div class="stat-card"><div class="stat-val"><?= count($recipes) ?></div><div class="stat-label">Recipes</div></div>
   <div class="stat-card"><div class="stat-val"><?= count(array_filter($recipes, fn($r) => $r['status'] === 'favorite')) ?></div><div class="stat-label">Favorites</div></div>
 </div>
 
-<div class="filter-tabs" style="margin-bottom:1.25rem" id="ckTabs" role="tablist">
+<div class="filter-tabs u-mb-5" id="ckTabs" role="tablist">
   <button class="filter-tab active" data-tab="recipes" role="tab" aria-selected="true">Recipes</button>
   <button class="filter-tab" data-tab="plan" role="tab" aria-selected="false" tabindex="-1">Meal plan</button>
   <button class="filter-tab" data-tab="log" role="tab" aria-selected="false" tabindex="-1">Cooked</button>
@@ -62,9 +62,9 @@ require_once '../includes/head.php';
   <?php if (!$recipes): ?>
     <div class="card"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-utensils"></i></div>
       <div class="empty-state-title">Your recipe box is empty</div><p>Save recipes with ingredients and steps, then log each time you cook one.</p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openRecipe()"><i class="fas fa-plus"></i> Add your first recipe</button></div></div>
+      <button class="btn btn-primary u-mt-3" onclick="openRecipe()"><i class="fas fa-plus"></i> Add your first recipe</button></div></div>
   <?php else: ?>
-    <div class="filter-tabs" id="ckShelf" style="margin-bottom:1rem">
+    <div class="filter-tabs u-mb-4" id="ckShelf">
       <button class="filter-tab active" data-shelf="all">All</button>
       <?php foreach ($statusMeta as $k => $l): ?><button class="filter-tab" data-shelf="<?= $k ?>"><?= $l ?></button><?php endforeach; ?>
     </div>
@@ -76,7 +76,7 @@ require_once '../includes/head.php';
           <div class="rd-stars" id="rstars-<?= (int)$r['id'] ?>" style="margin:.375rem 0">
             <?php for ($i = 1; $i <= 5; $i++): ?><button class="rd-star" onclick="rateRecipe(<?= (int)$r['id'] ?>, <?= $i ?>)" aria-label="Rate <?= $i ?>"><i class="<?= $r['rating'] >= $i ? 'fas' : 'far' ?> fa-star"></i></button><?php endfor; ?>
           </div>
-          <div class="rd-author" style="margin-bottom:.625rem"><?= $r['times_cooked'] ? 'Cooked ' . (int)$r['times_cooked'] . '× · last ' . h(formatDate($r['last_cooked'], 'M j')) : 'Not cooked yet' ?></div>
+          <div class="rd-author u-mb-2h"><?= $r['times_cooked'] ? 'Cooked ' . (int)$r['times_cooked'] . '× · last ' . h(formatDate($r['last_cooked'], 'M j')) : 'Not cooked yet' ?></div>
           <div class="rd-book-actions">
             <select class="form-input" aria-label="Shelf" onchange="setRecipeStatus(<?= (int)$r['id'] ?>, this.value)">
               <?php foreach ($statusMeta as $k => $l): ?><option value="<?= $k ?>" <?= $r['status'] === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?>
@@ -112,9 +112,9 @@ require_once '../includes/head.php';
     <div class="card">
       <?php foreach ($cooked as $c): ?>
         <div class="todo-row" id="cook-<?= (int)$c['id'] ?>">
-          <div style="flex:1;min-width:0"><span class="todo-title"><?= h($c['title']) ?></span>
+          <div class="u-flex-1 u-min-w-0"><span class="todo-title"><?= h($c['title']) ?></span>
             <div class="todo-meta"><span><?= h(formatDate($c['cooked_on'])) ?></span><?php if ($c['rating']): ?><span><?= str_repeat('★', (int)$c['rating']) ?></span><?php endif; ?><?php if ($c['notes']): ?><span><?= h($c['notes']) ?></span><?php endif; ?></div></div>
-          <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="deleteCook(<?= (int)$c['id'] ?>)" aria-label="Delete entry"><i class="fas fa-trash"></i></button>
+          <button class="btn btn-icon btn-ghost btn-sm u-c-accent" onclick="deleteCook(<?= (int)$c['id'] ?>)" aria-label="Delete entry"><i class="fas fa-trash"></i></button>
         </div>
       <?php endforeach; ?>
     </div>
@@ -127,7 +127,7 @@ require_once '../includes/head.php';
     <div class="modal-header"><span class="modal-title" id="recipeModalTitle">Add recipe</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="recipeModal" aria-label="Close dialog">&times;</button></div>
     <div class="modal-body">
       <input type="hidden" id="rcId">
-      <div class="form-group"><label for="rcTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label><input id="rcTitle" class="form-input" maxlength="150"></div>
+      <div class="form-group"><label for="rcTitle" class="form-label">Title <span class="u-c-accent">*</span></label><input id="rcTitle" class="form-input" maxlength="150"></div>
       <div class="rd-form-row">
         <div class="form-group"><label for="rcCategory" class="form-label">Category</label><input id="rcCategory" class="form-input" maxlength="60" placeholder="e.g. Dinner, Dessert"></div>
         <div class="form-group"><label for="rcStatus" class="form-label">Shelf</label><select id="rcStatus" class="form-input"><?php foreach ($statusMeta as $k => $l): ?><option value="<?= $k ?>"><?= $l ?></option><?php endforeach; ?></select></div>
@@ -178,7 +178,7 @@ require_once '../includes/head.php';
         <select id="plRecipe" class="form-input"><option value="">— none —</option><?php foreach ($recipes as $r): ?><option value="<?= (int)$r['id'] ?>"><?= h($r['title']) ?></option><?php endforeach; ?></select></div>
       <div class="form-group"><label for="plNote" class="form-label">…or a note</label><input id="plNote" class="form-input" maxlength="120" placeholder="e.g. Eating out"></div>
     </div>
-    <div class="modal-footer"><button class="btn btn-ghost btn-sm" style="margin-right:auto" onclick="clearPlan()">Clear</button><button class="btn btn-secondary btn-sm" data-close-modal="planModal">Cancel</button><button class="btn btn-primary btn-sm" onclick="savePlan()">Save</button></div>
+    <div class="modal-footer"><button class="btn btn-ghost btn-sm u-mr-auto" onclick="clearPlan()">Clear</button><button class="btn btn-secondary btn-sm" data-close-modal="planModal">Cancel</button><button class="btn btn-primary btn-sm" onclick="savePlan()">Save</button></div>
   </div>
 </div>
 
@@ -231,16 +231,16 @@ async function viewRecipe(id) {
   document.getElementById('vrTitle').textContent = r.title;
   document.getElementById('vrBody').innerHTML = `
     <div class="rd-author">${escHtml([r.category, r.cook_time_min ? r.cook_time_min + ' min' : '', r.servings ? r.servings + ' servings' : ''].filter(Boolean).join(' · '))}</div>
-    <div class="hb-grid2" style="margin-top:1rem">
+    <div class="hb-grid2 u-mt-4">
       <div><div class="fit-card-label">Ingredients</div>${list(r.ingredients).length ? '<ul class="ck-ing">' + list(r.ingredients).map(x => `<li>${escHtml(x)}</li>`).join('') + '</ul>' : '<p class="hb-empty-line">None added.</p>'}</div>
       <div><div class="fit-card-label">Steps</div>${list(r.steps).length ? '<ol class="ck-steps">' + list(r.steps).map(x => `<li>${escHtml(x)}</li>`).join('') + '</ol>' : '<p class="hb-empty-line">None added.</p>'}</div>
     </div>
     ${r.notes ? `<p class="hb-foot">${escHtml(r.notes)}</p>` : ''}
-    <div class="fit-card-label" style="margin-top:1rem">Cooked ${r.cooks.length}×</div>
+    <div class="fit-card-label u-mt-4">Cooked ${r.cooks.length}×</div>
     ${r.cooks.map(c => `<div class="hb-row"><span>${escHtml(c.cooked_on)}${c.notes ? ' — ' + escHtml(c.notes) : ''}</span><b>${c.rating ? '★'.repeat(+c.rating) : ''}</b></div>`).join('')}
     <div class="rd-current-actions"><button class="btn btn-primary btn-sm" onclick="Trackie.closeModal('viewRecipeModal');openCook(${+r.id})"><i class="fas fa-fire-burner"></i> Cooked it</button>
       <button class="btn btn-secondary btn-sm" onclick="editRecipe(${+r.id})"><i class="fas fa-pen"></i> Edit</button>
-      <button class="btn btn-ghost btn-sm" style="color:var(--accent);margin-left:auto" onclick="deleteRecipe(${+r.id})"><i class="fas fa-trash"></i> Delete</button></div>`;
+      <button class="btn btn-ghost btn-sm u-c-accent u-ml-auto" onclick="deleteRecipe(${+r.id})"><i class="fas fa-trash"></i> Delete</button></div>`;
   Trackie.openModal('viewRecipeModal');
 }
 async function setRecipeStatus(id, status) { const r = await ckPost({ action: 'update_status', item_id: id, status }); if (r.success) Trackie.Toast.success('Shelf updated.'); }

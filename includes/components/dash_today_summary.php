@@ -30,7 +30,7 @@ $ts_focusMin = (int)($focusToday['today'] ?? 0);
     </div>
 
     <div class="today-summary-item">
-      <div class="today-summary-icon"><i class="fas fa-fire" style="color:#f59e0b"></i></div>
+      <div class="today-summary-icon"><i class="fas fa-fire u-c-warn"></i></div>
       <div>
         <div class="today-summary-value"><?= (int)$streakData['current'] ?> day<?= $streakData['current'] === 1 ? '' : 's' ?> of showing up</div>
         <div class="today-summary-label">Habits</div>
@@ -38,9 +38,9 @@ $ts_focusMin = (int)($focusToday['today'] ?? 0);
     </div>
 
     <div class="today-summary-item">
-      <div class="today-summary-icon"><i class="fas fa-seedling" style="color:var(--ok)"></i></div>
+      <div class="today-summary-icon"><i class="fas fa-seedling u-c-ok"></i></div>
       <div>
-        <div class="today-summary-value">+<?= $xpToday ?> XP <span style="font-weight:400;color:var(--muted)">· Level <?= (int)$xpData['level'] ?></span></div>
+        <div class="today-summary-value">+<?= $xpToday ?> XP <span class="u-fw-4 u-c-muted">· Level <?= (int)$xpData['level'] ?></span></div>
         <div class="today-summary-label">Progress made today</div>
       </div>
     </div>

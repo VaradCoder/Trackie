@@ -68,7 +68,7 @@ require_once '../includes/head.php';
 <div class="page-content" id="page-main">
 
 <div class="rd-head">
-  <h1><i class="fas fa-book" style="color:var(--accent)"></i> Reading</h1>
+  <h1><i class="fas fa-book u-c-accent"></i> Reading</h1>
   <div class="rd-head-actions">
     <button class="btn btn-secondary btn-sm" onclick="openSession()" <?= $books ? '' : 'disabled' ?>><i class="fas fa-stopwatch"></i> Log session</button>
     <button class="btn btn-primary btn-sm" onclick="openAddBook()"><i class="fas fa-plus"></i> Add book</button>
@@ -80,7 +80,7 @@ require_once '../includes/head.php';
   <button class="btn btn-primary btn-sm" onclick="openSession()">Open</button>
 </div>
 
-<div class="filter-tabs" style="margin-bottom:1.25rem" id="rdTabs" role="tablist" aria-label="Reading sections">
+<div class="filter-tabs u-mb-5" id="rdTabs" role="tablist" aria-label="Reading sections">
   <?php foreach ($tabs as $k => $label): ?>
     <button class="filter-tab<?= $tab === $k ? ' active' : '' ?>" data-tab="<?= $k ?>" role="tab" id="rdtab-<?= $k ?>"
             aria-controls="rd-<?= $k ?>" aria-selected="<?= $tab === $k ? 'true' : 'false' ?>" <?= $tab === $k ? '' : 'tabindex="-1"' ?>><?= $label ?></button>
@@ -90,7 +90,7 @@ require_once '../includes/head.php';
 <!-- ── Overview ─────────────────────────────────────────────── -->
 <div id="rd-overview" class="rd-panel<?= $tab === 'overview' ? '' : ' hidden' ?>" role="tabpanel" aria-labelledby="rdtab-overview">
 <div id="rdOverviewWrap">
-  <div class="grid-stats" style="margin-bottom:1.25rem">
+  <div class="grid-stats u-mb-5">
     <div class="stat-card">
       <div class="stat-val">🔥 <?= (int)$streak['current'] ?></div>
       <div class="stat-label">Day reading streak<?= $streak['best'] > $streak['current'] ? ' · best ' . (int)$streak['best'] : '' ?></div>
@@ -109,7 +109,7 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-book-open"></i></div>
       <div class="empty-state-title">Nothing on the Reading shelf</div>
       <p><?= $books ? 'Pick a book from your Library and log a session to start.' : 'Add a book, then log your first reading session.' ?></p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="<?= $books ? "switchRdTab('library')" : 'openAddBook()' ?>"><?= $books ? 'Open Library' : '<i class="fas fa-plus"></i> Add a book' ?></button>
+      <button class="btn btn-primary u-mt-3" onclick="<?= $books ? "switchRdTab('library')" : 'openAddBook()' ?>"><?= $books ? 'Open Library' : '<i class="fas fa-plus"></i> Add a book' ?></button>
     </div></div>
   <?php else: ?>
     <div class="rd-current-list">
@@ -138,7 +138,7 @@ require_once '../includes/head.php';
     </div>
   <?php endif; ?>
 
-  <div class="card card-body" style="margin-top:1.25rem">
+  <div class="card card-body u-mt-5">
     <div class="fit-card-label">Reading activity · last 7 days</div>
     <?php $max = max(1, ...array_column($days, 'minutes')); ?>
     <?php if (!array_sum(array_column($days, 'minutes'))): ?>
@@ -165,7 +165,7 @@ require_once '../includes/head.php';
     </div>
   </div>
   <div id="libraryListWrap">
-  <div class="filter-tabs" style="margin-bottom:1rem" id="rdShelves">
+  <div class="filter-tabs u-mb-4" id="rdShelves">
     <button class="filter-tab<?= $shelf === 'all' ? ' active' : '' ?>" data-shelf="all">All <small><?= $counts['all'] ?></small></button>
     <?php foreach ($statusMeta as $k => $m): ?>
       <button class="filter-tab<?= $shelf === $k ? ' active' : '' ?>" data-shelf="<?= $k ?>"><?= $m['label'] ?> <small><?= $counts[$k] ?></small></button>
@@ -176,7 +176,7 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-book"></i></div>
       <div class="empty-state-title">Your library is empty</div>
       <p>Search Open Library or add a book by hand.</p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openAddBook()"><i class="fas fa-plus"></i> Add your first book</button>
+      <button class="btn btn-primary u-mt-3" onclick="openAddBook()"><i class="fas fa-plus"></i> Add your first book</button>
     </div></div>
   <?php else: ?>
     <div class="rd-books" id="rdBooks">
@@ -209,7 +209,7 @@ require_once '../includes/head.php';
                 <?php endforeach; ?>
               </select>
               <button class="btn btn-icon btn-ghost btn-sm" onclick="openEditBook(<?= (int)$b['id'] ?>)" aria-label="Edit book" title="Edit"><i class="fas fa-pen"></i></button>
-              <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="deleteBook(<?= (int)$b['id'] ?>)" aria-label="Delete book" title="Delete"><i class="fas fa-trash"></i></button>
+              <button class="btn btn-icon btn-ghost btn-sm u-c-accent" onclick="deleteBook(<?= (int)$b['id'] ?>)" aria-label="Delete book" title="Delete"><i class="fas fa-trash"></i></button>
             </div>
           </div>
         </div>
@@ -228,7 +228,7 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-stopwatch"></i></div>
       <div class="empty-state-title">No reading sessions yet</div>
       <p>Time a session with the timer, or log one you already did.</p>
-      <?php if ($books): ?><button class="btn btn-primary" style="margin-top:.75rem" onclick="openSession()"><i class="fas fa-stopwatch"></i> Log a session</button><?php endif; ?>
+      <?php if ($books): ?><button class="btn btn-primary u-mt-3" onclick="openSession()"><i class="fas fa-stopwatch"></i> Log a session</button><?php endif; ?>
     </div></div>
   <?php else: ?>
     <div class="card rd-session-list">
@@ -322,7 +322,7 @@ require_once '../includes/head.php';
       </div>
     <?php endforeach; ?>
   </div>
-  <div class="card card-body" style="margin-top:1rem">
+  <div class="card card-body u-mt-4">
     <div class="fit-card-label">Set your <?= $year ?> goal</div>
     <div class="rd-goal-form">
       <div class="form-group"><label class="form-label" for="goalBooks">Books</label><input id="goalBooks" type="number" min="1" max="1000" class="form-input" value="<?= h((string)($goal['books_target'] ?? '')) ?>" placeholder="e.g. 24"></div>
@@ -350,7 +350,7 @@ require_once '../includes/head.php';
         <div id="bookResults" class="rd-results" role="listbox" aria-label="Search results"></div>
       </div>
       <div id="bookPicked" class="rd-picked hidden"></div>
-      <div class="form-group"><label for="bookTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label><input id="bookTitle" class="form-input" placeholder="e.g. Atomic Habits"></div>
+      <div class="form-group"><label for="bookTitle" class="form-label">Title <span class="u-c-accent">*</span></label><input id="bookTitle" class="form-input" placeholder="e.g. Atomic Habits"></div>
       <div class="rd-form-row">
         <div class="form-group"><label for="bookAuthor" class="form-label">Author</label><input id="bookAuthor" class="form-input" placeholder="Optional"></div>
         <div class="form-group"><label for="bookPages" class="form-label">Pages</label><input id="bookPages" type="number" min="1" max="20000" class="form-input" placeholder="Optional"></div>
@@ -361,7 +361,7 @@ require_once '../includes/head.php';
           <?php foreach ($statusMeta as $k => $m): ?><option value="<?= $k ?>" <?= $k === 'want' ? 'selected' : '' ?>><?= $m['label'] ?></option><?php endforeach; ?>
         </select>
       </div>
-      <p class="hb-foot" style="margin:0">Book details and covers from <a href="https://openlibrary.org" target="_blank" rel="noopener">Open Library</a>.</p>
+      <p class="hb-foot u-m-0">Book details and covers from <a href="https://openlibrary.org" target="_blank" rel="noopener">Open Library</a>.</p>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" data-close-modal="addBookModal">Cancel</button>
@@ -376,7 +376,7 @@ require_once '../includes/head.php';
     <div class="modal-header"><span class="modal-title">Edit Book</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="editBookModal" aria-label="Close dialog">&times;</button></div>
     <div class="modal-body">
       <input type="hidden" id="editId">
-      <div class="form-group"><label for="editTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label><input id="editTitle" class="form-input"></div>
+      <div class="form-group"><label for="editTitle" class="form-label">Title <span class="u-c-accent">*</span></label><input id="editTitle" class="form-input"></div>
       <div class="form-group"><label for="editAuthor" class="form-label">Author</label><input id="editAuthor" class="form-input"></div>
       <div class="rd-form-row">
         <div class="form-group"><label for="editPages" class="form-label">Total pages</label><input id="editPages" type="number" min="1" max="20000" class="form-input"></div>
@@ -454,7 +454,7 @@ require_once '../includes/head.php';
           <select id="noteKind" class="form-input"><option value="note">Note</option><option value="quote">Quote</option></select></div>
         <div class="form-group"><label for="notePage" class="form-label">Page</label><input id="notePage" type="number" min="1" class="form-input" placeholder="Optional"></div>
       </div>
-      <div class="form-group"><label for="noteBody" class="form-label">Text <span style="color:var(--accent)">*</span></label><textarea id="noteBody" class="form-input" rows="4" maxlength="5000"></textarea></div>
+      <div class="form-group"><label for="noteBody" class="form-label">Text <span class="u-c-accent">*</span></label><textarea id="noteBody" class="form-input" rows="4" maxlength="5000"></textarea></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" data-close-modal="noteModal">Cancel</button>
@@ -663,11 +663,11 @@ async function openBook(id) {
     const labels = { reading: 'Reading', want: 'Want to read', paused: 'Paused', finished: 'Finished' };
     el.innerHTML = `<div class="rd-detail-head">${rdCover(b.cover_url, b.title, 'rd-cover-lg')}
       <div class="rd-detail-info">
-        <div class="rd-title" style="font-size:1.125rem">${escHtml(b.title)}</div>
+        <div class="rd-title u-fs-18">${escHtml(b.title)}</div>
         ${b.author ? `<div class="rd-author">${escHtml(b.author)}</div>` : ''}
         <div class="rd-author">${escHtml([b.publish_year, b.isbn ? 'ISBN ' + b.isbn : ''].filter(Boolean).join(' · '))}</div>
         <span class="rd-badge">${escHtml(labels[b.status] || b.status)}</span>
-        ${b.progress !== null ? `<div class="rd-pages" style="margin-top:.5rem">${+b.current_page} / ${+b.pages_total} pages · <b>${+b.progress}%</b></div>
+        ${b.progress !== null ? `<div class="rd-pages u-mt-2">${+b.current_page} / ${+b.pages_total} pages · <b>${+b.progress}%</b></div>
           <div class="hb-progress"><span style="width:${+b.progress}%"></span></div>` : ''}
         <div class="rd-current-actions">
           ${b.status !== 'finished' ? `<button class="btn btn-primary btn-sm" onclick="Trackie.closeModal('bookModal');openSession(${+b.id}, true)"><i class="fas fa-play"></i> Continue reading</button>` : ''}
@@ -681,7 +681,7 @@ async function openBook(id) {
         <div class="stat-card"><div class="stat-val">${rdMins(t.minutes)}</div><div class="stat-label">Time</div></div>
         <div class="stat-card"><div class="stat-val">${t.pages}</div><div class="stat-label">Pages logged</div></div>
       </div>
-      <div class="fit-card-label" style="margin-top:1rem">Notes & quotes</div>
+      <div class="fit-card-label u-mt-4">Notes & quotes</div>
       <div class="rd-inline-note">
         <select id="bdKind" class="form-input" aria-label="Type"><option value="note">Note</option><option value="quote">Quote</option></select>
         <input id="bdPage" type="number" min="1" class="form-input" placeholder="Page" aria-label="Page">
@@ -692,11 +692,11 @@ async function openBook(id) {
         <div class="rd-note-body">${escHtml(n.body).replace(/\n/g, '<br>')}</div>
         <div class="rd-note-foot"><span>${n.kind === 'quote' ? 'Quote' : 'Note'}${n.page ? ' · p. ' + +n.page : ''}</span></div></div>`).join('')
         : '<p class="hb-empty-line">None yet.</p>'}
-      <div class="fit-card-label" style="margin-top:1rem">Sessions</div>
+      <div class="fit-card-label u-mt-4">Sessions</div>
       ${res.sessions.length ? res.sessions.map(s => `<div class="hb-row"><span>${escHtml(s.session_date)}${s.note ? ' — ' + escHtml(s.note) : ''}</span>
         <b>${rdMins(s.minutes)}${s.end_page !== null ? ' · ' + +s.pages + ' p' : ''}</b></div>`).join('')
         : '<p class="hb-empty-line">No sessions yet.</p>'}
-      <div style="margin-top:1rem;text-align:right"><button class="btn btn-ghost btn-sm" style="color:var(--accent)" onclick="deleteBook(${+b.id})"><i class="fas fa-trash"></i> Delete book</button></div>`;
+      <div class="u-mt-4 u-text-right"><button class="btn btn-ghost btn-sm u-c-accent" onclick="deleteBook(${+b.id})"><i class="fas fa-trash"></i> Delete book</button></div>`;
   } catch { el.innerHTML = '<p class="hb-error">Network error.</p>'; }
 }
 
@@ -857,8 +857,8 @@ async function loadStats(year) {
     const bars = (key, fmt) => { const v = s.months.map(m => m[key]); const max = Math.max(1, ...v);
       return `<div class="hb-bars">${v.map((x, i) => `<div class="hb-bar" title="${mo[i]}: ${fmt(x)}"><span style="height:${Math.round(x / max * 100)}%"></span><em>${mo[i][0]}</em></div>`).join('')}</div>`; };
     el.innerHTML = `<div class="rd-stats-head"><h2 class="hb-h2">Reading in ${+s.year}</h2>
-      ${s.years.length > 1 ? `<select id="rdYear" class="form-input" style="width:auto" aria-label="Year">${s.years.map(y => `<option${y === s.year ? ' selected' : ''}>${+y}</option>`).join('')}</select>` : ''}</div>
-      <div class="grid-stats" style="margin-bottom:1rem">
+      ${s.years.length > 1 ? `<select id="rdYear" class="form-input u-w-auto" aria-label="Year">${s.years.map(y => `<option${y === s.year ? ' selected' : ''}>${+y}</option>`).join('')}</select>` : ''}</div>
+      <div class="grid-stats u-mb-4">
         <div class="stat-card"><div class="stat-val">${t.books}${s.goal.books_target ? `<small> / ${+s.goal.books_target}</small>` : ''}</div><div class="stat-label">Books finished</div></div>
         <div class="stat-card"><div class="stat-val">${t.pages.toLocaleString()}</div><div class="stat-label">Pages logged</div></div>
         <div class="stat-card"><div class="stat-val">${rdMins(t.minutes)}</div><div class="stat-label">Reading time · ${t.sessions} sessions</div></div>
@@ -873,7 +873,7 @@ async function loadStats(year) {
         <div class="card card-body"><div class="fit-card-label">Most-read authors · all time</div>
           ${s.authors.length ? s.authors.map(a => `<div class="hb-row"><span>${escHtml(a.author)}</span><b>${+a.n} book${+a.n === 1 ? '' : 's'}</b></div>`).join('') : '<p class="hb-empty-line">Finish a book to see authors here.</p>'}</div>
       </div>
-      <div class="card card-body" style="margin-top:1rem"><div class="fit-card-label">Subjects you read</div>
+      <div class="card card-body u-mt-4"><div class="fit-card-label">Subjects you read</div>
         ${s.subjects.length ? `<div class="hb-chips">${s.subjects.map(x => `<span class="hb-chip">${escHtml(x.subject)} · ${+x.books}</span>`).join('')}</div>
           <p class="hb-foot">From Open Library subjects of books you're reading or finished. Books added by hand have none.</p>` : '<p class="hb-empty-line">Add books through search to see subjects.</p>'}</div>`}
       <p class="hb-foot">Pages and time count only from logged sessions; books count when moved to Finished.</p>`;

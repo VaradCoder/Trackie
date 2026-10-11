@@ -30,7 +30,7 @@ require_once '../includes/head.php';
 <div class="auth-wrap">
   <div style="width:100%;max-width:560px">
 
-    <div class="text-center" style="margin-bottom:1.5rem">
+    <div class="text-center u-mb-6">
       <div class="auth-logo-ring" style="overflow:hidden;padding:0;background:none">
         <img src="<?= APP_BASE ?>/assets/images/logo.png" alt="Trackie" style="width:56px;height:56px;border-radius:50%;object-fit:cover">
       </div>
@@ -56,14 +56,14 @@ require_once '../includes/head.php';
 
       <!-- Step 1: Welcome -->
       <div class="ob-step" id="obStep1">
-        <div style="text-align:center">
+        <div class="u-text-center">
           <div style="font-size:2rem;margin-bottom:.5rem" aria-hidden="true">👋</div>
           <h2 style="font-size:1.25rem;font-weight:700;margin:0 0 .5rem">Welcome, <?= h($firstName) ?></h2>
           <p style="color:var(--muted);font-size:.9375rem;max-width:38ch;margin:0 auto 1.75rem">
             Trackie tracks your habits, tasks, focus, finances — and the hobbies you actually care about, all in one place.
             Let's set it up around you. Takes about a minute.
           </p>
-          <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="obGoto(2)">
+          <button class="btn btn-primary u-w-full u-justify-center" onclick="obGoto(2)">
             Get started <i class="fas fa-arrow-right"></i>
           </button>
         </div>
@@ -93,13 +93,13 @@ require_once '../includes/head.php';
             </button>
           <?php endforeach; ?>
         </div>
-        <div style="display:flex;gap:.625rem;margin-top:1.5rem">
-          <button class="btn btn-secondary" style="flex:1;justify-content:center" onclick="obGoto(1)">Back</button>
+        <div class="u-flex u-gap-2h u-mt-6">
+          <button class="btn btn-secondary u-flex-1 u-justify-center" onclick="obGoto(1)">Back</button>
           <button class="btn btn-primary" style="flex:2;justify-content:center" onclick="obGoto(3)">
             Continue <i class="fas fa-arrow-right"></i>
           </button>
         </div>
-        <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;margin-top:.625rem" onclick="obGoto(3)">Skip</button>
+        <button class="btn btn-ghost btn-sm u-w-full u-justify-center u-mt-2h" onclick="obGoto(3)">Skip</button>
       </div>
 
       <!-- Step 3: Hobby / goal selection -->
@@ -108,20 +108,20 @@ require_once '../includes/head.php';
         <p style="color:var(--muted);font-size:.875rem;margin:0 0 1.25rem">
           Pick a few — Trackie will build starter habits and unlock matching modules for each.
         </p>
-        <div id="obHobbyChips" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1.75rem">
+        <div id="obHobbyChips" class="u-flex u-flex-wrap u-gap-2 u-mb-7">
           <?php foreach ($allHobbies as $hb => $meta): ?>
             <button type="button" class="hobby-chip<?= in_array($hb, $currentHobbies, true) ? ' is-active' : '' ?>" data-hobby="<?= h($hb) ?>" aria-pressed="<?= in_array($hb, $currentHobbies, true) ? 'true' : 'false' ?>">
               <i class="fas <?= h($meta['icon']) ?>" style="margin-right:.375rem;color:<?= h($meta['color']) ?>"></i><?= h($hb) ?>
             </button>
           <?php endforeach; ?>
         </div>
-        <div style="display:flex;gap:.625rem">
-          <button class="btn btn-secondary" style="flex:1;justify-content:center" onclick="obGoto(2)">Back</button>
+        <div class="u-flex u-gap-2h">
+          <button class="btn btn-secondary u-flex-1 u-justify-center" onclick="obGoto(2)">Back</button>
           <button class="btn btn-primary" style="flex:2;justify-content:center" onclick="obGoto(4)">
             Continue <i class="fas fa-arrow-right"></i>
           </button>
         </div>
-        <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;margin-top:.625rem" onclick="obGoto(4)">
+        <button class="btn btn-ghost btn-sm u-w-full u-justify-center u-mt-2h" onclick="obGoto(4)">
           Skip for now
         </button>
       </div>
@@ -169,13 +169,13 @@ require_once '../includes/head.php';
           </div>
         </div>
 
-        <div style="display:flex;gap:.625rem;margin-top:.75rem">
-          <button class="btn btn-secondary" style="flex:1;justify-content:center" onclick="obGoto(3)">Back</button>
+        <div class="u-flex u-gap-2h u-mt-3">
+          <button class="btn btn-secondary u-flex-1 u-justify-center" onclick="obGoto(3)">Back</button>
           <button class="btn btn-primary" style="flex:2;justify-content:center" onclick="obGoto(5)">
             Continue <i class="fas fa-arrow-right"></i>
           </button>
         </div>
-        <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;margin-top:.625rem" onclick="obSkipRhythm()">Skip</button>
+        <button class="btn btn-ghost btn-sm u-w-full u-justify-center u-mt-2h" onclick="obSkipRhythm()">Skip</button>
       </div>
 
       <!-- Step 5: Experience level -->
@@ -199,18 +199,18 @@ require_once '../includes/head.php';
             </button>
           <?php endforeach; ?>
         </div>
-        <div style="display:flex;gap:.625rem;margin-top:1.5rem">
-          <button class="btn btn-secondary" style="flex:1;justify-content:center" onclick="obGoto(4)">Back</button>
+        <div class="u-flex u-gap-2h u-mt-6">
+          <button class="btn btn-secondary u-flex-1 u-justify-center" onclick="obGoto(4)">Back</button>
           <button class="btn btn-primary" style="flex:2;justify-content:center" onclick="obSubmit()" id="obSubmitBtn">
             Finish <i class="fas fa-check"></i>
           </button>
         </div>
-        <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;margin-top:.625rem" onclick="obSubmit()">Skip</button>
+        <button class="btn btn-ghost btn-sm u-w-full u-justify-center u-mt-2h" onclick="obSubmit()">Skip</button>
       </div>
 
       <!-- Step 6: Ready -->
       <div class="ob-step hidden" id="obStep6">
-        <div style="text-align:center">
+        <div class="u-text-center">
           <div style="font-size:2rem;margin-bottom:.5rem" aria-hidden="true">🎉</div>
           <h2 style="font-size:1.25rem;font-weight:700;margin:0 0 .5rem">You're all set</h2>
           <div id="obSummary" style="color:var(--muted);font-size:.9375rem;max-width:38ch;margin:0 auto 1.25rem"></div>
@@ -223,7 +223,7 @@ require_once '../includes/head.php';
             <li><i class="fas fa-chart-line" aria-hidden="true"></i><span><b>Progress</b> streaks, XP, analytics and a weekly review</span></li>
             <li><i class="fas fa-bell" aria-hidden="true"></i><span><b>Notifications</b> the bell, plus push in Settings → This device</span></li>
           </ul>
-          <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="obFinish()">
+          <button class="btn btn-primary u-w-full u-justify-center" onclick="obFinish()">
             Go to my dashboard <i class="fas fa-arrow-right"></i>
           </button>
         </div>

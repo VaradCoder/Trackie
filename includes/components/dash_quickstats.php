@@ -9,7 +9,7 @@
   <div class="d-card-header">
     <span class="d-card-title">Today at a Glance</span>
   </div>
-  <div class="d-card-body" style="padding-top:.5rem;padding-bottom:.5rem">
+  <div class="d-card-body u-pt-2 u-pb-2">
     <?php foreach ($qstats as $s): ?>
       <div class="qstat-item">
         <span class="qstat-label">

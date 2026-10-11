@@ -93,19 +93,19 @@ require_once '../includes/head.php';
 <div class="page-content" id="page-main">
 
 <div class="rd-head">
-  <h1><i class="fas fa-code" style="color:var(--accent)"></i> Coding</h1>
+  <h1><i class="fas fa-code u-c-accent"></i> Coding</h1>
   <div class="rd-head-actions">
     <button class="btn btn-secondary btn-sm" onclick="openCodeSession()"><i class="fas fa-stopwatch"></i> Log session</button>
     <button class="btn btn-primary btn-sm" onclick="openAddProject()"><i class="fas fa-plus"></i> New project</button>
   </div>
 </div>
-<div class="grid-stats" style="margin-bottom:1.25rem">
+<div class="grid-stats u-mb-5">
   <div class="stat-card"><div class="stat-val">🔥 <?= (int)$codeStreak['current'] ?></div><div class="stat-label">Coding streak<?= $codeStreak['best'] > $codeStreak['current'] ? ' · best ' . (int)$codeStreak['best'] : '' ?></div></div>
   <div class="stat-card"><div class="stat-val"><?= $fmtMin($weekMin) ?></div><div class="stat-label">Coded this week</div></div>
   <div class="stat-card"><div class="stat-val"><?= count(array_filter($projects, fn($p) => $p['status'] === 'active')) ?></div><div class="stat-label">Active projects</div></div>
   <div class="stat-card"><div class="stat-val"><?= $ghConnected ? $commits7 : '—' ?></div><div class="stat-label"><?= $ghConnected ? 'Commits pushed · 7 days' : 'GitHub not connected' ?></div></div>
 </div>
-<div class="filter-tabs" style="margin-bottom:1.25rem" id="codeTabs" role="tablist">
+<div class="filter-tabs u-mb-5" id="codeTabs" role="tablist">
   <?php foreach (['projects' => 'Projects', 'sessions' => 'Sessions', 'github' => '<i class="fab fa-github"></i> GitHub' . ($repos ? ' <span class="cd-count">' . count($repos) . '</span>' : '')] as $t => $label): ?>
     <button class="filter-tab<?= $initialTab === $t ? ' active' : '' ?>" data-tab="<?= $t ?>" role="tab" aria-selected="<?= $initialTab === $t ? 'true' : 'false' ?>"<?= $initialTab === $t ? '' : ' tabindex="-1"' ?>><?= $label ?></button>
   <?php endforeach; ?>
@@ -119,34 +119,34 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-diagram-project"></i></div>
       <div class="empty-state-title">No projects yet</div>
       <p>Track what you're building — link a GitHub repo and break it into tasks.</p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openAddProject()"><i class="fas fa-plus"></i> Add your first project</button>
+      <button class="btn btn-primary u-mt-3" onclick="openAddProject()"><i class="fas fa-plus"></i> Add your first project</button>
     </div>
   </div>
 <?php else: ?>
   <div class="grid-cards-lg">
     <?php foreach ($projects as $p): $sm = $statusMeta[$p['status']]; $pct = $p['total_tasks'] > 0 ? round($p['done_tasks'] / $p['total_tasks'] * 100) : 0; ?>
       <div class="habit-card" id="project-<?= $p['id'] ?>">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.625rem">
-          <div style="min-width:0">
-            <div style="font-weight:600;font-size:.9375rem;color:var(--text)"><?= h($p['name']) ?></div>
-            <?php if ($p['description']): ?><div style="font-size:.8125rem;color:var(--muted);margin-top:.125rem"><?= h($p['description']) ?></div><?php endif; ?>
+        <div class="u-flex u-items-start u-justify-between u-mb-2h">
+          <div class="u-min-w-0">
+            <div class="u-fw-6 u-fs-15 u-c-text"><?= h($p['name']) ?></div>
+            <?php if ($p['description']): ?><div class="u-fs-13 u-c-muted u-mt-0h"><?= h($p['description']) ?></div><?php endif; ?>
           </div>
-          <span style="display:flex;flex-shrink:0">
+          <span class="u-flex u-shrink-0">
           <button aria-label="Edit project" class="btn btn-icon btn-ghost btn-sm" onclick="openEditProject(<?= $p['id'] ?>)" title="Edit"><i class="fas fa-pen"></i></button>
-          <button aria-label="Delete project" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent);flex-shrink:0" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete">
+          <button aria-label="Delete project" class="btn btn-icon btn-ghost btn-sm u-c-accent u-shrink-0" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete">
             <i class="fas fa-trash"></i>
           </button>
           </span>
         </div>
 
-        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
+        <div class="u-flex u-items-center u-gap-2 u-flex-wrap u-mb-3">
           <select class="form-input" style="width:auto;font-size:.75rem;padding:.25rem .5rem" onchange="setProjectStatus(<?= $p['id'] ?>, this.value)">
             <?php foreach ($statusMeta as $k => $m): ?>
               <option value="<?= $k ?>" <?= $p['status']===$k?'selected':'' ?>><?= $m['label'] ?></option>
             <?php endforeach; ?>
           </select>
           <?php if ($p['github_url']): ?>
-            <a href="<?= h($p['github_url']) ?>" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="font-size:.75rem">
+            <a href="<?= h($p['github_url']) ?>" target="_blank" rel="noopener" class="btn btn-ghost btn-sm u-fs-12">
               <i class="fab fa-github"></i> Repo
             </a>
           <?php endif; ?>
@@ -162,18 +162,18 @@ require_once '../includes/head.php';
         <?php endif; ?>
 
         <?php if ($p['total_tasks'] > 0): ?>
-          <div style="margin-bottom:.75rem">
-            <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:.25rem;color:var(--muted)">
+          <div class="u-mb-3">
+            <div class="u-flex u-justify-between u-fs-12 u-mb-1 u-c-muted">
               <span><?= (int)$p['done_tasks'] ?>/<?= (int)$p['total_tasks'] ?> tasks</span><span><?= $pct ?>%</span>
             </div>
             <div class="progress-track"><div class="progress-fill <?= $pct>=100?'green':'' ?>" style="width:<?= $pct ?>%"></div></div>
           </div>
         <?php endif; ?>
 
-        <button class="btn btn-ghost btn-sm" style="width:100%;font-size:.75rem" onclick="toggleTasks(<?= $p['id'] ?>)">
+        <button class="btn btn-ghost btn-sm u-w-full u-fs-12" onclick="toggleTasks(<?= $p['id'] ?>)">
           <i class="fas fa-list-check"></i> Tasks
         </button>
-        <div id="tasks-<?= $p['id'] ?>" class="hidden" style="margin-top:.625rem"></div>
+        <div id="tasks-<?= $p['id'] ?>" class="hidden u-mt-2h"></div>
       </div>
     <?php endforeach; ?>
   </div>
@@ -193,15 +193,15 @@ require_once '../includes/head.php';
     <div class="card">
       <?php foreach ($sessions as $s): ?>
         <div class="todo-row" id="csess-<?= (int)$s['id'] ?>">
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <div class="u-flex-1 u-min-w-0">
+            <div class="u-flex u-items-center u-gap-2 u-flex-wrap">
               <span class="todo-title"><?= $fmtMin((int)$s['minutes']) ?></span>
               <?php if ($s['language']): ?><span class="category-badge"><?= h($s['language']) ?></span><?php endif; ?>
               <?php if ($s['project_name']): ?><span class="badge badge-blue"><?= h($s['project_name']) ?></span><?php endif; ?>
             </div>
             <div class="todo-meta"><span><?= h(formatDate($s['session_date'])) ?></span><?php if ($s['notes']): ?><span><?= h($s['notes']) ?></span><?php endif; ?></div>
           </div>
-          <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="deleteCodeSession(<?= (int)$s['id'] ?>)" aria-label="Delete session"><i class="fas fa-trash"></i></button>
+          <button class="btn btn-icon btn-ghost btn-sm u-c-accent" onclick="deleteCodeSession(<?= (int)$s['id'] ?>)" aria-label="Delete session"><i class="fas fa-trash"></i></button>
         </div>
       <?php endforeach; ?>
     </div>
@@ -217,11 +217,11 @@ require_once '../includes/head.php';
       <p>Trackie finds every repository you can access — yours, collaborations and organisations — with languages, stars, issues and recent activity.</p>
       <label class="cd-private"><input type="checkbox" id="ghWantPrivate"> Include private repositories
         <small>GitHub only offers this as read <em>and</em> write access. Trackie only ever reads.</small></label>
-      <a class="btn btn-primary" style="margin-top:.75rem" id="ghConnectBtn" data-no-spa href="<?= APP_BASE ?>/pages/github_callback.php?from=projects"><i class="fab fa-github"></i> Connect GitHub</a></div></div>
+      <a class="btn btn-primary u-mt-3" id="ghConnectBtn" data-no-spa href="<?= APP_BASE ?>/pages/github_callback.php?from=projects"><i class="fab fa-github"></i> Connect GitHub</a></div></div>
   <?php else: ?>
     <div class="card card-body cd-gh-head">
       <?php if (!empty($ghProfile['avatar']) && preg_match('#^https://#', $ghProfile['avatar'])): ?><img src="<?= h($ghProfile['avatar']) ?>" alt="" width="44" height="44" class="cd-avatar"><?php endif; ?>
-      <div style="flex:1;min-width:0">
+      <div class="u-flex-1 u-min-w-0">
         <div class="cd-gh-name"><?= h($ghProfile['name'] ?? $ghProfile['login'] ?? 'GitHub') ?>
           <?php if (!empty($ghProfile['login'])): ?><a href="https://github.com/<?= h(rawurlencode($ghProfile['login'])) ?>" target="_blank" rel="noopener" class="cd-login">@<?= h($ghProfile['login']) ?></a><?php endif; ?></div>
         <div class="cd-gh-sub" id="ghSyncLine">
@@ -272,7 +272,7 @@ require_once '../includes/head.php';
                    data-tracked="<?= $tracked ? 1 : 0 ?>" data-lang="<?= h($d['language'] ?? '') ?>" data-search="<?= h($search) ?>"
                    data-pushed="<?= h($d['pushed_at'] ?? '') ?>" data-stars="<?= (int)($d['stars'] ?? 0) ?>" data-issues="<?= (int)($d['open_issues'] ?? 0) ?>" data-name="<?= h(strtolower($d['name'] ?? '')) ?>">
             <div class="cd-repo-top">
-              <div style="min-width:0">
+              <div class="u-min-w-0">
                 <a class="cd-repo-name" href="<?= h($url ?? '#') ?>" target="_blank" rel="noopener"><?= isset($d['mine']) && empty($d['mine']) ? '<span class="cd-owner">' . h($d['owner'] ?? '') . '/</span>' : '' ?><?= h($d['name'] ?? '') ?></a>
                 <div class="cd-badges">
                   <span class="badge <?= $activityMeta[$act][1] ?>" title="<?= h($activityMeta[$act][2]) ?>"><?= $activityMeta[$act][0] ?></span>
@@ -303,21 +303,21 @@ require_once '../includes/head.php';
       </div>
       <div class="card card-body hb-empty-line hidden" id="ghNoMatch">No repositories match these filters.</div>
 
-      <div class="fit-section-head" style="margin-top:1.5rem"><h2 class="hb-h2">Recent activity</h2></div>
+      <div class="fit-section-head u-mt-6"><h2 class="hb-h2">Recent activity</h2></div>
       <div class="card card-body">
         <?php if (!$feed): ?><p class="hb-empty-line">No recent activity on GitHub.</p><?php endif; ?>
         <?php foreach (array_slice($feed, 0, 15) as $f): ?>
           <div class="hb-row cd-feed">
             <?php if ($f['kind'] === 'push'): ?>
               <i class="fas fa-code-commit cd-feed-ic"></i>
-              <span style="flex:1;min-width:0">Pushed <b><?= (int)($f['commits'] ?? 0) ?> commit<?= (int)($f['commits'] ?? 0) === 1 ? '' : 's' ?></b> to <?= h($f['repo'] ?? '') ?><?= !empty($f['branch']) ? ' <small class="rd-author">(' . h($f['branch']) . ')</small>' : '' ?>
-                <?php if (!empty($f['messages'][0])): ?><small class="rd-author" style="display:block"><?= h(mb_strimwidth((string)$f['messages'][0], 0, 90, '…')) ?></small><?php endif; ?></span>
+              <span class="u-flex-1 u-min-w-0">Pushed <b><?= (int)($f['commits'] ?? 0) ?> commit<?= (int)($f['commits'] ?? 0) === 1 ? '' : 's' ?></b> to <?= h($f['repo'] ?? '') ?><?= !empty($f['branch']) ? ' <small class="rd-author">(' . h($f['branch']) . ')</small>' : '' ?>
+                <?php if (!empty($f['messages'][0])): ?><small class="rd-author u-block"><?= h(mb_strimwidth((string)$f['messages'][0], 0, 90, '…')) ?></small><?php endif; ?></span>
             <?php else: $icon = ['PullRequestEvent' => 'fa-code-pull-request', 'IssuesEvent' => 'fa-circle-dot', 'ReleaseEvent' => 'fa-tag', 'CreateEvent' => 'fa-plus'][$f['type']] ?? 'fa-bolt';
                   $verb = $f['type'] === 'PullRequestEvent' && !empty($f['merged']) ? 'merged' : ($f['action'] ?? ''); ?>
               <i class="fas <?= $icon ?> cd-feed-ic"></i>
-              <span style="flex:1;min-width:0"><?= h(ucfirst((string)$verb)) ?> <?= h(['PullRequestEvent' => 'pull request', 'IssuesEvent' => 'issue', 'ReleaseEvent' => 'release', 'CreateEvent' => ''][$f['type']] ?? '') ?>
+              <span class="u-flex-1 u-min-w-0"><?= h(ucfirst((string)$verb)) ?> <?= h(['PullRequestEvent' => 'pull request', 'IssuesEvent' => 'issue', 'ReleaseEvent' => 'release', 'CreateEvent' => ''][$f['type']] ?? '') ?>
                 <?php if (!empty($f['url']) && preg_match('#^https://github\.com/#', $f['url'])): ?><a href="<?= h($f['url']) ?>" target="_blank" rel="noopener"><?= h($f['title'] ?? '') ?></a><?php else: ?><?= h($f['title'] ?? '') ?><?php endif; ?>
-                <small class="rd-author" style="display:block"><?= h($f['repo'] ?? '') ?></small></span>
+                <small class="rd-author u-block"><?= h($f['repo'] ?? '') ?></small></span>
             <?php endif; ?>
             <small class="rd-author"><?= h($ago($f['at'] ? date('c', strtotime($f['at'])) : null)) ?></small>
           </div>
@@ -333,7 +333,7 @@ require_once '../includes/head.php';
     <div class="modal-header"><span class="modal-title">Log coding session</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="codeSessionModal" aria-label="Close dialog">&times;</button></div>
     <div class="modal-body">
       <div class="rd-form-row">
-        <div class="form-group"><label for="csMin" class="form-label">Minutes <span style="color:var(--accent)">*</span></label><input id="csMin" type="number" min="1" max="1440" class="form-input" value="45"></div>
+        <div class="form-group"><label for="csMin" class="form-label">Minutes <span class="u-c-accent">*</span></label><input id="csMin" type="number" min="1" max="1440" class="form-input" value="45"></div>
         <div class="form-group"><label for="csDate" class="form-label">Date</label><input id="csDate" type="date" class="form-input" max="<?= date('Y-m-d') ?>"></div>
       </div>
       <div class="rd-form-row">
@@ -361,7 +361,7 @@ require_once '../includes/head.php';
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label for="projName" class="form-label">Project name <span style="color:var(--accent)">*</span></label>
+        <label for="projName" class="form-label">Project name <span class="u-c-accent">*</span></label>
         <input id="projName" class="form-input" placeholder="e.g. Trackie v3">
       </div>
       <div class="form-group">
@@ -544,12 +544,12 @@ const nextStatus = { todo: 'doing', doing: 'done', done: 'todo' };
 
 async function loadTasks(projectId) {
   const panel = document.getElementById(`tasks-${projectId}`);
-  panel.innerHTML = '<div style="font-size:.75rem;color:var(--muted)"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
+  panel.innerHTML = '<div class="u-fs-12 u-c-muted"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
   try {
     const res = await Trackie.API.post(`${API_BASE}/projects.php`, {action:'tasks', project_id:projectId});
-    if (!res.success) { panel.innerHTML = '<div style="font-size:.75rem;color:var(--muted)">Could not load tasks.</div>'; return; }
+    if (!res.success) { panel.innerHTML = '<div class="u-fs-12 u-c-muted">Could not load tasks.</div>'; return; }
     renderTasks(projectId, res.tasks);
-  } catch { panel.innerHTML = '<div style="font-size:.75rem;color:var(--muted)">Network error.</div>'; }
+  } catch { panel.innerHTML = '<div class="u-fs-12 u-c-muted">Network error.</div>'; }
 }
 function renderTasks(projectId, tasks) {
   const panel = document.getElementById(`tasks-${projectId}`);
@@ -559,11 +559,11 @@ function renderTasks(projectId, tasks) {
         <i class="fas ${taskStatusIcon[t.status]}" style="font-size:.8125rem;color:${t.status==='done'?'#16a34a':t.status==='doing'?'#f59e0b':'var(--muted)'}"></i>
       </button>
       <span style="flex:1;font-size:.8125rem;${t.status==='done'?'text-decoration:line-through;color:var(--muted)':''}">${escProj(t.title)}</span>
-      <button aria-label="Delete task" class="btn btn-icon btn-ghost btn-sm" style="width:1.75rem;height:1.75rem" onclick="deleteTask(${t.id}, ${projectId})" aria-label="Delete task"><i class="fas fa-xmark" style="font-size:.75rem"></i></button>
+      <button aria-label="Delete task" class="btn btn-icon btn-ghost btn-sm" style="width:1.75rem;height:1.75rem" onclick="deleteTask(${t.id}, ${projectId})" aria-label="Delete task"><i class="fas fa-xmark u-fs-12"></i></button>
     </div>`).join('');
   panel.innerHTML = rows + `
-    <div style="display:flex;gap:.5rem;margin-top:.5rem">
-      <input class="form-input" style="font-size:.8125rem" placeholder="Add a task…" id="newTaskInput-${projectId}"
+    <div class="u-flex u-gap-2 u-mt-2">
+      <input class="form-input u-fs-13" placeholder="Add a task…" id="newTaskInput-${projectId}"
              onkeydown="if(event.key==='Enter') addTask(${projectId})">
       <button class="btn btn-secondary btn-sm" onclick="addTask(${projectId})" aria-label="Add task"><i class="fas fa-plus" aria-hidden="true"></i></button>
     </div>`;

@@ -41,7 +41,7 @@ function todoEmoji(string $title): string {
     </a>
   </div>
 
-  <div class="d-card-body" style="padding-top:.5rem">
+  <div class="d-card-body u-pt-2">
 
     <!-- Task list -->
     <?php if (empty($todayTodos)): ?>
@@ -80,7 +80,7 @@ function todoEmoji(string $title): string {
               <div class="task-title"><?= h($t['title']) ?></div>
               <div class="task-meta-row">
                 <?php if ($isOverdue): ?>
-                  <span style="color:var(--accent);font-weight:600">
+                  <span class="u-c-accent u-fw-6">
                     <i class="fas fa-triangle-exclamation" style="font-size:.65rem" aria-hidden="true"></i> Overdue · <?= $dateStr ?></span>
                 <?php elseif ($dateStr): ?>
                   <span><i class="fas fa-calendar-day" style="font-size:.65rem" aria-hidden="true"></i> <?= $dateStr ?></span>

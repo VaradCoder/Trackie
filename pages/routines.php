@@ -74,11 +74,11 @@ require_once '../includes/head.php';
 
 <div id="routinesListWrap">
 <?php if ($totalCount): ?>
-  <div class="card card-body routine-progress" style="margin-bottom:1.25rem">
-    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-4);margin-bottom:var(--sp-2)">
-      <div style="font-weight:600;color:var(--text)">Today's routine</div>
-      <div style="font-size:.8125rem;color:var(--muted)">
-        <strong style="color:var(--text)"><?= $doneCount ?></strong> of <?= $totalCount ?> done
+  <div class="card card-body routine-progress u-mb-5">
+    <div class="u-flex u-items-baseline u-justify-between u-gap-4 u-mb-2">
+      <div class="u-fw-6 u-c-text">Today's routine</div>
+      <div class="u-fs-13 u-c-muted">
+        <strong class="u-c-text"><?= $doneCount ?></strong> of <?= $totalCount ?> done
       </div>
     </div>
     <div class="progress-track" role="progressbar" aria-valuenow="<?= $pct ?>"
@@ -90,8 +90,8 @@ require_once '../includes/head.php';
 <?php endif; ?>
 
 <?php if (empty($routines) && $notToday): ?>
-  <div class="card card-body" style="margin-bottom:var(--sp-5)">
-    <p class="text-muted" style="margin:0;font-size:.875rem">Nothing scheduled for today. Your other routines are listed below.</p>
+  <div class="card card-body u-mb-6">
+    <p class="text-muted u-m-0 u-fs-14">Nothing scheduled for today. Your other routines are listed below.</p>
   </div>
 <?php elseif (empty($routines)): ?>
   <div class="card">
@@ -99,24 +99,24 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-clock"></i></div>
       <div class="empty-state-title">No routines yet</div>
       <p>Build structure into your day with a daily routine.</p>
-      <button class="btn btn-primary" style="margin-top:var(--sp-3)" onclick="openRoutineModal()">
+      <button class="btn btn-primary u-mt-3" onclick="openRoutineModal()">
         <i class="fas fa-plus"></i> Add your first routine
       </button>
     </div>
   </div>
 <?php else: ?>
   <?php foreach ($groups as $period => $items): if (empty($items)) continue; ?>
-    <div style="margin-bottom:var(--sp-5)">
+    <div class="u-mb-6">
       <div style="font-size:.8125rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--sp-3)">
         <?= $period ?>
       </div>
-      <div style="display:flex;flex-direction:column;gap:.625rem">
+      <div class="u-flex u-flex-col u-gap-2h">
         <?php foreach ($items as $r):
           $cc   = $catColors[$r['category']] ?? '#64748b';
           $done = (int)$r['done_today'];
         ?>
-          <div class="card card-body routine-row<?= $done ? ' is-done' : '' ?>" id="routine-<?= $r['id'] ?>"
-               style="display:flex;align-items:center;gap:var(--sp-4)">
+          <div class="card card-body routine-row<?= $done ? ' is-done' : '' ?> u-flex u-items-center u-gap-4" id="routine-<?= $r['id'] ?>"
+              >
             <button type="button"
                     class="routine-check<?= $done ? ' checked' : '' ?>"
                     role="switch"
@@ -126,10 +126,10 @@ require_once '../includes/head.php';
               <i class="fas fa-check" aria-hidden="true"></i>
             </button>
             <div style="width:52px;text-align:center;flex-shrink:0">
-              <div style="font-size:.9375rem;font-weight:700;color:var(--text)">
+              <div class="u-fs-15 u-fw-7 u-c-text">
                 <?= date('g:i', strtotime($r['time_slot'])) ?>
               </div>
-              <div style="font-size:.6875rem;color:var(--muted)">
+              <div class="u-fs-11 u-c-muted">
                 <?= date('A', strtotime($r['time_slot'])) ?>
               </div>
             </div>
@@ -148,12 +148,12 @@ require_once '../includes/head.php';
             <span class="badge" style="background:<?= $cc ?>20;color:<?= $cc ?>;flex-shrink:0">
               <?= h($r['category']) ?>
             </span>
-            <div style="display:flex;gap:var(--sp-1);flex-shrink:0">
+            <div class="u-flex u-gap-1 u-shrink-0">
               <button class="btn btn-icon btn-ghost btn-sm" title="Edit" aria-label="Edit <?= h($r['title']) ?>"
                       onclick="editRoutine(<?= $r['id'] ?>)">
                 <i class="fas fa-pen"></i>
               </button>
-              <button class="btn btn-icon btn-ghost btn-sm" title="Delete" aria-label="Delete <?= h($r['title']) ?>" style="color:var(--accent)"
+              <button class="btn btn-icon btn-ghost btn-sm u-c-accent" title="Delete" aria-label="Delete <?= h($r['title']) ?>"
                       onclick="deleteRoutine(<?= $r['id'] ?>)">
                 <i class="fas fa-trash"></i>
               </button>
@@ -166,22 +166,22 @@ require_once '../includes/head.php';
 <?php endif; ?>
 
 <?php if ($notToday): ?>
-  <div style="margin-bottom:var(--sp-5)">
+  <div class="u-mb-6">
     <div style="font-size:.8125rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--sp-3)">
       Not today
     </div>
-    <div style="display:flex;flex-direction:column;gap:.625rem">
+    <div class="u-flex u-flex-col u-gap-2h">
       <?php foreach ($notToday as $r): $cc = $catColors[$r['category']] ?? '#64748b'; ?>
-        <div class="card card-body routine-off" style="display:flex;align-items:center;gap:var(--sp-4)">
+        <div class="card card-body routine-off u-flex u-items-center u-gap-4">
           <div style="width:52px;text-align:center;flex-shrink:0;color:var(--muted);font-size:.875rem;font-weight:600"><?= date('g:i A', strtotime($r['time_slot'])) ?></div>
           <div class="routine-main">
             <div class="routine-title"><?= h($r['title']) ?></div>
             <div class="routine-desc"><i class="fas fa-calendar-day" aria-hidden="true"></i> <?= h(habitScheduleLabel($routineSched($r))) ?></div>
           </div>
           <span class="badge" style="background:<?= $cc ?>20;color:<?= $cc ?>;flex-shrink:0"><?= h($r['category']) ?></span>
-          <div style="display:flex;gap:var(--sp-1);flex-shrink:0">
+          <div class="u-flex u-gap-1 u-shrink-0">
             <button class="btn btn-icon btn-ghost btn-sm" aria-label="Edit <?= h($r['title']) ?>" onclick="editRoutine(<?= $r['id'] ?>)"><i class="fas fa-pen"></i></button>
-            <button class="btn btn-icon btn-ghost btn-sm" aria-label="Delete <?= h($r['title']) ?>" style="color:var(--accent)" onclick="deleteRoutine(<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button>
+            <button class="btn btn-icon btn-ghost btn-sm u-c-accent" aria-label="Delete <?= h($r['title']) ?>" onclick="deleteRoutine(<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button>
           </div>
         </div>
       <?php endforeach; ?>
@@ -200,12 +200,12 @@ require_once '../includes/head.php';
     <div class="modal-body">
       <input type="hidden" id="routineId">
       <div class="form-group">
-        <label for="routineTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label>
+        <label for="routineTitle" class="form-label">Title <span class="u-c-accent">*</span></label>
         <input id="routineTitle" class="form-input" placeholder="e.g. Morning Run">
       </div>
       <div class="form-grid-2">
         <div class="form-group">
-          <label for="routineTime" class="form-label">Time <span style="color:var(--accent)">*</span></label>
+          <label for="routineTime" class="form-label">Time <span class="u-c-accent">*</span></label>
           <input id="routineTime" class="form-input" type="time">
         </div>
         <div class="form-group">
@@ -225,7 +225,7 @@ require_once '../includes/head.php';
           <?php endforeach; ?>
         </div>
         <input type="hidden" id="routineDays" value="">
-        <p class="form-hint" style="margin-top:.375rem">All days selected = every day.</p>
+        <p class="form-hint u-mt-1h">All days selected = every day.</p>
       </div>
       <div class="form-group">
         <label for="routineDesc" class="form-label">Description</label>

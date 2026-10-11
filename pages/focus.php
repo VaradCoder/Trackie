@@ -57,12 +57,12 @@ require_once '../includes/head.php';
   <div class="stat-card"><div class="stat-val" id="st-today"><?= $fmt($stats['today']) ?></div><div class="stat-label">Focused today</div></div>
   <div class="stat-card"><div class="stat-val"><?= $fmt($stats['week']) ?></div><div class="stat-label">This week</div></div>
   <div class="stat-card"><div class="stat-val"><?= $fmt($stats['month']) ?></div><div class="stat-label">This month</div></div>
-  <div class="stat-card"><div class="stat-val" style="color:#f59e0b"><i class="fas fa-fire" style="font-size:1rem"></i> <?= $stats['streak'] ?></div><div class="stat-label">Focus streak</div></div>
+  <div class="stat-card"><div class="stat-val u-c-warn"><i class="fas fa-fire u-fs-16"></i> <?= $stats['streak'] ?></div><div class="stat-label">Focus streak</div></div>
 </div>
 
 <!-- Timer -->
 <div class="card card-body" style="text-align:center;margin:1.25rem 0;max-width:520px">
-  <div class="filter-tabs" style="justify-content:center;margin-bottom:var(--sp-5)" id="modeTabs">
+  <div class="filter-tabs u-justify-center u-mb-6" id="modeTabs">
     <button class="filter-tab active" data-mode="Study">📚 Study</button>
     <button class="filter-tab" data-mode="Work">💼 Work</button>
     <button class="filter-tab" data-mode="Coding">💻 Coding</button>
@@ -76,7 +76,7 @@ require_once '../includes/head.php';
   </div>
 
   <div class="focus-task">
-    <label for="focusTodo" class="form-label" style="margin:0">Working on</label>
+    <label for="focusTodo" class="form-label u-m-0">Working on</label>
     <select id="focusTodo" class="form-input">
       <option value="">Nothing specific</option>
       <?php foreach ($openTodos as $t): ?>
@@ -94,12 +94,12 @@ require_once '../includes/head.php';
   </div>
   <div id="timerPhase" style="font-size:.875rem;color:var(--muted);margin-top:var(--sp-2);text-transform:uppercase;letter-spacing:.08em">Focus session</div>
 
-  <div style="display:flex;gap:var(--sp-2);justify-content:center;margin-top:var(--sp-5);flex-wrap:wrap">
+  <div class="u-flex u-gap-2 u-justify-center u-mt-6 u-flex-wrap">
     <button class="btn btn-primary" id="btnStart"><i class="fas fa-play"></i> Start</button>
     <button class="btn btn-secondary hidden" id="btnPause"><i class="fas fa-pause"></i> Pause</button>
     <button class="btn btn-ghost" id="btnReset"><i class="fas fa-rotate-left"></i> Reset</button>
   </div>
-  <p class="form-hint" style="margin-top:var(--sp-4)">Complete a focus session to earn <strong>+20 XP</strong>.</p>
+  <p class="form-hint u-mt-4">Complete a focus session to earn <strong>+20 XP</strong>.</p>
 </div>
 
 <!-- History -->
@@ -111,13 +111,13 @@ require_once '../includes/head.php';
   <?php else: foreach ($history as $h): ?>
     <div class="todo-row">
       <div style="width:34px;height:34px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--accent-bg);color:var(--accent)">
-        <i class="fas <?= $h['type']==='focus'?'fa-bolt':'fa-mug-hot' ?>" style="font-size:.8125rem"></i>
+        <i class="fas <?= $h['type']==='focus'?'fa-bolt':'fa-mug-hot' ?> u-fs-13"></i>
       </div>
-      <div style="flex:1;min-width:0">
+      <div class="u-flex-1 u-min-w-0">
         <span class="todo-title"><?= $h['type'] === 'focus' ? ($h['task'] ? h($h['task']) : ($h['mode'] ? h($h['mode']) . ' focus' : 'Focus session')) : 'Break' ?></span>
         <div class="todo-meta"><?= (int)$h['duration_min'] ?> min · <?= timeAgo($h['started_at']) ?></div>
       </div>
-      <?php if ($h['type']==='focus'): ?><strong style="color:#f59e0b">+20 XP</strong><?php endif; ?>
+      <?php if ($h['type']==='focus'): ?><strong class="u-c-warn">+20 XP</strong><?php endif; ?>
     </div>
   <?php endforeach; endif; ?>
 </div>
@@ -125,7 +125,7 @@ require_once '../includes/head.php';
   <!-- Category breakdown -->
   <div style="font-size:.9375rem;font-weight:600;margin:var(--sp-5) 0 .75rem">Time by category (last 30 days)</div>
   <div class="card" id="focusBreakdown">
-    <div style="font-size:.8125rem;color:var(--muted)"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    <div class="u-fs-13 u-c-muted"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
   </div>
 </div>
 <?php include '../includes/footer.php'; ?>
@@ -382,15 +382,15 @@ async function loadFocusBreakdown() {
     box.innerHTML = res.breakdown.map(function(r) {
       const pct = max > 0 ? Math.round((r.minutes / max) * 100) : 0;
       const label = r.minutes >= 60 ? Math.floor(r.minutes/60) + 'h ' + (r.minutes%60) + 'm' : r.minutes + 'm';
-      return '<div style="margin-bottom:var(--sp-3)">' +
-        '<div style="display:flex;justify-content:space-between;font-size:.8125rem;margin-bottom:var(--sp-1)">' +
-          '<span>' + r.mode + '</span><span style="color:var(--muted)">' + label + ' \u00b7 ' + r.sessions + ' sessions</span>' +
+      return '<div class="u-mb-3">' +
+        '<div class="u-flex u-justify-between u-fs-13 u-mb-1">' +
+          '<span>' + r.mode + '</span><span class="u-c-muted">' + label + ' \u00b7 ' + r.sessions + ' sessions</span>' +
         '</div>' +
         '<div class="progress-track"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
       '</div>';
     }).join('');
   } catch (e) {
-    box.innerHTML = '<div style="font-size:.8125rem;color:var(--muted)">Network error.</div>';
+    box.innerHTML = '<div class="u-fs-13 u-c-muted">Network error.</div>';
   }
 }
 </script>

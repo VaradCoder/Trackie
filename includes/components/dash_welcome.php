@@ -7,7 +7,7 @@
 <div class="d-card" aria-label="Welcome card">
   <div class="d-card-body">
     <!-- Quick actions (greeting now lives in the hero band) -->
-    <div class="section-label" style="margin-bottom:.75rem">Quick actions</div>
+    <div class="section-label u-mb-3">Quick actions</div>
     <div class="welcome-actions">
       <a href="<?= APP_BASE ?>/pages/habits.php"
          class="btn-dash-primary"

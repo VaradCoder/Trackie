@@ -64,8 +64,8 @@ $habitEmojis = ['💪','🧘','📖','🏃','🥗','💧','🌿','⚡','🎯','�
 
     <!-- Completed ones as a subtle count -->
     <?php if (!empty($doneHabits)): ?>
-      <div style="margin-top:.625rem;font-size:.8125rem;color:var(--muted);text-align:center">
-        <i class="fas fa-check-circle" style="color:var(--ok)" aria-hidden="true"></i>
+      <div class="u-mt-2h u-fs-13 u-c-muted u-text-center">
+        <i class="fas fa-check-circle u-c-ok" aria-hidden="true"></i>
         <?= count($doneHabits) ?> habit<?= count($doneHabits) > 1 ? 's' : '' ?> done today
       </div>
     <?php endif; ?>

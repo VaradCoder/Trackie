@@ -74,7 +74,7 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-bell"></i></div>
       <div class="empty-state-title">No reminders yet</div>
       <p>Never forget to drink water, take medicine, or revise a chapter.</p>
-      <button class="btn btn-primary" style="margin-top:var(--sp-3)" onclick="openAddReminder()">
+      <button class="btn btn-primary u-mt-3" onclick="openAddReminder()">
         <i class="fas fa-plus"></i> Add your first reminder
       </button>
     </div>
@@ -85,14 +85,14 @@ require_once '../includes/head.php';
           <i class="fas <?= $m['icon'] ?>"></i>
         </div>
 
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap">
+        <div class="u-flex-1 u-min-w-0">
+          <div class="u-flex u-items-center u-gap-2 u-flex-wrap">
             <span class="todo-title rem-title"><?= h($r['title']) ?></span>
             <span class="badge <?= $m['badge'] ?>"><?= $m['label'] ?></span>
             <span class="badge badge-gray rem-paused-badge" style="<?= $r['active'] ? 'display:none' : '' ?>">Paused</span>
           </div>
-          <div class="todo-meta" style="margin-top:var(--sp-1)">
-            <span><i class="fas fa-clock" style="font-size:.7rem"></i> <?= h(describeReminder($r)) ?></span>
+          <div class="todo-meta u-mt-1">
+            <span><i class="fas fa-clock u-fs-11-2"></i> <?= h(describeReminder($r)) ?></span>
             <span class="rem-next" style="color:var(--subtle);<?= $r['active'] ? '' : 'display:none' ?>">
               Next: <?= $r['active'] ? date('M j, g:i A', strtotime($r['next_fire_at'])) : '' ?>
             </span>
@@ -111,7 +111,7 @@ require_once '../includes/head.php';
           <button class="btn btn-icon btn-ghost btn-sm" title="Edit" aria-label="Edit" onclick="editReminder(<?= $r['id'] ?>)">
             <i class="fas fa-pen"></i>
           </button>
-          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm" title="Delete" style="color:var(--accent)"
+          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm u-c-accent" title="Delete"
                   onclick="deleteReminder(<?= $r['id'] ?>)">
             <i class="fas fa-trash"></i>
           </button>
@@ -132,7 +132,7 @@ require_once '../includes/head.php';
       <input type="hidden" id="remId">
 
       <div class="form-group">
-        <label for="remTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label>
+        <label for="remTitle" class="form-label">Title <span class="u-c-accent">*</span></label>
         <input id="remTitle" class="form-input" placeholder="e.g. Drink water, Take medicine" maxlength="200">
       </div>
 
@@ -148,11 +148,11 @@ require_once '../includes/head.php';
       <!-- One-time fields -->
       <div id="remFieldsOnce" class="form-grid-2">
         <div class="form-group">
-          <label for="remDate" class="form-label">Date <span style="color:var(--accent)">*</span></label>
+          <label for="remDate" class="form-label">Date <span class="u-c-accent">*</span></label>
           <input id="remDate" class="form-input" type="date">
         </div>
         <div class="form-group">
-          <label for="remTimeOnce" class="form-label">Time <span style="color:var(--accent)">*</span></label>
+          <label for="remTimeOnce" class="form-label">Time <span class="u-c-accent">*</span></label>
           <input id="remTimeOnce" class="form-input" type="time">
         </div>
       </div>
@@ -162,7 +162,7 @@ require_once '../includes/head.php';
         <div class="form-grid-2">
           <div class="form-group">
             <label for="remEvery" class="form-label">Repeat every</label>
-            <div style="display:flex;gap:var(--sp-2)">
+            <div class="u-flex u-gap-2">
               <input id="remEvery" class="form-input" type="number" min="1" max="99" value="1" style="width:5rem">
               <select id="remUnit" class="form-input">
                 <option value="hour">hour(s)</option>
@@ -182,7 +182,7 @@ require_once '../includes/head.php';
       <div id="remFieldsSmart" class="hidden">
         <div class="form-grid-2">
           <div class="form-group">
-            <label for="remHabit" class="form-label">Habit <span style="color:var(--accent)">*</span></label>
+            <label for="remHabit" class="form-label">Habit <span class="u-c-accent">*</span></label>
             <select id="remHabit" class="form-input">
               <option value="">Choose a habit…</option>
               <?php foreach ($habits as $hb): ?>
@@ -200,8 +200,8 @@ require_once '../includes/head.php';
         </p>
       </div>
 
-      <div class="form-group" style="margin-top:var(--sp-1)">
-        <label for="remNotes" class="form-label">Notes <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <div class="form-group u-mt-1">
+        <label for="remNotes" class="form-label">Notes <span class="u-fw-4 u-c-muted">(optional)</span></label>
         <input id="remNotes" class="form-input" placeholder="Shown in the notification" maxlength="500">
       </div>
     </div>

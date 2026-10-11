@@ -38,12 +38,12 @@ require_once '../includes/head.php';
 <div class="page-content" id="page-main">
 
 <div class="rd-head">
-  <h1><i class="fas fa-spa" style="color:var(--accent)"></i> Meditation</h1>
+  <h1><i class="fas fa-spa u-c-accent"></i> Meditation</h1>
   <div class="rd-head-actions"><button class="btn btn-secondary btn-sm" onclick="openLogSession()"><i class="fas fa-plus"></i> Log past session</button></div>
 </div>
 
 <div id="medStatsWrap">
-  <div class="grid-stats" style="margin-bottom:1.25rem">
+  <div class="grid-stats u-mb-5">
     <div class="stat-card"><div class="stat-val">🔥 <?= (int)$streak['current'] ?></div><div class="stat-label">Day streak<?= $streak['best'] > $streak['current'] ? ' · best ' . (int)$streak['best'] : '' ?></div></div>
     <div class="stat-card"><div class="stat-val"><?= $fmtMin((int)$stats['week_min']) ?></div><div class="stat-label">This week</div></div>
     <div class="stat-card"><div class="stat-val"><?= $fmtMin((int)$stats['minutes']) ?></div><div class="stat-label">Total · <?= (int)$stats['total'] ?> sessions</div></div>
@@ -58,7 +58,7 @@ require_once '../includes/head.php';
     <div class="filter-tabs" id="mdPresets">
       <?php foreach ([5, 10, 15, 20, 30] as $p): ?><button class="filter-tab<?= $p === 10 ? ' active' : '' ?>" data-min="<?= $p ?>"><?= $p ?> min</button><?php endforeach; ?>
     </div>
-    <div class="rd-form-row" style="margin-top:.75rem">
+    <div class="rd-form-row u-mt-3">
       <div class="form-group"><label for="mdTechnique" class="form-label">Technique</label>
         <select id="mdTechnique" class="form-input"><?php foreach ($techniques as $k => $l): ?><option value="<?= $k ?>"><?= $l ?></option><?php endforeach; ?></select></div>
       <div class="form-group"><label for="mdBell" class="form-label">Interval bell</label>
@@ -72,7 +72,7 @@ require_once '../includes/head.php';
   </div>
 </div>
 
-<div class="hb-grid2" style="margin-top:1.25rem">
+<div class="hb-grid2 u-mt-5">
   <div class="card card-body">
     <div class="fit-card-label">Mood before → after · last <?= count($moodRows) ?> rated sessions</div>
     <?php if (!$moodRows): ?>
@@ -99,7 +99,7 @@ require_once '../includes/head.php';
   </div>
 </div>
 
-<div class="fit-section-head" style="margin-top:1.25rem"><h2 class="hb-h2">Sessions</h2></div>
+<div class="fit-section-head u-mt-5"><h2 class="hb-h2">Sessions</h2></div>
 <div id="medListWrap">
   <?php if (!$sessions): ?>
     <div class="card card-body hb-empty-line">No sessions yet — start the timer above, or log a past session.</div>
@@ -107,8 +107,8 @@ require_once '../includes/head.php';
     <div class="card">
       <?php foreach ($sessions as $s): ?>
         <div class="todo-row" id="med-<?= (int)$s['id'] ?>">
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <div class="u-flex-1 u-min-w-0">
+            <div class="u-flex u-items-center u-gap-2 u-flex-wrap">
               <span class="todo-title"><?= $fmtMin((int)$s['duration_min']) ?></span>
               <?php if ($s['technique']): ?><span class="category-badge"><?= h($techniques[$s['technique']] ?? $s['technique']) ?></span><?php endif; ?>
               <?php if ($s['mood_before'] && $s['mood_after']): ?><span class="badge badge-gray">Mood <?= (int)$s['mood_before'] ?>→<?= (int)$s['mood_after'] ?></span><?php endif; ?>
@@ -117,7 +117,7 @@ require_once '../includes/head.php';
           </div>
           <div class="todo-actions">
             <button class="btn btn-icon btn-ghost btn-sm" onclick="editSession(<?= (int)$s['id'] ?>)" aria-label="Edit session" title="Edit"><i class="fas fa-pen"></i></button>
-            <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="deleteSession(<?= (int)$s['id'] ?>)" aria-label="Delete session" title="Delete"><i class="fas fa-trash"></i></button>
+            <button class="btn btn-icon btn-ghost btn-sm u-c-accent" onclick="deleteSession(<?= (int)$s['id'] ?>)" aria-label="Delete session" title="Delete"><i class="fas fa-trash"></i></button>
           </div>
         </div>
       <?php endforeach; ?>
@@ -132,7 +132,7 @@ require_once '../includes/head.php';
     <div class="modal-body">
       <input type="hidden" id="medId">
       <div class="rd-form-row">
-        <div class="form-group"><label for="medDuration" class="form-label">Minutes <span style="color:var(--accent)">*</span></label><input id="medDuration" type="number" min="1" max="600" class="form-input"></div>
+        <div class="form-group"><label for="medDuration" class="form-label">Minutes <span class="u-c-accent">*</span></label><input id="medDuration" type="number" min="1" max="600" class="form-input"></div>
         <div class="form-group"><label for="medDate" class="form-label">Date</label><input id="medDate" type="date" class="form-input" max="<?= $today ?>"></div>
       </div>
       <div class="form-group"><label for="medTech" class="form-label">Technique</label>

@@ -58,9 +58,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $validToken) {
 <div class="auth-wrap">
   <div style="width:100%;max-width:420px">
 
-    <div class="text-center" style="margin-bottom:1.5rem">
+    <div class="text-center u-mb-6">
       <div class="auth-logo-ring"><i class="fas fa-rocket"></i></div>
-      <h1 style="font-size:1.5rem;font-weight:700;color:var(--text);margin:0">Trackie</h1>
+      <h1 class="u-fs-24 u-fw-7 u-c-text u-m-0">Trackie</h1>
     </div>
 
     <div class="auth-card">
@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $validToken) {
             <input id="confirm_password" name="confirm_password" type="password" class="form-input" required
                    placeholder="Repeat password">
           </div>
-          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:.25rem">
+          <button type="submit" class="btn btn-primary u-w-full u-justify-center u-mt-1">
             Reset password
           </button>
         </form>

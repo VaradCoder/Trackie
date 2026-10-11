@@ -1368,7 +1368,7 @@ $allOk = !array_filter($results, fn($r) => !$r['ok']);
     </div>
   <?php endforeach; ?>
 
-  <div style="margin-top:1.5rem; display:flex; gap:1rem; flex-wrap:wrap">
+  <div class="u-mt-6 u-flex u-gap-4 u-flex-wrap">
     <?php if ($allOk): ?>
       <a href="<?= APP_BASE ?>/pages/login.php" class="btn">
         <i class="fas fa-rocket"></i> Go to Trackie

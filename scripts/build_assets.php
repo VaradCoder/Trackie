@@ -74,6 +74,7 @@ function minifyJs(string $s): string {
 
 $targets = [
     'assets/css/app.css'       => 'assets/css/app.min.css',
+    'assets/css/utilities.css' => 'assets/css/utilities.min.css',
     'assets/css/dashboard.css' => 'assets/css/dashboard.min.css',
     'assets/js/app.js'         => 'assets/js/app.min.js',
     'assets/js/dashboard.js'   => 'assets/js/dashboard.min.js',

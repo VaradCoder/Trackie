@@ -59,11 +59,11 @@ $taskDateSet = array_flip($calTaskDates);  // O(1) lookup
                    . ($hasTask ? ' — has tasks' : '');
       ?>
         <a href="<?= APP_BASE ?>/pages/todos.php?filter=today&date=<?= $dateStr ?>"
-           class="<?= $classes ?>"
+           class="<?= $classes ?> u-no-underline u-block"
            role="gridcell"
            aria-label="<?= h($ariaLabel) ?>"
            <?= $isToday ? 'aria-current="date"' : '' ?>
-           style="text-decoration:none;display:block">
+          >
           <?= $day ?>
         </a>
       <?php endfor; ?>

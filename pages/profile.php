@@ -35,18 +35,18 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<h1 style="font-size:1.125rem;font-weight:600;margin:0 0 1.25rem"><i class="fas fa-user" style="color:var(--accent);margin-right:.375rem" aria-hidden="true"></i>My Profile</h1>
+<div class="page-header"><h1 class="page-header-title"><i class="fas fa-user u-c-accent" aria-hidden="true"></i> My Profile</h1></div>
 
 <div class="profile-grid">
 
   <!-- Left: Avatar + stats -->
   <div>
-    <div class="card card-body" style="text-align:center;margin-bottom:1rem" id="profileAvatarCard">
+    <div class="card card-body u-text-center u-mb-4" id="profileAvatarCard">
       <img src="<?= h($picSrc) ?>" alt="Profile picture"
            style="width:96px;height:96px;border-radius:50%;object-fit:cover;margin:0 auto .875rem;border:3px solid var(--border)">
-      <div style="font-size:1rem;font-weight:700;color:var(--text)"><?= h($user['name']) ?></div>
-      <div style="font-size:.875rem;color:var(--muted)"><?= h($user['email']) ?></div>
-      <div style="font-size:.8125rem;color:var(--subtle);margin-top:.25rem">
+      <div class="u-fs-16 u-fw-7 u-c-text"><?= h($user['name']) ?></div>
+      <div class="u-fs-14 u-c-muted"><?= h($user['email']) ?></div>
+      <div class="u-fs-13 u-c-subtle u-mt-1">
         Member since <?= formatDate($user['created_at'], 'M Y') ?>
       </div>
       <div id="bioHobbiesWrap">
@@ -75,24 +75,24 @@ require_once '../includes/head.php';
         ['l'=>'Routines', 'v'=>$stats['routines'], 'i'=>'fa-clock'],
       ] as $s): ?>
         <div style="display:flex;align-items:center;justify-content:space-between;font-size:.875rem;padding:.375rem 0;border-bottom:1px solid var(--border)">
-          <span style="color:var(--muted)"><i class="fas <?= $s['i'] ?>" style="width:1rem"></i> <?= $s['l'] ?></span>
-          <strong style="color:var(--text)"><?= $s['v'] ?></strong>
+          <span class="u-c-muted"><i class="fas <?= $s['i'] ?>" style="width:1rem"></i> <?= $s['l'] ?></span>
+          <strong class="u-c-text"><?= $s['v'] ?></strong>
         </div>
       <?php endforeach; ?>
     </div>
   </div>
 
   <!-- Right: Edit forms -->
-  <div style="display:flex;flex-direction:column;gap:1rem">
+  <div class="u-flex u-flex-col u-gap-4">
 
     <!-- Profile info form -->
     <div class="card card-body">
-      <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">Personal information</div>
+      <div class="u-fs-15 u-fw-6 u-mb-4">Personal information</div>
       <form id="profileForm" enctype="multipart/form-data" data-loading>
-        <div style="margin-bottom:1rem">
+        <div class="u-mb-4">
           <label for="pf-profile_pic" class="form-label">Profile picture</label>
-          <input id="pf-profile_pic" type="file" name="profile_pic" accept="image/*" class="form-input"
-                 style="padding:.375rem">
+          <input id="pf-profile_pic" type="file" name="profile_pic" accept="image/*" class="form-input u-p-1h"
+                >
           <p class="form-hint">JPEG, PNG, GIF or WebP · max 5 MB</p>
         </div>
         <div class="form-grid-2">
@@ -106,15 +106,15 @@ require_once '../includes/head.php';
           </div>
         </div>
         <div class="form-group">
-          <label for="pf-phone" class="form-label">Phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+          <label for="pf-phone" class="form-label">Phone <span class="u-fw-4 u-c-muted">(optional)</span></label>
           <input id="pf-phone" name="phone" type="tel" class="form-input" value="<?= h($user['phone'] ?? '') ?>">
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:.5rem">
+        <div class="u-flex u-justify-end u-mt-2">
           <button type="submit" class="btn btn-primary btn-sm" id="profileSaveBtn">
             <i class="fas fa-save"></i> Save changes
           </button>
         </div>
-        <div id="profileMsg" style="margin-top:.75rem;font-size:.875rem"></div>
+        <div id="profileMsg" class="u-mt-3 u-fs-14"></div>
       </form>
     </div>
 
@@ -122,8 +122,8 @@ require_once '../includes/head.php';
          which meant a user could not see or correct what they had told us. -->
     <?php $pf = userPrefs($uid); ?>
     <div class="card card-body">
-      <div style="font-size:.9375rem;font-weight:600;margin-bottom:.25rem">Your setup</div>
-      <p class="form-hint" style="margin-bottom:.875rem">
+      <div class="u-fs-15 u-fw-6 u-mb-1">Your setup</div>
+      <p class="form-hint u-mb-3h">
         From onboarding. Trackie uses your focus to order the dashboard and your
         check-in time for the daily nudge.
       </p>
@@ -164,30 +164,30 @@ require_once '../includes/head.php';
                  value="<?= $pf['water_goal_ml'] !== null ? (int)$pf['water_goal_ml'] : '' ?>">
         </div>
       </form>
-      <button class="btn btn-primary btn-sm" style="margin-top:.75rem" onclick="savePrefs(this)">
+      <button class="btn btn-primary btn-sm u-mt-3" onclick="savePrefs(this)">
         <i class="fas fa-save"></i> Save setup
       </button>
-      <p class="form-hint" style="margin-top:.5rem">
+      <p class="form-hint u-mt-2">
         Sleep and water targets are stored now; daily logging against them is coming next.
       </p>
     </div>
 
     <!-- Hobbies (personalizes habit suggestions) -->
     <div class="card card-body">
-      <div style="font-size:.9375rem;font-weight:600;margin-bottom:.25rem">Your hobbies</div>
-      <p class="form-hint" style="margin-bottom:.875rem">Pick a few — Trackie suggests starter habits that match, right on the Habits page.</p>
+      <div class="u-fs-15 u-fw-6 u-mb-1">Your hobbies</div>
+      <p class="form-hint u-mb-3h">Pick a few — Trackie suggests starter habits that match, right on the Habits page.</p>
       <?php
         $selectedHobbies = array_filter(array_map('trim', explode(',', $user['hobbies'] ?? '')));
         $allHobbies = array_keys(allHobbiesMeta());
       ?>
-      <div id="hobbyChips" style="display:flex;flex-wrap:wrap;gap:.5rem">
+      <div id="hobbyChips" class="u-flex u-flex-wrap u-gap-2">
         <?php foreach ($allHobbies as $hb): $active = in_array($hb, $selectedHobbies, true); ?>
           <button type="button" class="hobby-chip<?= $active ? ' is-active' : '' ?>" data-hobby="<?= h($hb) ?>">
             <?= h($hb) ?>
           </button>
         <?php endforeach; ?>
       </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:1rem">
+      <div class="u-flex u-justify-end u-mt-4">
         <button type="button" class="btn btn-primary btn-sm" id="hobbySaveBtn" onclick="saveHobbies()">
           <i class="fas fa-save"></i> Save hobbies
         </button>
@@ -196,7 +196,7 @@ require_once '../includes/head.php';
 
     <!-- Password form -->
     <div class="card card-body">
-      <div style="font-size:.9375rem;font-weight:600;margin-bottom:1rem">Change password</div>
+      <div class="u-fs-15 u-fw-6 u-mb-4">Change password</div>
       <form id="pwForm">
         <div class="form-group">
           <label for="pf-current_password" class="form-label">Current password</label>
@@ -213,12 +213,12 @@ require_once '../includes/head.php';
           </div>
         </div>
         <p class="form-hint">At least 8 characters.</p>
-        <div style="display:flex;justify-content:flex-end;margin-top:.5rem">
+        <div class="u-flex u-justify-end u-mt-2">
           <button type="submit" class="btn btn-secondary btn-sm">
             <i class="fas fa-lock"></i> Change password
           </button>
         </div>
-        <div id="pwMsg" style="margin-top:.75rem;font-size:.875rem"></div>
+        <div id="pwMsg" class="u-mt-3 u-fs-14"></div>
       </form>
     </div>
 
@@ -326,7 +326,7 @@ document.getElementById('profileForm').addEventListener('submit', async function
       // Live-refresh the avatar card + the persistent topbar chip — no reload.
       await Trackie.refreshFragments(['profileAvatarCard', 'topbarUserChip']);
     } else {
-      msg.innerHTML = `<span style="color:var(--accent)">${escHtml(data.error || 'Something went wrong.')}</span>`;
+      msg.innerHTML = `<span class="u-c-accent">${escHtml(data.error || 'Something went wrong.')}</span>`;
     }
   } catch { Trackie.Toast.error('Network error.'); }
   btn.disabled = false;
@@ -348,7 +348,7 @@ document.getElementById('pwForm').addEventListener('submit', async function(e) {
       msg.innerHTML = '';
       this.reset();
     } else {
-      msg.innerHTML = `<span style="color:var(--accent)">${escHtml(res.error || 'Something went wrong.')}</span>`;
+      msg.innerHTML = `<span class="u-c-accent">${escHtml(res.error || 'Something went wrong.')}</span>`;
     }
   } catch { Trackie.Toast.error('Network error.'); }
 });

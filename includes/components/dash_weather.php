@@ -48,8 +48,8 @@
       </div>
 
       <!-- Required attribution — Open-Meteo data is CC BY 4.0 -->
-      <div style="text-align:right;margin-top:.5rem">
-        <a href="https://open-meteo.com/" target="_blank" rel="noopener" style="font-size:.6875rem;color:var(--subtle);text-decoration:none">
+      <div class="u-text-right u-mt-2">
+        <a href="https://open-meteo.com/" target="_blank" rel="noopener" class="u-fs-11 u-c-subtle u-no-underline">
           Weather by Open-Meteo.com
         </a>
       </div>

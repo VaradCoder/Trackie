@@ -25,18 +25,18 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
-  <h1 style="font-size:1.125rem;font-weight:600;margin:0"><i class="fab fa-spotify" style="color:#1db954"></i> Music</h1>
+<div class="page-header page-header-center">
+  <h1 class="page-header-title"><i class="fab fa-spotify" style="color:#1db954" aria-hidden="true"></i> Music</h1>
 </div>
 
 <?php if (!$clientId): ?>
-  <div class="card card-body" style="margin-bottom:1.5rem">
-    <p style="color:var(--muted);font-size:.875rem;margin:0">Spotify isn't configured on this server yet.</p>
+  <div class="card card-body u-mb-6">
+    <p class="u-c-muted u-fs-14 u-m-0">Spotify isn't configured on this server yet.</p>
   </div>
 <?php elseif (!$connected): ?>
   <div class="card card-body" style="text-align:center;padding:2.5rem 1.5rem;margin-bottom:1.5rem">
     <i class="fab fa-spotify" style="font-size:2.5rem;color:#1db954;margin-bottom:.75rem"></i>
-    <div style="font-weight:600;font-size:1.0625rem;color:var(--text);margin-bottom:.375rem">Connect your Spotify account</div>
+    <div class="u-fw-6 u-fs-17 u-c-text u-mb-1h">Connect your Spotify account</div>
     <p style="font-size:.875rem;color:var(--muted);max-width:440px;margin:0 auto 1.25rem">
       Control what's playing on any of your devices, see your Liked Songs and recent listening, and pair a playlist with focus sessions.
     </p>
@@ -47,7 +47,7 @@ require_once '../includes/head.php';
   <?php if ($needsScopes): ?>
     <div class="card card-body ms-banner">
       <i class="fas fa-heart"></i>
-      <div style="flex:1">Reconnect Spotify once to turn on <strong>Liked Songs</strong> and the ❤ save button.</div>
+      <div class="u-flex-1">Reconnect Spotify once to turn on <strong>Liked Songs</strong> and the ❤ save button.</div>
       <a class="btn btn-primary btn-sm" data-no-spa href="<?= APP_BASE ?>/pages/spotify_callback.php">Reconnect</a>
     </div>
   <?php endif; ?>
@@ -59,7 +59,7 @@ require_once '../includes/head.php';
       <img class="ms-art" id="msArt" src="" alt="">
       <div class="ms-now-main">
         <div class="ms-now-top">
-          <div style="min-width:0">
+          <div class="u-min-w-0">
             <div class="ms-kicker" id="msKicker">Now playing</div>
             <a class="ms-title" id="msTitle" href="#" target="_blank" rel="noopener">—</a>
             <div class="ms-artist" id="msArtist">—</div>
@@ -79,7 +79,7 @@ require_once '../includes/head.php';
           <button class="btn btn-icon btn-ghost" data-cmd="repeat" id="msRepeat" aria-label="Repeat: off"><i class="fas fa-repeat"></i><span class="ms-repeat-one" hidden>1</span></button>
         </div>
         <div class="ms-bottom">
-          <button class="btn btn-ghost btn-sm ms-device" id="msDeviceBtn" aria-haspopup="true"><i class="fas fa-mobile-screen"></i> <span id="msDevice">—</span> <i class="fas fa-chevron-down" style="font-size:.625rem"></i></button>
+          <button class="btn btn-ghost btn-sm ms-device" id="msDeviceBtn" aria-haspopup="true"><i class="fas fa-mobile-screen"></i> <span id="msDevice">—</span> <i class="fas fa-chevron-down u-fs-10"></i></button>
           <label class="ms-volume" id="msVolumeWrap"><i class="fas fa-volume-low"></i><input type="range" id="msVolume" min="0" max="100" value="50" aria-label="Volume"></label>
           <button class="btn btn-ghost btn-sm" id="msQueueBtn" aria-expanded="false"><i class="fas fa-list-ol"></i> Queue</button>
         </div>
@@ -97,9 +97,9 @@ require_once '../includes/head.php';
   </div>
 
   <div id="mtab-favorites" class="gym-tab-panel">
-    <div class="ms-head"><h2 class="hb-h2">Liked Songs</h2><span class="hb-foot" id="msLikedCount" style="margin:0"></span></div>
+    <div class="ms-head"><h2 class="hb-h2">Liked Songs</h2><span class="hb-foot u-m-0" id="msLikedCount"></span></div>
     <div class="card" id="msLiked"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading your Liked Songs…</div></div>
-    <button class="btn btn-secondary btn-sm hidden" id="msLikedMore" style="margin-top:.75rem">Load more</button>
+    <button class="btn btn-secondary btn-sm hidden u-mt-3" id="msLikedMore">Load more</button>
   </div>
   <div id="mtab-recent" class="gym-tab-panel hidden">
     <div class="card" id="msRecent"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
@@ -117,9 +117,9 @@ require_once '../includes/head.php';
   </div>
   <div id="mtab-playlists" class="gym-tab-panel hidden">
     <div class="card card-body ms-focus"><i class="fas fa-bullseye"></i>
-      <div><b>Focus Session Sync</b><div class="hb-foot" style="margin:0">Pick a playlist to start automatically when a focus session starts (and pause when it ends).</div>
-        <div id="focusSyncStatus" style="font-size:.8125rem;margin-top:.375rem"></div></div></div>
-    <div id="musicPlaylists" class="grid-cards" style="margin-top:1rem"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
+      <div><b>Focus Session Sync</b><div class="hb-foot u-m-0">Pick a playlist to start automatically when a focus session starts (and pause when it ends).</div>
+        <div id="focusSyncStatus" class="u-fs-13 u-mt-1h"></div></div></div>
+    <div id="musicPlaylists" class="grid-cards u-mt-4"><div class="hb-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
   </div>
 
 <?php endif; ?>
@@ -158,7 +158,7 @@ function trackRow(t, extra = '') {
     : `<button class="btn btn-icon btn-ghost btn-sm ms-heart-sm${t.liked ? ' on' : ''}" data-like="${esc(t.id)}" aria-pressed="${t.liked}" aria-label="${t.liked ? 'Remove from' : 'Save to'} Liked Songs"><i class="${t.liked ? 'fas' : 'far'} fa-heart"></i></button>`;
   return `<div class="todo-row ms-row" data-track="${esc(t.id)}">
     ${t.thumb || t.art ? `<img src="${esc(t.thumb || t.art)}" alt="" class="ms-thumb" loading="lazy">` : '<div class="ms-thumb"></div>'}
-    <div style="flex:1;min-width:0"><span class="todo-title">${esc(t.name)}</span>${t.explicit ? ' <span class="ms-e" title="Explicit">E</span>' : ''}
+    <div class="u-flex-1 u-min-w-0"><span class="todo-title">${esc(t.name)}</span>${t.explicit ? ' <span class="ms-e" title="Explicit">E</span>' : ''}
       <div class="todo-meta">${esc(t.artist)}${t.album ? ' · ' + esc(t.album) : ''}</div></div>
     ${extra}${heart}
     <button class="btn btn-icon btn-ghost btn-sm" data-play-track="${esc(t.uri)}" aria-label="Play ${esc(t.name)}"><i class="fas fa-play"></i></button>
@@ -271,13 +271,13 @@ async function transferTo(id, play) {
 $('msDeviceBtn').addEventListener('click', async () => {
   const box = $('msDevices');
   if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
-  box.classList.remove('hidden'); box.innerHTML = '<div class="hb-loading" style="padding:.5rem"><i class="fas fa-spinner fa-spin"></i></div>';
+  box.classList.remove('hidden'); box.innerHTML = '<div class="hb-loading u-p-2"><i class="fas fa-spinner fa-spin"></i></div>';
   const res = await spPost({ action: 'devices' }).catch(e => ({ success: false, error: e.message }));
   if (!res.success) { box.innerHTML = spProblem(res); return; }
   const icon = t => ({ Computer: 'fa-laptop', Smartphone: 'fa-mobile-screen', Speaker: 'fa-volume-high', TV: 'fa-tv' }[t] || 'fa-music');
   box.innerHTML = res.devices.length ? res.devices.map(d => `<button class="ms-dev${d.active ? ' on' : ''}" role="menuitem" data-dev="${esc(d.id)}" ${d.restricted ? 'disabled title="This device can\'t be controlled"' : ''}>
       <i class="fas ${icon(d.type)}"></i> ${esc(d.name)}${d.active ? ' <small>playing</small>' : ''}</button>`).join('')
-    : '<div class="hb-empty-line" style="padding:.5rem">No devices found — open Spotify somewhere first.</div>';
+    : '<div class="hb-empty-line u-p-2">No devices found — open Spotify somewhere first.</div>';
 });
 $('msDevices').addEventListener('click', e => { const b = e.target.closest('[data-dev]'); if (b) { $('msDevices').classList.add('hidden'); transferTo(b.dataset.dev, msState?.playing); } });
 
@@ -383,10 +383,10 @@ async function loadPlaylists() {
   box.innerHTML = res.items.length ? res.items.map(p => `
     <div class="habit-card ms-pl${p.uri === current ? ' on' : ''}">
       <div class="ms-pl-top">${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy">` : '<span></span>'}
-        <div style="min-width:0"><b>${esc(p.name)}</b><small>${+p.tracks} tracks</small></div></div>
-      <div style="display:flex;gap:.5rem">
-        <button class="btn btn-primary btn-sm" style="flex:1" data-play-list="${esc(p.uri)}"><i class="fas fa-play"></i> Play</button>
-        <button class="btn btn-sm ${p.uri === current ? 'btn-primary' : 'btn-secondary'}" style="flex:1" data-focus-pl="${esc(p.uri)}" data-name="${esc(p.name)}">
+        <div class="u-min-w-0"><b>${esc(p.name)}</b><small>${+p.tracks} tracks</small></div></div>
+      <div class="u-flex u-gap-2">
+        <button class="btn btn-primary btn-sm u-flex-1" data-play-list="${esc(p.uri)}"><i class="fas fa-play"></i> Play</button>
+        <button class="btn btn-sm ${p.uri === current ? 'btn-primary' : 'btn-secondary'} u-flex-1" data-focus-pl="${esc(p.uri)}" data-name="${esc(p.name)}">
           <i class="fas ${p.uri === current ? 'fa-check' : 'fa-bullseye'}"></i> ${p.uri === current ? 'Focus' : 'Use for focus'}</button>
       </div></div>`).join('') : '<p class="hb-empty-line">No playlists found.</p>';
   updateFocusSyncStatus();
@@ -401,7 +401,7 @@ $('musicPlaylists').addEventListener('click', e => {
 function updateFocusSyncStatus() {
   const uri = localStorage.getItem(FOCUS_PLAYLIST_KEY), name = localStorage.getItem(FOCUS_PLAYLIST_KEY + '_name');
   $('focusSyncStatus').innerHTML = uri ? `<i class="fas fa-check-circle" style="color:#1db954"></i> Focus plays <strong>${esc(name || 'a playlist')}</strong>`
-    : '<span style="color:var(--muted)">No focus playlist yet.</span>';
+    : '<span class="u-c-muted">No focus playlist yet.</span>';
 }
 
 /* ── This browser as a Spotify device (desktop only; Premium) ─────── */

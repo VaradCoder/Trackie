@@ -53,61 +53,61 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
-  <h1 style="font-size:1.125rem;font-weight:600;margin:0"><i class="fas fa-gamepad" style="color:var(--accent)"></i> Gaming</h1>
-  <button class="btn btn-primary btn-sm" onclick="openAddGame()"><i class="fas fa-plus"></i> Add Game</button>
+<div class="page-header page-header-center">
+  <h1 class="page-header-title"><i class="fas fa-gamepad u-c-accent" aria-hidden="true"></i> Gaming</h1>
+  <div class="page-header-actions"><button class="btn btn-primary btn-sm" onclick="openAddGame()"><i class="fas fa-plus"></i> Add Game</button></div>
 </div>
 
-<div id="steamCardWrap" style="margin-bottom:1.5rem">
+<div id="steamCardWrap" class="u-mb-6">
 <?php if (!$steamConfigured): ?>
   <!-- No STEAM_API_KEY set — nothing to show; Settings → Integrations already explains this. -->
 <?php elseif (!$steamLink): ?>
-  <div class="card card-body" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
-    <div style="display:flex;align-items:center;gap:.75rem">
+  <div class="card card-body u-flex u-items-center u-justify-between u-gap-4 u-flex-wrap">
+    <div class="u-flex u-items-center u-gap-3">
       <i class="fa-brands fa-steam" style="font-size:1.75rem;color:#66c0f4"></i>
       <div>
-        <div style="font-weight:600;font-size:.9375rem;color:var(--text)">Connect Steam</div>
-        <div style="font-size:.8125rem;color:var(--muted)">Pull your real owned games and playtime automatically.</div>
+        <div class="u-fw-6 u-fs-15 u-c-text">Connect Steam</div>
+        <div class="u-fs-13 u-c-muted">Pull your real owned games and playtime automatically.</div>
       </div>
     </div>
     <div style="display:flex;gap:.5rem;flex:1;min-width:260px;max-width:420px">
-      <input id="steamIdInput" class="form-input" placeholder="SteamID64 or profile URL" style="flex:1">
+      <input id="steamIdInput" class="form-input u-flex-1" placeholder="SteamID64 or profile URL">
       <button class="btn btn-primary btn-sm" onclick="connectSteam()" id="steamConnectBtn"><i class="fas fa-link"></i> Connect</button>
     </div>
   </div>
 <?php else: ?>
-  <div class="card card-body" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
-    <div style="display:flex;align-items:center;gap:.75rem">
+  <div class="card card-body u-flex u-items-center u-justify-between u-gap-4 u-flex-wrap">
+    <div class="u-flex u-items-center u-gap-3">
       <i class="fa-brands fa-steam" style="font-size:1.75rem;color:#66c0f4"></i>
       <div>
-        <div style="font-weight:600;font-size:.9375rem;color:var(--text)">
+        <div class="u-fw-6 u-fs-15 u-c-text">
           Steam connected
           <?php if ($steamLink['sync_status'] === 'error'): ?>
-            <span class="badge badge-red" style="margin-left:.375rem">Sync failed</span>
+            <span class="badge badge-red u-ml-1h">Sync failed</span>
           <?php endif; ?>
         </div>
-        <div style="font-size:.8125rem;color:var(--muted)">
+        <div class="u-fs-13 u-c-muted">
           <?= $steamLink['last_sync'] ? 'Last synced ' . h(formatDate($steamLink['last_sync'])) : 'Never synced yet' ?>
           <?= $steamLink['last_error'] ? ' · ' . h($steamLink['last_error']) : '' ?>
         </div>
       </div>
     </div>
-    <div style="display:flex;gap:.5rem">
+    <div class="u-flex u-gap-2">
       <button class="btn btn-secondary btn-sm" onclick="syncSteam()" id="steamSyncBtn"><i class="fas fa-rotate"></i> Sync now</button>
-      <button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" onclick="disconnectSteam()" title="Disconnect Steam" aria-label="Disconnect Steam"><i class="fas fa-unlink"></i></button>
+      <button class="btn btn-icon btn-ghost btn-sm u-c-accent" onclick="disconnectSteam()" title="Disconnect Steam" aria-label="Disconnect Steam"><i class="fas fa-unlink"></i></button>
     </div>
   </div>
 <?php endif; ?>
 </div>
 
-<div class="grid-stats" style="margin-bottom:1.5rem" id="gamingStatsWrap">
+<div class="grid-stats u-mb-6" id="gamingStatsWrap">
   <div class="stat-card"><div class="stat-val"><?= round((float)$counts['hours'], 0) ?>h</div><div class="stat-label">Total playtime</div></div>
   <div class="stat-card"><div class="stat-val"><?= (int)$counts['played'] ?></div><div class="stat-label">Games played</div></div>
   <div class="stat-card"><div class="stat-val"><?= (int)$counts['completed'] ?></div><div class="stat-label">Completed</div></div>
   <div class="stat-card"><div class="stat-val"><?= (int)$counts['dropped'] ?></div><div class="stat-label">Dropped</div></div>
 </div>
 
-<div class="filter-tabs gm-tabs" style="margin-bottom:1.25rem" id="gamingTabs" role="tablist" aria-label="Gaming sections">
+<div class="filter-tabs gm-tabs u-mb-5" id="gamingTabs" role="tablist" aria-label="Gaming sections">
   <?php foreach ($gmTabs as $k => [$label, $emoji]): ?>
     <button class="filter-tab<?= $k === $initialTab ? ' active' : '' ?>" data-tab="<?= $k ?>" role="tab" id="gmtab-<?= $k ?>" aria-controls="gtab-<?= $k ?>"
             aria-selected="<?= $k === $initialTab ? 'true' : 'false' ?>"<?= $k === $initialTab ? '' : ' tabindex="-1"' ?>><span aria-hidden="true"><?= $emoji ?></span> <?= $label ?><span class="cd-count" data-count="<?= $k ?>" hidden></span></button>
@@ -132,7 +132,7 @@ require_once '../includes/head.php';
     <div class="modal-header"><span class="modal-title">Add Game</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="addGameModal" aria-label="Close dialog">&times;</button></div>
     <div class="modal-body">
       <p class="hb-foot" style="margin:0 0 .75rem"><?= $steamLink ? 'Steam games appear automatically — add games from consoles or other launchers here.' : 'Connect Steam above to import your library automatically, or add games by hand.' ?></p>
-      <div class="form-group"><label for="gameTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label><input id="gameTitle" class="form-input" maxlength="150" placeholder="e.g. Elden Ring"></div>
+      <div class="form-group"><label for="gameTitle" class="form-label">Title <span class="u-c-accent">*</span></label><input id="gameTitle" class="form-input" maxlength="150" placeholder="e.g. Elden Ring"></div>
       <div class="form-group"><label for="gamePlatform" class="form-label">Platform</label><input id="gamePlatform" class="form-input" maxlength="60" placeholder="e.g. PS5, Switch, Epic"></div>
       <div class="form-group">
         <label for="gameStatus" class="form-label">Status</label>
@@ -218,9 +218,9 @@ function gmCard(g, opts = {}) {
     ${gmCover(g.cover_url, 'gm-card-cover')}
     <div class="gm-card-body">
       <div class="gm-card-top">
-        <div style="min-width:0"><div class="gm-rank-title" title="${escHtml(g.title)}">${escHtml(g.title)}</div>
+        <div class="u-min-w-0"><div class="gm-rank-title" title="${escHtml(g.title)}">${escHtml(g.title)}</div>
           <div class="gm-rank-sub">${escHtml([g.platform, g.genres].filter(Boolean).join(' · ') || (g.steam_appid ? 'Steam' : ''))}</div></div>
-        ${g.steam_appid ? '' : `<button class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)" data-delete="${+g.id}" aria-label="Delete ${escHtml(g.title)}"><i class="fas fa-trash"></i></button>`}
+        ${g.steam_appid ? '' : `<button class="btn btn-icon btn-ghost btn-sm u-c-accent" data-delete="${+g.id}" aria-label="Delete ${escHtml(g.title)}"><i class="fas fa-trash"></i></button>`}
       </div>
       ${facts.length ? `<div class="gm-meta">${facts.join('')}</div>` : ''}
       ${g.ach_total > 0 ? `<div class="hb-progress" title="Achievements ${Math.round(g.ach_done / g.ach_total * 100)}%"><span style="width:${Math.min(100, g.ach_done / g.ach_total * 100)}%"></span></div>` : ''}
@@ -300,7 +300,7 @@ async function loadWrapped(year, month) {
     const card = (label, inner) => `<div class="card card-body"><div class="fit-card-label">${label}</div>${inner}</div>`;
 
     let html = `<div class="gm-wrapped-head">
-      <h2 class="hb-h2"><i class="fas fa-chart-pie" style="color:var(--accent)"></i> Gaming Wrap · ${period}</h2>
+      <h2 class="hb-h2"><i class="fas fa-chart-pie u-c-accent"></i> Gaming Wrap · ${period}</h2>
       <div class="gm-period">
         <select class="form-input gm-year" id="gmYear" aria-label="Year">${res.years.map(y => `<option value="${+y}"${y === w.year ? ' selected' : ''}>${+y}</option>`).join('')}</select>
         <select class="form-input gm-year" id="gmMonth" aria-label="Month"><option value="0">Whole year</option>${GM_MONTHS.map((m, i) =>
@@ -331,12 +331,12 @@ async function loadWrapped(year, month) {
       (w.last_played_in_year.length ? w.last_played_in_year.map(g => row(g.title, gmFmtDate(g.last_played))).join('') : '<p class="hb-empty-line">Nothing last played in this period.</p>')
       + (w.last_played_in_year_count > w.last_played_in_year.length ? `<p class="hb-foot">+${w.last_played_in_year_count - w.last_played_in_year.length} more</p>` : '')
       + '<p class="hb-foot">Steam only records the most recent time you played each game.</p>');
-    html += '</div><div class="hb-grid2" style="margin-top:1rem">';
+    html += '</div><div class="hb-grid2 u-mt-4">';
     html += card(`Completed · ${period}`, w.completed.length ? w.completed.map(g => row(g.title, gmFmtDate(g.completed_at))).join('') : '<p class="hb-empty-line">None — set a game to Completed and it counts here.</p>');
     html += card(`Dropped · ${period}`, w.dropped.length ? w.dropped.map(g => row(g.title, gmFmtDate(g.dropped_at))).join('') : '<p class="hb-empty-line">Nothing dropped.</p>');
-    html += '</div><div class="hb-grid2" style="margin-top:1rem">';
+    html += '</div><div class="hb-grid2 u-mt-4">';
     html += card('Favourite genres · by playtime, all time', w.genres.length
-      ? w.genres.map(g => `<div class="hb-row"><span>${escHtml(g.genre)}</span><div class="hb-progress" style="flex:1"><span style="width:${g.pct}%"></span></div><b>${g.pct}%</b></div>`).join('')
+      ? w.genres.map(g => `<div class="hb-row"><span>${escHtml(g.genre)}</span><div class="hb-progress u-flex-1"><span style="width:${g.pct}%"></span></div><b>${g.pct}%</b></div>`).join('')
         + `<p class="hb-foot">From Steam Store genres, covering ${w.genre_coverage}% of your hours. A game can have several genres.</p>`
       : '<p class="hb-empty-line">Genres come from the Steam Store and appear after a Steam sync.</p>');
     const a = w.achievements;
@@ -345,13 +345,13 @@ async function loadWrapped(year, month) {
       + (a.total ? row('Achievements unlocked', `${a.unlocked} / ${a.total} (${Math.round(a.unlocked / a.total * 100)}%)`) + row('Perfect games (100%)', a.perfect) : ''));
     html += '</div>';
 
-    html += `<div class="card card-body" style="margin-top:1rem"><div class="fit-card-label">Time patterns · ${period}</div>`;
+    html += `<div class="card card-body u-mt-4"><div class="fit-card-label">Time patterns · ${period}</div>`;
     if (!t.since) {
       html += `<p class="hb-empty-line">Steam doesn't keep day-by-day history, so Trackie records your playtime every time it syncs. Connect Steam to start.</p>`;
     } else if (!t.minutes) {
       html += `<p class="hb-empty-line">Tracking since ${gmFmtDate(t.since)}. No playtime was recorded in ${period}${t.sync_days ? '' : ' (no syncs in this period)'}.</p>`;
     } else {
-      html += `<p class="hb-foot" style="margin-top:0">Tracked by Trackie since ${gmFmtDate(t.since)} · ${t.sync_days} day${t.sync_days === 1 ? '' : 's'} with a sync in ${period}.</p>
+      html += `<p class="hb-foot u-mt-0">Tracked by Trackie since ${gmFmtDate(t.since)} · ${t.sync_days} day${t.sync_days === 1 ? '' : 's'} with a sync in ${period}.</p>
         <div class="grid-stats" style="margin:.75rem 0">
           <div class="stat-card"><div class="stat-val">${t.days_played}</div><div class="stat-label">Days with play</div></div>
           <div class="stat-card"><div class="stat-val">${t.best_day ? gmFmtMins(t.best_day.minutes) : '—'}</div><div class="stat-label">${t.best_day ? 'Biggest day · ' + gmFmtDate(t.best_day.date) : 'Biggest day'}</div></div>

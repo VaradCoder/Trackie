@@ -50,14 +50,14 @@ require_once '../includes/head.php';
 <div class="page-content" id="page-main">
 
 <div class="rd-head">
-  <h1><i class="fas fa-camera" style="color:var(--accent)"></i> Photography</h1>
+  <h1><i class="fas fa-camera u-c-accent"></i> Photography</h1>
   <div class="rd-head-actions">
     <button class="btn btn-secondary btn-sm" onclick="openShoot()"><i class="fas fa-calendar-plus"></i> Log shoot</button>
     <button class="btn btn-primary btn-sm" onclick="openUpload()"><i class="fas fa-upload"></i> Add photos</button>
   </div>
 </div>
 
-<div class="filter-tabs" style="margin-bottom:1.25rem" id="phTabs" role="tablist" aria-label="Photography sections">
+<div class="filter-tabs u-mb-5" id="phTabs" role="tablist" aria-label="Photography sections">
   <?php foreach ($tabs as $k => $label): ?>
     <button class="filter-tab<?= $tab === $k ? ' active' : '' ?>" data-tab="<?= $k ?>" role="tab" id="phtab-<?= $k ?>"
             aria-controls="ph-<?= $k ?>" aria-selected="<?= $tab === $k ? 'true' : 'false' ?>" <?= $tab === $k ? '' : 'tabindex="-1"' ?>><?= $label ?></button>
@@ -67,7 +67,7 @@ require_once '../includes/head.php';
 <!-- ── Overview ─────────────────────────────────────────────── -->
 <div id="ph-overview" class="ph-panel<?= $tab === 'overview' ? '' : ' hidden' ?>" role="tabpanel" aria-labelledby="phtab-overview">
 <div id="phOverviewWrap">
-  <div class="grid-stats" style="margin-bottom:1.25rem">
+  <div class="grid-stats u-mb-5">
     <div class="stat-card"><div class="stat-val"><?= $month['photos'] ?><?= $goals['photos_per_month'] ? '<small> / ' . (int)$goals['photos_per_month'] . '</small>' : '' ?></div><div class="stat-label">Photos this month</div></div>
     <div class="stat-card"><div class="stat-val"><?= phMins($month['minutes']) ?></div><div class="stat-label">Shooting time this month</div></div>
     <div class="stat-card"><div class="stat-val"><?= $month['active_projects'] ?></div><div class="stat-label">Active projects</div></div>
@@ -78,7 +78,7 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-images"></i></div>
       <div class="empty-state-title">Your photo journal is empty</div>
       <p>Add photos from your camera roll. Camera settings are read from each photo's EXIF data when it has any.</p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openUpload()"><i class="fas fa-upload"></i> Add your first photos</button>
+      <button class="btn btn-primary u-mt-3" onclick="openUpload()"><i class="fas fa-upload"></i> Add your first photos</button>
     </div></div>
   <?php else: ?>
     <div class="fit-section-head"><h2 class="hb-h2">Recent photos</h2><button class="btn btn-ghost btn-sm" onclick="switchPhTab('gallery')">View gallery</button></div>
@@ -87,7 +87,7 @@ require_once '../includes/head.php';
     </div>
   <?php endif; ?>
   <?php if ($shoots): ?>
-    <div class="fit-section-head" style="margin-top:1.25rem"><h2 class="hb-h2">Recent shoots</h2><button class="btn btn-ghost btn-sm" onclick="switchPhTab('shoots')">All shoots</button></div>
+    <div class="fit-section-head u-mt-5"><h2 class="hb-h2">Recent shoots</h2><button class="btn btn-ghost btn-sm" onclick="switchPhTab('shoots')">All shoots</button></div>
     <div class="card">
       <?php foreach (array_slice($shoots, 0, 4) as $s): ?>
         <div class="ph-shoot-row">
@@ -136,7 +136,7 @@ require_once '../includes/head.php';
       <div class="empty-state-icon"><i class="fas fa-calendar-day"></i></div>
       <div class="empty-state-title">No shoots logged</div>
       <p>Log a shoot (where, when, how long) and add its photos to it.</p>
-      <button class="btn btn-primary" style="margin-top:.75rem" onclick="openShoot()"><i class="fas fa-plus"></i> Log a shoot</button>
+      <button class="btn btn-primary u-mt-3" onclick="openShoot()"><i class="fas fa-plus"></i> Log a shoot</button>
     </div></div>
   <?php else: ?>
     <div class="ph-shoots">
@@ -212,7 +212,7 @@ require_once '../includes/head.php';
 <!-- ── Equipment ────────────────────────────────────────────── -->
 <div id="ph-gear" class="ph-panel<?= $tab === 'gear' ? '' : ' hidden' ?>" role="tabpanel" aria-labelledby="phtab-gear">
 <div id="phGearWrap">
-  <div class="card card-body" style="margin-bottom:1rem">
+  <div class="card card-body u-mb-4">
     <div class="ph-gear-form">
       <select id="gearKind" class="form-input" aria-label="Type">
         <option value="camera">Camera</option><option value="lens">Lens</option><option value="accessory">Accessory</option>
@@ -285,7 +285,7 @@ require_once '../includes/head.php';
       </div>
     <?php endforeach; ?>
   </div>
-  <div class="card card-body" style="margin-top:1rem">
+  <div class="card card-body u-mt-4">
     <div class="fit-card-label">Monthly targets</div>
     <div class="rd-goal-form">
       <div class="form-group"><label class="form-label" for="goalPhotos">Photos / month</label><input id="goalPhotos" type="number" min="1" max="10000" class="form-input" value="<?= h((string)($goals['photos_per_month'] ?? '')) ?>" placeholder="e.g. 30"></div>
@@ -313,7 +313,7 @@ require_once '../includes/head.php';
         <span><b>Choose photos</b> or drop them here</span>
         <small>JPEG, PNG or WebP · up to 20 at a time · resized to 2560px, location data removed</small>
       </label>
-      <div class="rd-form-row" style="margin-top:1rem">
+      <div class="rd-form-row u-mt-4">
         <div class="form-group"><label class="form-label" for="upShoot">Shoot</label>
           <select id="upShoot" class="form-input"><option value="">None</option>
             <?php foreach ($shoots as $s): ?><option value="<?= (int)$s['id'] ?>"><?= h($s['title']) ?></option><?php endforeach; ?></select></div>
@@ -334,7 +334,7 @@ require_once '../includes/head.php';
 <div id="photoModal" class="modal-backdrop hidden">
   <div class="modal-box ph-light">
     <div class="modal-header"><span class="modal-title" id="plTitle">Photo</span>
-      <div style="display:flex;gap:.25rem">
+      <div class="u-flex u-gap-1">
         <button class="btn btn-icon btn-ghost btn-sm" onclick="stepPhoto(-1)" aria-label="Previous photo"><i class="fas fa-chevron-left"></i></button>
         <button class="btn btn-icon btn-ghost btn-sm" onclick="stepPhoto(1)" aria-label="Next photo"><i class="fas fa-chevron-right"></i></button>
         <button class="btn btn-icon btn-ghost btn-sm" data-close-modal="photoModal" aria-label="Close dialog">&times;</button>
@@ -350,7 +350,7 @@ require_once '../includes/head.php';
     <div class="modal-header"><span class="modal-title" id="shootModalTitle">Log shoot</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="shootModal" aria-label="Close dialog">&times;</button></div>
     <div class="modal-body">
       <input type="hidden" id="shId">
-      <div class="form-group"><label for="shTitle" class="form-label">Name <span style="color:var(--accent)">*</span></label><input id="shTitle" class="form-input" maxlength="150" placeholder="e.g. Sunset shoot"></div>
+      <div class="form-group"><label for="shTitle" class="form-label">Name <span class="u-c-accent">*</span></label><input id="shTitle" class="form-input" maxlength="150" placeholder="e.g. Sunset shoot"></div>
       <div class="rd-form-row">
         <div class="form-group"><label for="shDate" class="form-label">Date</label><input id="shDate" type="date" class="form-input" max="<?= date('Y-m-d') ?>"></div>
         <div class="form-group"><label for="shDuration" class="form-label">Duration (min)</label><input id="shDuration" type="number" min="1" max="1440" class="form-input" placeholder="Optional"></div>
@@ -367,7 +367,7 @@ require_once '../includes/head.php';
       <div class="form-group"><label for="shNotes" class="form-label">Notes</label><textarea id="shNotes" class="form-input" rows="3" maxlength="1000"></textarea></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost btn-sm hidden" id="shDelete" style="color:var(--accent);margin-right:auto" onclick="deleteShoot()"><i class="fas fa-trash"></i> Delete</button>
+      <button class="btn btn-ghost btn-sm hidden u-c-accent u-mr-auto" id="shDelete" onclick="deleteShoot()"><i class="fas fa-trash"></i> Delete</button>
       <button class="btn btn-secondary btn-sm" data-close-modal="shootModal">Cancel</button>
       <button class="btn btn-primary btn-sm" onclick="saveShoot()"><i class="fas fa-save"></i> Save</button>
     </div>
@@ -380,13 +380,13 @@ require_once '../includes/head.php';
     <div class="modal-header"><span class="modal-title" id="projectModalTitle">New project</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="projectModal" aria-label="Close dialog">&times;</button></div>
     <div class="modal-body">
       <input type="hidden" id="prId">
-      <div class="form-group"><label for="prName" class="form-label">Name <span style="color:var(--accent)">*</span></label><input id="prName" class="form-input" maxlength="120" placeholder="e.g. Street portraits"></div>
+      <div class="form-group"><label for="prName" class="form-label">Name <span class="u-c-accent">*</span></label><input id="prName" class="form-input" maxlength="120" placeholder="e.g. Street portraits"></div>
       <div class="form-group"><label for="prDesc" class="form-label">Description</label><textarea id="prDesc" class="form-input" rows="3" maxlength="500"></textarea></div>
       <div class="form-group"><label for="prStatus" class="form-label">Status</label>
         <select id="prStatus" class="form-input"><option value="active">Active</option><option value="done">Done</option></select></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost btn-sm hidden" id="prDelete" style="color:var(--accent);margin-right:auto" onclick="deleteProject()"><i class="fas fa-trash"></i> Delete</button>
+      <button class="btn btn-ghost btn-sm hidden u-c-accent u-mr-auto" id="prDelete" onclick="deleteProject()"><i class="fas fa-trash"></i> Delete</button>
       <button class="btn btn-secondary btn-sm" data-close-modal="projectModal">Cancel</button>
       <button class="btn btn-primary btn-sm" onclick="saveProject()"><i class="fas fa-save"></i> Save</button>
     </div>
@@ -498,9 +498,9 @@ async function openPhoto(id) {
   body.innerHTML = '<div class="hb-loading"><i class="fas fa-spinner fa-spin"></i></div>';
   try {
     const res = await phPost({ action: 'photo_get', photo_id: id });
-    if (!res.success) { body.innerHTML = `<p class="hb-error" style="padding:1rem">${escHtml(res.error || 'Not found.')}</p>`; return; }
+    if (!res.success) { body.innerHTML = `<p class="hb-error u-p-4">${escHtml(res.error || 'Not found.')}</p>`; return; }
     renderPhoto(res.photo);
-  } catch { body.innerHTML = '<p class="hb-error" style="padding:1rem">Network error.</p>'; }
+  } catch { body.innerHTML = '<p class="hb-error u-p-4">Network error.</p>'; }
 }
 function renderPhoto(p) {
   const d = phData();
@@ -528,9 +528,9 @@ function renderPhoto(p) {
       </div>
       <div class="fit-card-label">Camera data</div>
       <dl class="ph-exif">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v !== null && v !== undefined && v !== '' ? escHtml(String(v)) : na}</dd>`).join('')}</dl>
-      <p class="hb-foot" style="margin-top:.25rem">${p.exif_source ? 'Read from the photo\'s EXIF data.' : 'This photo had no EXIF data — nothing is filled in by guesswork.'}
+      <p class="hb-foot u-mt-1">${p.exif_source ? 'Read from the photo\'s EXIF data.' : 'This photo had no EXIF data — nothing is filled in by guesswork.'}
         Added ${escHtml(new Date(p.created_at.replace(' ', 'T')).toLocaleDateString())}${p.width ? ` · ${+p.width}×${+p.height}` : ''}.</p>
-      <div class="fit-card-label" style="margin-top:1rem">Details</div>
+      <div class="fit-card-label u-mt-4">Details</div>
       <div class="form-group"><label class="form-label" for="plT">Title</label><input id="plT" class="form-input" maxlength="150" value="${escHtml(p.title || '')}"></div>
       <div class="form-group"><label class="form-label" for="plC">Caption</label><textarea id="plC" class="form-input" rows="2" maxlength="1000">${escHtml(p.caption || '')}</textarea></div>
       <div class="rd-form-row">
@@ -540,7 +540,7 @@ function renderPhoto(p) {
       <div class="ph-light-actions">
         <button class="btn btn-primary btn-sm" onclick="savePhotoDetails(${+p.id})"><i class="fas fa-save"></i> Save</button>
         <a class="btn btn-ghost btn-sm" href="${PH_FILE}?id=${+p.id}" target="_blank" rel="noopener" data-no-spa><i class="fas fa-up-right-from-square"></i> Full size</a>
-        <button class="btn btn-ghost btn-sm" style="color:var(--accent);margin-left:auto" onclick="deletePhoto(${+p.id})"><i class="fas fa-trash"></i> Delete</button>
+        <button class="btn btn-ghost btn-sm u-c-accent u-ml-auto" onclick="deletePhoto(${+p.id})"><i class="fas fa-trash"></i> Delete</button>
       </div>
     </div>`;
 }
@@ -748,8 +748,8 @@ async function loadPhStats(year) {
     const list = (title, rows) => `<div class="card card-body"><div class="fit-card-label">${title}</div>
       ${rows.length ? rows.map(r => `<div class="hb-row"><span>${escHtml(String(r.v))}</span><b>${+r.n}</b></div>`).join('') : '<p class="hb-empty-line">No EXIF data yet.</p>'}</div>`;
     el.innerHTML = `<div class="rd-stats-head"><h2 class="hb-h2">Photography in ${+s.year}</h2>
-      ${s.years.length > 1 ? `<select id="phYear" class="form-input" style="width:auto" aria-label="Year">${s.years.map(y => `<option${y === s.year ? ' selected' : ''}>${+y}</option>`).join('')}</select>` : ''}</div>
-      <div class="grid-stats" style="margin-bottom:1rem">
+      ${s.years.length > 1 ? `<select id="phYear" class="form-input u-w-auto" aria-label="Year">${s.years.map(y => `<option${y === s.year ? ' selected' : ''}>${+y}</option>`).join('')}</select>` : ''}</div>
+      <div class="grid-stats u-mb-4">
         <div class="stat-card"><div class="stat-val">${t.photos}</div><div class="stat-label">Photos in ${+s.year}</div></div>
         <div class="stat-card"><div class="stat-val">${t.shoots}</div><div class="stat-label">Shoots</div></div>
         <div class="stat-card"><div class="stat-val">${phMins(t.minutes)}</div><div class="stat-label">Shooting time (logged)</div></div>
@@ -759,7 +759,7 @@ async function loadPhStats(year) {
         <div class="card card-body"><div class="fit-card-label">Photos per month</div>${bars('photos', x => x + ' photos')}</div>
         <div class="card card-body"><div class="fit-card-label">Shoots per month</div>${bars('shoots', x => x + ' shoots')}</div>
       </div>
-      <div class="rd-stats-head" style="margin-top:1.25rem"><h2 class="hb-h2">Your camera data · all time</h2>
+      <div class="rd-stats-head u-mt-5"><h2 class="hb-h2">Your camera data · all time</h2>
         <span class="rd-author">${t.with_exif} of ${t.all_photos} photos have EXIF data</span></div>
       <div class="ph-stat-grid">
         ${list('Cameras', s.cameras)}${list('Lenses', s.lenses)}${list('Focal lengths', s.focal)}

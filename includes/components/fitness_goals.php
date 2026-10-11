@@ -42,11 +42,11 @@ $fitGoalExercises = array_column(fetchAll(
       <input id="goalDeadline" type="date" class="form-input" min="<?= date('Y-m-d') ?>">
     </div>
   </div>
-  <div style="display:flex;gap:.5rem;justify-content:flex-end">
+  <div class="u-flex u-gap-2 u-justify-end">
     <button type="button" class="btn btn-secondary btn-sm" id="goalCancel">Cancel</button>
     <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-bullseye"></i> Save goal</button>
   </div>
 </form>
 
 <div id="goalsList" class="fit-goals" aria-live="polite"><p class="form-hint">Loading your goals…</p></div>
-<p class="form-hint" style="margin-top:.75rem">Progress is calculated from your logged workouts, so it updates by itself. Reaching a goal earns +50 XP.</p>
+<p class="form-hint u-mt-3">Progress is calculated from your logged workouts, so it updates by itself. Reaching a goal earns +50 XP.</p>

@@ -64,7 +64,7 @@ if ($featuredGoal) {
       <div class="challenge-goal-name"><?= h($featuredGoal['goal_name']) ?></div>
 
       <?php if ($featuredGoal['description']): ?>
-        <div style="font-size:.8125rem;color:var(--muted);margin-bottom:.75rem">
+        <div class="u-fs-13 u-c-muted u-mb-3">
           <?= h($featuredGoal['description']) ?>
         </div>
       <?php endif; ?>

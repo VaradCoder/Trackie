@@ -100,17 +100,17 @@ require_once '../includes/head.php';
 <div id="studyListWrap">
 <!-- Today's progress -->
 <?php if ($todayTotal > 0): ?>
-  <div style="margin-bottom:1.25rem">
-    <div style="display:flex;justify-content:space-between;font-size:.875rem;margin-bottom:.375rem">
-      <span style="color:var(--muted)">Today's progress <span style="font-weight:600;color:var(--text)"><?= $todayDone ?>/<?= $todayTotal ?></span></span>
-      <span style="font-weight:600"><?= $todayPct ?>%</span>
+  <div class="u-mb-5">
+    <div class="u-flex u-justify-between u-fs-14 u-mb-1h">
+      <span class="u-c-muted">Today's progress <span class="u-fw-6 u-c-text"><?= $todayDone ?>/<?= $todayTotal ?></span></span>
+      <span class="u-fw-6"><?= $todayPct ?>%</span>
     </div>
     <div class="progress-track"><div class="progress-fill <?= $todayPct>=100?'green':'' ?>" style="width:<?= $todayPct ?>%"></div></div>
   </div>
 <?php endif; ?>
 
 <!-- Filters — all dimensions preserved -->
-<div style="margin-bottom:var(--sp-4);display:flex;flex-wrap:wrap;gap:.625rem;align-items:center">
+<div class="u-mb-4 u-flex u-flex-wrap u-gap-2h u-items-center">
   <div class="filter-tabs">
     <?php
     $typeLabels = ['all'=>'All','study'=>'Study','homework'=>'HW','practice'=>'Practice',
@@ -121,7 +121,7 @@ require_once '../includes/head.php';
   </div>
 
   <?php if ($subjects): ?>
-    <select class="form-input" style="font-size:.8125rem;width:auto"
+    <select class="form-input u-fs-13 u-w-auto"
             onchange="Trackie.SpaNav.swap('<?= filterHref([]) ?>&subject='+this.value, true)">
       <option value="all" <?= $subjectFilter==='all'?'selected':'' ?>>All subjects</option>
       <?php foreach ($subjects as $s): ?>
@@ -130,7 +130,7 @@ require_once '../includes/head.php';
     </select>
   <?php endif; ?>
 
-  <select class="form-input" style="font-size:.8125rem;width:auto"
+  <select class="form-input u-fs-13 u-w-auto"
           onchange="Trackie.SpaNav.swap('<?= filterHref([]) ?>&priority='+this.value, true)">
     <option value="all" <?= $priorityFilter==='all'?'selected':'' ?>>All priorities</option>
     <option value="high"   <?= $priorityFilter==='high'  ?'selected':'' ?>>High</option>
@@ -154,17 +154,17 @@ function renderTaskList(array $tasks, string $apiBase, string $today): void {
           <input type="checkbox" class="todo-check"
                  <?= $t['completed']?'checked':'' ?>
                  onchange="toggleStudy(<?= $t['id'] ?>, this.checked, this)">
-          <div style="flex:1;min-width:0">
+          <div class="u-flex-1 u-min-w-0">
             <div class="todo-title"><?= h($t['title']) ?></div>
-            <div class="todo-meta" style="margin-top:var(--sp-1)">
+            <div class="todo-meta u-mt-1">
               <span class="badge badge-<?= $tc ?>"><?= ucfirst($t['type']) ?></span>
               <span class="badge badge-<?= $pc ?>"><?= ucfirst($t['priority']) ?></span>
-              <?php if ($t['subject']): ?><span><i class="fas fa-book" style="font-size:.7rem"></i> <?= h($t['subject']) ?></span><?php endif; ?>
-              <?php if ($t['due_date'] && $t['due_date'] !== $today): ?><span><i class="fas fa-calendar" style="font-size:.7rem"></i> <?= htmlspecialchars(date('M j',strtotime($t['due_date']))) ?></span><?php endif; ?>
+              <?php if ($t['subject']): ?><span><i class="fas fa-book u-fs-11-2"></i> <?= h($t['subject']) ?></span><?php endif; ?>
+              <?php if ($t['due_date'] && $t['due_date'] !== $today): ?><span><i class="fas fa-calendar u-fs-11-2"></i> <?= htmlspecialchars(date('M j',strtotime($t['due_date']))) ?></span><?php endif; ?>
             </div>
           </div>
           <button class="btn btn-icon btn-ghost btn-sm" onclick="openEditStudy(<?= $t['id'] ?>)" aria-label="Edit task" title="Edit"><i class="fas fa-pen"></i></button>
-                <button aria-label="Delete task" class="btn btn-icon btn-ghost btn-sm" style="color:var(--accent)"
+                <button aria-label="Delete task" class="btn btn-icon btn-ghost btn-sm u-c-accent"
                   onclick="deleteStudy(<?= $t['id'] ?>)">
             <i class="fas fa-trash"></i>
           </button>
@@ -188,7 +188,7 @@ $studyFiltered = $typeFilter !== 'all' || $subjectFilter !== 'all' || $priorityF
         <div class="empty-state-title">Plan your next study session</div>
         <p>Add a task — a chapter to revise, an assignment, a topic to practice.</p>
       <?php endif; ?>
-      <button class="btn btn-primary" style="margin-top:var(--sp-3)" onclick="openNewStudy()">
+      <button class="btn btn-primary u-mt-3" onclick="openNewStudy()">
         <i class="fas fa-plus"></i> Add a study task
       </button>
     </div>
@@ -202,10 +202,10 @@ $studyFiltered = $typeFilter !== 'all' || $subjectFilter !== 'all' || $priorityF
     ['label'=>'Past',         'items'=>$pastTasks],
   ] as $section):
     if (empty($section['items'])) continue; ?>
-    <div style="margin-bottom:var(--sp-5)">
+    <div class="u-mb-6">
       <div style="font-size:.8125rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.625rem">
         <?= $section['label'] ?>
-        <span class="badge badge-gray" style="margin-left:.375rem"><?= count($section['items']) ?></span>
+        <span class="badge badge-gray u-ml-1h"><?= count($section['items']) ?></span>
       </div>
       <div class="card">
         <?php renderTaskList(array_values($section['items']), APP_BASE . '/api', $today); ?>
@@ -225,7 +225,7 @@ $studyFiltered = $typeFilter !== 'all' || $subjectFilter !== 'all' || $priorityF
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label for="studyTitle" class="form-label">Title <span style="color:var(--accent)">*</span></label>
+        <label for="studyTitle" class="form-label">Title <span class="u-c-accent">*</span></label>
         <input type="hidden" id="studyId">
         <input id="studyTitle" class="form-input" placeholder="Task title">
       </div>

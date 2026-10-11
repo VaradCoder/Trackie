@@ -94,7 +94,7 @@ require_once '../includes/head.php';
 ]) ?>
 
 <!-- Month progress stat row -->
-<div class="grid-stats" style="margin-bottom:var(--sp-4)">
+<div class="grid-stats u-mb-4">
   <?= renderStatCard((string)$monthTotal, 'Total tasks', 'fa-list-check', 'var(--info)') ?>
   <?= renderStatCard((string)$monthCompleted, 'Completed', 'fa-circle-check', 'var(--ok)') ?>
   <?= renderStatCard((string)$monthOverdue, 'Overdue', 'fa-triangle-exclamation', 'var(--accent)') ?>
@@ -102,7 +102,7 @@ require_once '../includes/head.php';
 </div>
 
 <!-- View toggle: Schedule (calendar grid) vs Board (Planner buckets) -->
-<div class="filter-tabs" style="margin-bottom:var(--sp-4)" role="tablist">
+<div class="filter-tabs u-mb-4" role="tablist">
   <button class="filter-tab active" data-view="schedule" onclick="switchCalView('schedule')" role="tab" aria-selected="true">
     <i class="fas fa-calendar-days"></i> Schedule
   </button>
@@ -252,10 +252,10 @@ function openDayDetail(dateStr) {
       ? `<input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleCalendarTask(${+t.id}, '${t.source === 'study' ? 'study' : 'todo'}', this.checked)">`
       : `<i class="fas ${src.icon}" style="color:${src.color};width:16px;text-align:center"></i>`;
     return `<div class="cal-board-check" style="padding:var(--sp-2) 0;border-bottom:1px solid var(--border)">${lead}
-      <span style="flex:1;${done}">${title}<small style="display:block;color:var(--muted);font-size:.7rem">${escHtml(src.label)}</small></span>
+      <span style="flex:1;${done}">${title}<small class="u-block u-c-muted u-fs-11-2">${escHtml(src.label)}</small></span>
       ${link ? `<a href="${escHtml(link)}" class="btn btn-ghost btn-sm" ${link.startsWith('http') ? 'target="_blank" rel="noopener"' : ''} aria-label="Open"><i class="fas fa-arrow-right"></i></a>` : ''}</div>`;
   }).join('');
-  html += `<div style="display:flex;gap:.5rem;margin-top:.75rem"><input id="calQuickTitle" class="form-input" placeholder="Add a todo for this day…" maxlength="150"
+  html += `<div class="u-flex u-gap-2 u-mt-3"><input id="calQuickTitle" class="form-input" placeholder="Add a todo for this day…" maxlength="150"
     onkeydown="if(event.key==='Enter')calQuickAdd()"><button class="btn btn-primary btn-sm" onclick="calQuickAdd()" aria-label="Add todo"><i class="fas fa-plus"></i></button></div>`;
   document.getElementById('dayDetailBody').innerHTML = html;
   document.getElementById('dayDetailModal').classList.remove('hidden');

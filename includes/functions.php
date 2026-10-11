@@ -871,7 +871,7 @@ function renderSetupNeeded(string $moduleName): void {
         <div class="empty-state-title"><?= h($moduleName) ?> needs a quick setup</div>
         <p>The database tables for this module aren't created yet.<br>
            Run the one-click setup to add them — your existing data is untouched.</p>
-        <a href="<?= APP_BASE ?>/pages/setup.php" class="btn btn-primary" style="margin-top:.75rem">
+        <a href="<?= APP_BASE ?>/pages/setup.php" class="btn btn-primary u-mt-3">
           <i class="fas fa-bolt"></i> Run database setup
         </a>
       </div></div>
@@ -953,7 +953,7 @@ function renderPageHeader(string $title, array $opts = []): string {
     $icon    = $opts['icon']    ?? '';
     $sub     = $opts['sub']     ?? '';
     $actions = $opts['actions'] ?? '';
-    $iconHtml = $icon ? '<i class="fas ' . h($icon) . '" style="color:var(--accent)"></i> ' : '';
+    $iconHtml = $icon ? '<i class="fas ' . h($icon) . ' u-c-accent"></i> ' : '';
     $subHtml  = $sub ? '<p class="page-header-sub">' . h($sub) . '</p>' : '';
     return
         '<div class="page-header">'
@@ -991,7 +991,7 @@ function renderEmptyState(string $icon, string $title, string $text = '', string
       .   '<div class="empty-state-icon"><i class="fas ' . h($icon) . '"></i></div>'
       .   '<div class="empty-state-title">' . h($title) . '</div>'
       .   ($text ? '<p>' . h($text) . '</p>' : '')
-      .   ($actionHtml ? '<div style="margin-top:.75rem">' . $actionHtml . '</div>' : '')
+      .   ($actionHtml ? '<div class="u-mt-3">' . $actionHtml . '</div>' : '')
       . '</div>';
 }
 
