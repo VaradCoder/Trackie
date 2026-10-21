@@ -98,7 +98,7 @@ switch ($action) {
         $sent = sendPushToUser($uid, [
             'title' => 'Trackie',
             'body'  => 'Push notifications are working. 🎉',
-            'url'   => APP_BASE . '/pages/dashboard.php',
+            'url'   => APP_BASE . HOME_PATH,
         ]);
         json_out(['success' => true, 'sent' => $sent]);
     }

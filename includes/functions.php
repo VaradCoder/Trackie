@@ -635,18 +635,20 @@ function navTree(): array {
 
     $tree = [];
 
+    // Today is home: one list of everything due, finished with one tap.
+    // (The old dashboard lives on as "Overview" under Progress.)
     $tree[] = ['key' => 'home', 'heading' => null, 'items' => [
-        ['page' => 'dashboard', 'href' => 'dashboard.php', 'icon' => 'fa-gauge', 'label' => 'Dashboard', 'primary' => true, 'short' => 'Home'],
+        ['page' => 'today', 'href' => 'today.php', 'icon' => 'fa-sun', 'label' => 'Today', 'primary' => true],
     ]];
 
     // "Plan" — everything about deciding/tracking what to do (was "Productivity").
+    // Bottom bar on phones: Today · Tasks · [+] · Habits · Plan.
     $tree[] = ['key' => 'plan', 'heading' => 'Plan', 'items' => [
-        ['page' => 'today',      'href' => 'today.php',      'icon' => 'fa-sun',          'label' => 'Today',      'primary' => true],
         ['page' => 'todos',      'href' => 'todos.php',      'icon' => 'fa-check-square', 'label' => 'Todos',      'primary' => true, 'short' => 'Tasks'],
-        ['page' => 'habits',     'href' => 'habits.php',     'icon' => 'fa-heart',        'label' => 'Habits'],
+        ['page' => 'habits',     'href' => 'habits.php',     'icon' => 'fa-heart',        'label' => 'Habits',     'primary' => true],
         ['page' => 'goals',      'href' => 'goals.php',      'icon' => 'fa-bullseye',     'label' => 'Goals'],
         ['page' => 'routines',   'href' => 'routines.php',   'icon' => 'fa-clock',        'label' => 'Routines'],
-        ['page' => 'calendar',   'href' => 'calendar.php',   'icon' => 'fa-calendar',     'label' => 'Calendar',   'primary' => true],
+        ['page' => 'calendar',   'href' => 'calendar.php',   'icon' => 'fa-calendar',     'label' => 'Calendar',   'primary' => true, 'short' => 'Plan'],
         ['page' => 'study_plan', 'href' => 'study_plan.php', 'icon' => 'fa-book-open',    'label' => 'Study Plan'],
         ['page' => 'focus',      'href' => 'focus.php',      'icon' => 'fa-stopwatch',    'label' => 'Focus'],
         ['page' => 'reminders',  'href' => 'reminders.php',  'icon' => 'fa-bell',         'label' => 'Reminders'],
@@ -700,6 +702,7 @@ function navTree(): array {
 
     // "Progress" — how you're doing overall (was "Insights").
     $tree[] = ['key' => 'progress', 'heading' => 'Progress', 'items' => [
+        ['page' => 'dashboard', 'href' => 'dashboard.php', 'icon' => 'fa-gauge',     'label' => 'Overview'],
         ['page' => 'analytics', 'href' => 'analytics.php', 'icon' => 'fa-chart-bar', 'label' => 'Analytics'],
         ['page' => 'progress',  'href' => 'progress.php',  'icon' => 'fa-trophy',    'label' => 'Progress'],
         ['page' => 'review',    'href' => 'review.php',    'icon' => 'fa-calendar-week', 'label' => 'Weekly Review'],

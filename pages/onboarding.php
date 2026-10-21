@@ -13,7 +13,7 @@ $user = fetchOne("SELECT name, hobbies, onboarding_completed_at FROM users WHERE
 // (Settings → Getting started links here with ?again=1).
 $again = isset($_GET['again']);
 if ($user['onboarding_completed_at'] && !$again) {
-    redirect(APP_BASE . '/pages/dashboard.php');
+    redirect(APP_BASE . HOME_PATH);
 }
 // A redo starts from what the user already has, so finishing it never
 // silently drops hobbies they had picked before.
@@ -377,6 +377,6 @@ async function obSkipAll() {
 
 function obFinish() {
   Trackie.PageSkeleton?.show();
-  location.href = `<?= APP_BASE ?>/pages/dashboard.php?onboarded=1`;
+  location.href = `<?= APP_BASE . HOME_PATH ?>?onboarded=1`;
 }
 </script>

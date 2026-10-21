@@ -54,7 +54,7 @@ if (isset($_GET['handoff'])) {
     $user = fetchOne("SELECT id, name, email, profile_pic, is_admin, onboarding_completed_at FROM users WHERE id=?", [$uid]);
     if (!$user) $fail('login', 'Account not found.');
     loginUser($user, true);
-    redirect(APP_BASE . ($user['onboarding_completed_at'] ? '/pages/dashboard.php' : '/pages/onboarding.php'));
+    redirect(APP_BASE . ($user['onboarding_completed_at'] ? HOME_PATH : '/pages/onboarding.php'));
 }
 
 /* ── Step 1: send the person to Google ─────────────────────────────── */
@@ -63,7 +63,7 @@ if (!isset($_GET['code']) && !isset($_GET['error'])) {
     $app  = !empty($_GET['app']) && $mode === 'login';
     if ($mode !== 'login') requireAuth();
     if ($mode !== 'connect' && !identitiesReady()) $fail($mode, 'Google sign-in needs the latest database update.');
-    if ($mode === 'login' && !$app && tryRememberLogin()) redirect(APP_BASE . '/pages/dashboard.php');
+    if ($mode === 'login' && !$app && tryRememberLogin()) redirect(APP_BASE . HOME_PATH);
 
     $state = generateToken(16);
     $_SESSION['google_oauth'] = ['state' => $state, 'mode' => $mode, 'app' => $app, 'at' => time()];
@@ -143,7 +143,7 @@ a{display:inline-block;margin-top:1rem;padding:.875rem 1.5rem;border-radius:12px
     loginUser($user, true);
     if (!empty($res['created'])) redirect(APP_BASE . '/pages/onboarding.php');
     if (!empty($res['linked'])) flash('success', 'Google is now linked to your Trackie account.');
-    redirect(APP_BASE . '/pages/dashboard.php');
+    redirect(APP_BASE . HOME_PATH);
 }
 
 /* Calendar + Tasks connection (existing flow) */

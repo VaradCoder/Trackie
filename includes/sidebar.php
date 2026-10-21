@@ -49,7 +49,7 @@ $sb_pic = ($sb_pic && file_exists(ROOT_PATH . '/' . $sb_pic))
 
 <aside id="sidebar" class="sidebar">
   <!-- Brand -->
-  <a href="<?= APP_BASE ?>/pages/dashboard.php" class="sidebar-brand">
+  <a href="<?= APP_BASE . HOME_PATH ?>" class="sidebar-brand">
     <img src="<?= APP_BASE ?>/assets/images/logo.png" alt="" class="sidebar-brand-logo"
          width="28" height="28" decoding="async">
     <span class="sidebar-brand-name">Trackie</span>

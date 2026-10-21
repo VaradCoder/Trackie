@@ -6,7 +6,7 @@ require_once 'includes/auth.php';
 
 // Signed in (or restorable from remember-me) → straight to the app.
 if (tryRememberLogin()) {
-    redirect(APP_BASE . '/pages/dashboard.php');
+    redirect(APP_BASE . HOME_PATH);
 }
 
 // Everyone else gets the public landing page. Everything listed here exists

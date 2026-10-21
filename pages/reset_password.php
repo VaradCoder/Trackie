@@ -3,7 +3,7 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
-if (isLoggedIn()) redirect(APP_BASE . '/pages/dashboard.php');
+if (isLoggedIn()) redirect(APP_BASE . HOME_PATH);
 
 $token     = sanitizeInput($_GET['token'] ?? '');
 $tokenHash = $token ? hash('sha256', $token) : '';

@@ -66,7 +66,7 @@ if (in_array($action, ['sync', 'set_fcm', 'unregister', 'resume'], true)) {
             if (!$user) json_out(['success' => false, 'auth' => false, 'error' => 'Account not found.'], 401);
             if (isLoggedIn() && currentUserId() !== $uid) json_out(['success' => false, 'error' => 'Signed in as someone else.'], 409);
             if (!isLoggedIn()) loginUser($user, true);
-            json_out(['success' => true, 'redirect' => APP_BASE . '/pages/dashboard.php']);
+            json_out(['success' => true, 'redirect' => APP_BASE . HOME_PATH]);
     }
 }
 

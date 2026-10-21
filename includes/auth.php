@@ -20,7 +20,7 @@ function requireAdmin(): void {
     if (!isAdmin()) {
         http_response_code(403);
         flash('error', 'Admins only.');
-        redirect(APP_BASE . '/pages/dashboard.php');
+        redirect(APP_BASE . HOME_PATH);
     }
 }
 

@@ -36,7 +36,7 @@ require_once '../includes/head.php';
     <img class="dl-icon" src="<?= APP_BASE ?>/assets/images/icon-192.png" alt="" width="88" height="88">
     <h1>You're already using the app</h1>
     <p class="lp-lead">This is Trackie for Android <span id="dlInAppVer"></span>. New versions are offered automatically, so there's nothing to download here.</p>
-    <div class="lp-cta"><a href="<?= APP_BASE ?>/pages/dashboard.php" class="btn btn-primary">Back to Trackie</a></div>
+    <div class="lp-cta"><a href="<?= APP_BASE . HOME_PATH ?>" class="btn btn-primary">Back to Trackie</a></div>
   </section>
 
   <section class="dl-hero" id="dlMain">

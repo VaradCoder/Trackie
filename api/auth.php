@@ -11,7 +11,7 @@ require_once '../includes/auth.php';
 verify_csrf();
 
 $action  = sanitizeInput($_POST['action'] ?? '');
-$dashUrl = APP_BASE . '/pages/dashboard.php';
+$dashUrl = APP_BASE . HOME_PATH;
 
 // Already authenticated? Just send them in.
 if (isLoggedIn()) json_out(['success' => true, 'redirect' => $dashUrl]);

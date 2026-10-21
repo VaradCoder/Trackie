@@ -3,7 +3,7 @@
   "short_name": "Trackie",
   "id": "pages/dashboard.php",
   "description": "Habits, todos, goals, focus, fitness, finance and every hobby — with streaks, XP, a calendar and a weekly review.",
-  "start_url": "pages/dashboard.php",
+  "start_url": "pages/today.php",
   "scope": "./",
   "display": "standalone",
   "display_override": [

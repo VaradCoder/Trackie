@@ -182,6 +182,10 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
+<?php if (($_GET['onboarded'] ?? '') === '1'): ?>
+  <?= renderInsight("You're set up! Type your first task below — try “gym tomorrow 7am” — and tick things off as you go.", 'fa-champagne-glasses') ?>
+<?php endif; ?>
+
 <div id="todayBoard" class="td-page<?= $total && $doneN === $total ? ' is-clear' : '' ?>"
      data-today="<?= h($today) ?>" data-chrono="<?= h(assetUrl('assets/vendor/chrono.min.js')) ?>">
 

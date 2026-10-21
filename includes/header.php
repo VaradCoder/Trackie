@@ -23,7 +23,7 @@ try {
   </button>
 
   <!-- Brand logo (links home; brand is hidden while sidebar is closed) -->
-  <a href="<?= APP_BASE ?>/pages/dashboard.php" class="topbar-brand" aria-label="Trackie home">
+  <a href="<?= APP_BASE . HOME_PATH ?>" class="topbar-brand" aria-label="Trackie home">
     <img src="<?= APP_BASE ?>/assets/images/logo.png" alt="Trackie logo"
          width="32" height="32" decoding="async">
   </a>
