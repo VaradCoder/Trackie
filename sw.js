@@ -8,7 +8,7 @@
  * Scope is derived from the SW's own location, so it works whether the app
  * is served from "/" (live) or "/Trackie/" (local) without edits.
  */
-const VERSION = 'trackie-v9';   // bumped: pages.css joins the precache
+const VERSION = 'trackie-v10';  // bumped: form posts go URL-encoded (host 403s multipart)
 const STATIC  = `static-${VERSION}`;
 const RUNTIME = `runtime-${VERSION}`;
 const PAGES   = `pages-${VERSION}`;   // last-seen HTML pages for offline viewing

@@ -121,7 +121,7 @@
 
   // Session-authenticated call (signed-in page).
   function postSession(url, fields) {
-    var body = new FormData();
+    var body = new URLSearchParams();   // not multipart: the live host 403s multipart POSTs
     Object.keys(fields).forEach(function (k) { body.append(k, fields[k]); });
     body.append('csrf_token', csrf());
     return fetch(base() + url, { method: 'POST', body: body, credentials: 'same-origin',

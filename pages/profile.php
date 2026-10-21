@@ -317,7 +317,9 @@ document.getElementById('profileForm').addEventListener('submit', async function
     const res = await fetch(`${API_BASE}/profile.php`, {
       method: 'POST',
       headers: { 'X-CSRF-TOKEN': fd.get('csrf_token'), 'X-Requested-With': 'XMLHttpRequest' },
-      body: fd
+      // No new avatar → send URL-encoded: the live host 403s multipart POSTs.
+      body: (() => { const p = fd.get('profile_pic'); if (p instanceof Blob && !p.size) fd.delete('profile_pic');
+                     return [...fd.values()].some(v => v instanceof Blob) ? fd : new URLSearchParams(fd); })()
     });
     const data = await res.json();
     if (data.success) {

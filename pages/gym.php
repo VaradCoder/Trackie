@@ -1686,7 +1686,7 @@ async function savePlan() {
     const res = await fetch(`${API_BASE}/gym.php`, {
       method: 'POST',
       headers: { 'X-CSRF-TOKEN': fd.get('csrf_token'), 'X-Requested-With': 'XMLHttpRequest' },
-      body: fd
+      body: new URLSearchParams(fd)   // not multipart: the live host 403s multipart POSTs
     }).then(r => r.json());
     if (res.success) {
       Trackie.Toast.success(editId ? 'Plan updated!' : 'Plan created!');

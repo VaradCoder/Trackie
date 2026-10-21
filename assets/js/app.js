@@ -539,6 +539,12 @@ const API = (() => {
 
   async function request(url, options = {}) {
     const { quiet, timeout, ...fetchOpts } = options;
+    // The live host (InfinityFree) answers every multipart/form-data POST with
+    // an nginx 403 before PHP runs. Form data without files goes URL-encoded
+    // (PHP fills $_POST the same way); only real file uploads stay multipart.
+    if (fetchOpts.body instanceof FormData && ![...fetchOpts.body.values()].some(v => v instanceof Blob)) {
+      fetchOpts.body = new URLSearchParams(fetchOpts.body);
+    }
     const isForm = fetchOpts.body instanceof FormData;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeout || (isForm ? UPLOAD_TIMEOUT_MS : TIMEOUT_MS));
@@ -548,7 +554,7 @@ const API = (() => {
       'X-Requested-With': 'XMLHttpRequest',
       ...fetchOpts.headers,
     };
-    if (!isForm && typeof fetchOpts.body === 'object' && fetchOpts.body !== null) {
+    if (!isForm && typeof fetchOpts.body === 'object' && fetchOpts.body !== null && !(fetchOpts.body instanceof URLSearchParams)) {
       fetchOpts.body = JSON.stringify(fetchOpts.body);
       headers['Content-Type'] = 'application/json';
     }

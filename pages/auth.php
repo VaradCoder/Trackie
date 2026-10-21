@@ -205,7 +205,8 @@ require_once '../includes/head.php';
     body.append('action', action);
     body.append('csrf_token', csrf);
     try {
-      const res = await fetch(API, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body });
+      // URL-encoded, not multipart: the live host 403s multipart POSTs.
+      const res = await fetch(API, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: new URLSearchParams(body) });
       const data = await res.json();
       if (data.success) {
         btn.innerHTML = '<i class="fas fa-check"></i> ' + (data.welcome ? 'Welcome to Trackie!' : 'Signed in!');
