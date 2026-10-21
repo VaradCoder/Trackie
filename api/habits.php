@@ -10,6 +10,21 @@ verify_csrf();
 $uid    = currentUserId();
 $action = sanitizeInput($_POST['action'] ?? '');
 
+/**
+ * The day a log/unlog is for: a real date, not in the future, within the
+ * last year. Unvalidated, a future date was accepted — and every date earns
+ * its own XP (activity key 'log:<date>'), so XP could be minted by logging
+ * days that haven't happened.
+ */
+function habitLogDate(): string {
+    $d = (string)($_POST['date'] ?? date('Y-m-d'));
+    $ok = preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && strtotime($d) && date('Y-m-d', strtotime($d)) === $d;
+    if (!$ok) json_out(['success' => false, 'error' => 'That date isn’t valid.'], 422);
+    if ($d > date('Y-m-d')) json_out(['success' => false, 'error' => "You can't log a day that hasn't happened yet."], 422);
+    if ($d < date('Y-m-d', strtotime('-366 day'))) json_out(['success' => false, 'error' => 'That day is too far back to change.'], 422);
+    return $d;
+}
+
 switch ($action) {
 
     case 'add':
@@ -31,7 +46,7 @@ switch ($action) {
 
     case 'log':
         $id     = (int)($_POST['habit_id']       ?? 0);
-        $date   = sanitizeInput($_POST['date']   ?? date('Y-m-d'));
+        $date   = habitLogDate();
         $status = sanitizeInput($_POST['status'] ?? 'done');
         if (!in_array($status, ['done', 'fail', 'skip'], true)) $status = 'done';
 
@@ -70,7 +85,7 @@ switch ($action) {
 
     case 'unlog':
         $id   = (int)($_POST['habit_id']      ?? 0);
-        $date = sanitizeInput($_POST['date']  ?? date('Y-m-d'));
+        $date = habitLogDate();
         if (!$id) json_out(['success' => false, 'error' => 'Invalid habit.'], 422);
 
         delete(

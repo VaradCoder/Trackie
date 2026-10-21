@@ -135,3 +135,70 @@
 .tdo-sub.done .todo-title { color: var(--muted); text-decoration: line-through; }
 .tdo-subadd { display: flex; gap: .375rem; margin-top: .375rem; }
 .tdo-subadd .form-input { min-height: 2.25rem; font-size: .9375rem; }
+
+/* ════════════════ Habits ════════════════ */
+.hb-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr)); }
+.hb-card { padding: 1rem 1rem .75rem; display: flex; flex-direction: column; gap: .75rem; border-top: 3px solid var(--hc); }
+.hb-card.is-off-today { opacity: .78; }
+.hb-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: .625rem; }
+.hb-name { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.hb-sub { color: var(--muted); font-size: .8125rem; margin-top: .125rem; }
+.hb-menu { display: flex; }
+@media (hover: hover) {
+  .hb-menu { opacity: 0; transition: opacity .15s ease; }
+  .hb-card:hover .hb-menu, .hb-card:focus-within .hb-menu { opacity: 1; }
+}
+
+.hb-flame {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .25rem .625rem; border-radius: 999px;
+  background: var(--surface2); color: var(--muted); font-weight: 800; font-size: .875rem;
+  font-variant-numeric: tabular-nums;
+}
+.hb-flame.is-lit { background: color-mix(in srgb, #f59e0b 16%, transparent); color: #f59e0b; }
+.hb-flame.is-lit i { animation: hb-flicker 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+.hb-flame.is-bump { animation: hb-bump .6s cubic-bezier(.34, 1.56, .64, 1); }
+@media (prefers-reduced-motion: reduce) { .hb-flame.is-lit i, .hb-flame.is-bump { animation: none; } }
+@keyframes hb-flicker { 0%, 100% { scale: 1; rotate: 0deg; } 30% { scale: 1.08 .96; rotate: -4deg; } 60% { scale: .96 1.06; rotate: 3deg; } }
+@keyframes hb-bump { 0% { scale: 1; } 35% { scale: 1.35; box-shadow: 0 0 0 6px color-mix(in srgb, #f59e0b 25%, transparent); } 100% { scale: 1; box-shadow: none; } }
+
+.hb-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: .25rem; }
+.hb-day {
+  display: grid; justify-items: center; gap: .25rem;
+  min-height: 3.25rem; padding: .25rem 0; margin: 0;
+  border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.hb-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hb-day-name { font-size: .6875rem; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.hb-day.is-today .hb-day-name { color: var(--text); }
+.hb-day-dot {
+  display: grid; place-items: center;
+  width: 1.875rem; height: 1.875rem; border-radius: 50%;
+  border: 2px solid var(--border); background: var(--surface); color: transparent; font-size: .75rem;
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease;
+}
+.hb-day.is-today .hb-day-dot { border-color: var(--hc); }
+.hb-day.is-done .hb-day-dot {
+  background: var(--hc); border-color: var(--hc); color: #fff;
+  animation: td-pop .38s cubic-bezier(.34, 1.56, .64, 1);
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+.hb-day.is-skip .hb-day-dot { background: repeating-linear-gradient(45deg, color-mix(in srgb, #f59e0b 55%, transparent) 0 2px, transparent 2px 5px); border-color: color-mix(in srgb, #f59e0b 60%, transparent); }
+.hb-day.is-fail .hb-day-dot { border-color: color-mix(in srgb, #ef4444 70%, transparent); }
+.hb-day.is-off .hb-day-dot { border-style: dashed; opacity: .55; }
+.hb-day.is-before { cursor: default; opacity: .35; }
+.hb-day[aria-busy="true"] { cursor: progress; }
+@media (hover: hover) { .hb-day:not(.is-before):not(.is-done):hover .hb-day-dot { border-color: var(--hc); } }
+
+.hb-rest { margin: 0; color: var(--muted); font-size: .8125rem; }
+.hb-card .habit-status-group { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: .375rem; }
+.hb-card .habit-status-btn { flex-direction: row; justify-content: center; font-size: .8125rem; min-height: 2.75rem; }
+.hb-card .habit-status-done.is-active { background: var(--hc); color: #fff; border-color: var(--hc); }
+.hb-history-btn {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: .375rem;
+  min-height: 2.25rem; padding: 0 .5rem; margin: 0 -.5rem;
+  border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted);
+  font: inherit; font-size: .8125rem; font-weight: 600; cursor: pointer;
+}
+@media (hover: hover) { .hb-history-btn:hover { background: var(--surface2); color: var(--text); } }

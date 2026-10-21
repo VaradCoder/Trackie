@@ -57,7 +57,7 @@ try {
     $num = static fn(string $re, string $html) => preg_match($re, $html, $x) ? (int)$x[1] : null;
     $s = '\s*';
     $dash = $num("~stat-pill-num\">(\d+)</span>{$s}</div>{$s}<div class=\"stat-pill-label\">Day streak~", $get('/pages/dashboard.php'));
-    $hab  = $num('~stat-val u-c-warn">(\d+) d</div>~', $get('/pages/habits.php'));
+    $hab  = $num('~id="habitsStatsWrap".*?<strong>(\d+)</strong>-day streak~s', $get('/pages/habits.php'));
     $ana  = $num("~Current streak</span>.*?stat-val[^>]*>(\d+) d<~s", $get('/pages/analytics.php'));
     $gymH = $get('/pages/gym.php');
     $gym  = $num('~<strong>(\d+)</strong> Workout Streak~', $gymH);

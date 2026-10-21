@@ -59,49 +59,35 @@ require_once '../includes/head.php';
 
 <!-- Quick stats -->
 <?php
-$totalHabits    = count($habits);
-$loggedToday    = array_sum(array_column($habits, 'logged_today'));
-$completionRate = $totalHabits > 0 ? round($loggedToday / $totalHabits * 100) : 0;
-// Overall habit streak — scheduled-off days don't break it (see habitStreaks())
-$habitStreak = habitStreaks($uid)['current'];
-
-// ── AI-style insight (rule-based, from the user's own data) ──
-$habitsInsight = '';
-if ($totalHabits > 0) {
-    $topHabit = null;
-    foreach ($habits as $hh) {
-        if ($topHabit === null || (int)$hh['total_logs'] > (int)$topHabit['total_logs']) $topHabit = $hh;
-    }
-    if ($completionRate >= 80) {
-        $habitsInsight = "Strong day — you've completed {$completionRate}% of today's habits. Consistency like this builds streaks.";
-    } elseif ($topHabit && (int)$topHabit['total_logs'] > 0) {
-        $habitsInsight = "\"{$topHabit['name']}\" is your most consistent habit with {$topHabit['total_logs']} log" . ((int)$topHabit['total_logs'] !== 1 ? 's' : '') . ". "
-                       . ($loggedToday < $totalHabits ? "You have " . ($totalHabits - $loggedToday) . " left to log today." : "All logged today!");
-    } elseif ($habitStreak > 0) {
-        $habitsInsight = "You're on a {$habitStreak}-day streak — log a habit today to keep it alive.";
+// Status marks for the 7-day strip (done lives in `logs`, skip/fail here).
+$weekDays = [];
+for ($i = 6; $i >= 0; $i--) $weekDays[] = date('Y-m-d', strtotime("-$i day"));
+$marks = [];
+if (tableExists('habit_status_log')) {
+    foreach (fetchAll("SELECT habit_id, log_date d, status FROM habit_status_log WHERE user_id=? AND log_date >= ?", [$uid, $weekDays[0]]) as $r) {
+        $marks[$r['habit_id']][$r['d']] = $r['status'];
     }
 }
-?>
-<div class="grid-stats u-mb-6" id="habitsStatsWrap">
-  <div class="stat-card">
-    <div class="stat-val"><?= $totalHabits ?></div>
-    <div class="stat-label"><i class="fas fa-list" style="color:#64748b"></i> Total habits</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-val"><?= $loggedToday ?></div>
-    <div class="stat-label"><i class="fas fa-check-circle u-c-ok"></i> Logged today</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-val"><?= $completionRate ?>%</div>
-    <div class="stat-label"><i class="fas fa-gauge-high u-c-info"></i> Today's rate</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-val u-c-warn"><?= $habitStreak ?> d</div>
-    <div class="stat-label"><i class="fas fa-fire u-c-warn"></i> Current streak</div>
-  </div>
-</div>
 
-<?= renderInsight($habitsInsight) ?>
+// Due today and not done first, then done today, then not due today.
+$dueToday = static fn(array $h) => habitDueOn($h, date('Y-m-d'), $logsByHabit[$h['id']] ?? [], $weekStart);
+usort($habits, static function ($a, $b) use ($dueToday) {
+    $rank = static fn($h) => $h['logged_today'] ? 1 : ($dueToday($h) ? 0 : 2);
+    return [$rank($a), strtolower($a['name'])] <=> [$rank($b), strtolower($b['name'])];
+});
+$totalHabits = count($habits);
+$dueList     = array_filter($habits, static fn($h) => $h['logged_today'] || $dueToday($h));
+$dueDone     = count(array_filter($dueList, static fn($h) => (bool)$h['logged_today']));
+// Overall habit streak — scheduled-off days don't break it (see habitStreaks())
+$habitStreak = habitStreaks($uid)['current'];
+?>
+<div class="pg-strip" id="habitsStatsWrap">
+  <?php if ($totalHabits): ?>
+    <span><strong><?= $dueDone ?></strong> of <strong><?= count($dueList) ?></strong> done today</span>
+    <span><i class="fas fa-fire" style="color:#f59e0b" aria-hidden="true"></i> <?= $habitStreak > 0 ? '<strong>' . $habitStreak . '</strong>-day streak' : 'Start a streak today' ?></span>
+    <span><strong><?= $totalHabits ?></strong> habit<?= $totalHabits === 1 ? '' : 's' ?></span>
+  <?php endif; ?>
+</div>
 
 <div id="habitsSuggestionsWrap">
 <?php if (!empty($suggestions)): ?>
@@ -125,91 +111,76 @@ if ($totalHabits > 0) {
 
 <div id="habitsListWrap">
 <?php if (empty($habits)): ?>
-  <div class="card">
-    <div class="empty-state">
-      <div class="empty-state-icon"><i class="fas fa-heart"></i></div>
-      <div class="empty-state-title">No habits yet</div>
-      <p>Start building positive habits for a better life.</p>
-      <button class="btn btn-primary u-mt-3" onclick="openAddHabit()">
-        <i class="fas fa-plus"></i> Add your first habit
-      </button>
-    </div>
-  </div>
+  <div class="card"><?= renderEmptyState('fa-heart', 'No habits yet',
+    'Pick one small thing you want to do most days. Tick it off here — or right from Today.',
+    '<button type="button" class="btn btn-primary btn-sm" onclick="openAddHabit()"><i class="fas fa-plus" aria-hidden="true"></i> Add your first habit</button>') ?></div>
 <?php else: ?>
-  <div class="grid-cards">
+  <div class="hb-grid">
     <?php foreach ($habits as $h):
-      // Week progress against what's actually scheduled (7, 3 for Mon/Wed/Fri, 1 for weekly).
       $hLogs    = $logsByHabit[$h['id']] ?? [];
       $target   = habitWeekTarget($h);
       $achieved = min(count(array_filter($hLogs, static fn($d) => $d >= $weekFrom)), $target);
-      $pct      = (int)round($achieved / $target * 100);
       $hStreak  = habitStreak($h, $hLogs, $weekStart);
-      $dueToday = habitDueOn($h, date('Y-m-d'), $hLogs, $weekStart);
+      $isDue    = habitDueOn($h, date('Y-m-d'), $hLogs, $weekStart);
+      $curStatus = $h['logged_today'] ? 'done' : ($h['today_status'] ?: null);
+      $logSet   = array_flip($hLogs);
+      $weekly   = $h['frequency'] === 'weekly';
+      $sched    = habitDays($h);
     ?>
-      <div class="habit-card" id="habit-<?= $h['id'] ?>">
-        <div class="u-flex u-items-start u-justify-between u-mb-3h">
-          <div class="u-flex u-items-center u-gap-2h">
-            <span class="habit-dot" style="background:<?= h($h['color']) ?>"></span>
-            <div>
-              <div class="u-fw-6 u-fs-15 u-c-text"><?= h($h['name']) ?></div>
-              <span class="badge badge-gray u-mt-1"><?= h(habitScheduleLabel($h)) ?></span>
-              <?php if ($hStreak['current'] > 0): ?>
-                <span class="badge" style="margin-top:var(--sp-1);background:rgba(245,158,11,.15);color:#f59e0b">🔥 <?= (int)$hStreak['current'] ?> <?= $h['frequency'] === 'weekly' ? 'wk' : 'd' ?></span>
-              <?php endif; ?>
-            </div>
+      <article class="card hb-card<?= $h['logged_today'] ? ' is-done-today' : '' ?><?= !$isDue && !$curStatus ? ' is-off-today' : '' ?>"
+               id="habit-<?= (int)$h['id'] ?>" data-id="<?= (int)$h['id'] ?>" style="--hc:<?= h($h['color'] ?: '#ef4444') ?>">
+        <header class="hb-head">
+          <span class="habit-dot" style="background:<?= h($h['color'] ?: '#ef4444') ?>" aria-hidden="true"></span>
+          <div class="hb-titles">
+            <h3 class="hb-name"><?= h($h['name']) ?></h3>
+            <div class="hb-sub"><?= h(habitScheduleLabel($h)) ?> · <span class="hb-week-count"><?= $achieved ?>/<?= $target ?></span> this week</div>
           </div>
-          <button class="btn btn-icon btn-ghost btn-sm" onclick="openEditHabit(<?= $h['id'] ?>)" title="Edit" aria-label="Edit habit"><i class="fas fa-pen"></i></button>
-          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm u-c-accent"
-                  onclick="deleteHabit(<?= $h['id'] ?>)" title="Delete">
-            <i class="fas fa-trash"></i>
-          </button>
+          <span class="hb-flame<?= $hStreak['current'] > 0 ? ' is-lit' : '' ?>" data-streak="<?= (int)$hStreak['current'] ?>"
+                title="Current streak · best <?= (int)$hStreak['best'] ?>">
+            <i class="fas fa-fire" aria-hidden="true"></i>
+            <span><?= (int)$hStreak['current'] ?></span><span class="sr-only"> <?= $weekly ? 'week' : 'day' ?> streak</span>
+          </span>
+          <div class="hb-menu">
+            <button type="button" class="pg-icon-btn" onclick="openEditHabit(<?= (int)$h['id'] ?>)" title="Edit" aria-label="Edit <?= h($h['name']) ?>"><i class="fas fa-pen" aria-hidden="true"></i></button>
+            <button type="button" class="pg-icon-btn is-danger" onclick="deleteHabit(<?= (int)$h['id'] ?>)" title="Delete" aria-label="Delete <?= h($h['name']) ?>"><i class="fas fa-trash" aria-hidden="true"></i></button>
+          </div>
+        </header>
+
+        <?php /* Last 7 days. Tap a day to log or un-log it — fixing yesterday is
+                 the most common reason people open a habit tracker. */ ?>
+        <div class="hb-week" role="group" aria-label="Last 7 days of <?= h($h['name']) ?>">
+          <?php foreach ($weekDays as $d):
+            $t = strtotime($d . ' 12:00');
+            $st = isset($logSet[$d]) ? 'done' : ($marks[$h['id']][$d] ?? null);
+            if (!$st) $st = (!$weekly && $sched && !in_array((int)date('w', $t), $sched, true)) ? 'off' : 'open';
+            if ($d < ($h['created_at'] ? substr($h['created_at'], 0, 10) : '') && $st !== 'done') $st = 'before';
+            $label = date('D j M', $t) . ': ' . ['done' => 'done', 'skip' => 'skipped', 'fail' => 'missed', 'off' => 'not scheduled', 'open' => 'not done', 'before' => 'before this habit'][$st];
+          ?>
+            <button type="button" class="hb-day is-<?= $st ?><?= $d === $today ? ' is-today' : '' ?>" data-date="<?= $d ?>"
+                    aria-pressed="<?= $st === 'done' ? 'true' : 'false' ?>" aria-label="<?= h($label) ?>" title="<?= h($label) ?>"
+                    <?= $st === 'before' ? 'disabled' : '' ?>>
+              <span class="hb-day-name"><?= h(mb_substr(date('D', $t), 0, 1)) ?></span>
+              <span class="hb-day-dot"><i class="fas fa-check" aria-hidden="true"></i></span>
+            </button>
+          <?php endforeach; ?>
         </div>
 
-        <!-- Stats -->
-        <div class="u-flex u-gap-4 u-mb-3h u-fs-13 u-c-muted">
-          <span>Total: <strong class="u-c-text"><?= $h['total_logs'] ?></strong></span>
-          <span>This week: <strong class="u-c-text"><?= $achieved ?>/<?= $target ?></strong></span>
-          <span>Best: <strong class="u-c-text"><?= (int)$hStreak['best'] ?></strong></span>
-        </div>
-
-        <!-- Progress bar (this week) -->
-        <div class="u-mb-3h">
-          <div class="u-flex u-justify-between u-fs-13 u-mb-1">
-            <span class="u-c-muted">
-              <?= $h['frequency'] === 'weekly' ? 'Done this week' : 'Week progress' ?>
-            </span>
-            <span class="u-fw-6 u-c-text"><?= $pct ?>%</span>
-          </div>
-          <div class="progress-track">
-            <div class="progress-fill <?= $pct >= 100 ? 'green' : '' ?>"
-                 style="width:<?= $pct ?>%;background:<?= $h['color'] ?>"></div>
-          </div>
-        </div>
-
-        <!-- Log status: Done / Fail / Skip -->
-        <?php
-          $curStatus = $h['logged_today'] ? 'done' : ($h['today_status'] ?: null);
-        ?>
-        <?php if (!$dueToday && !$curStatus): ?>
-          <p class="form-hint" style="margin:0 0 .5rem"><i class="fas fa-moon"></i> Not scheduled today — rest day for this habit.</p>
+        <?php if (!$isDue && !$curStatus): ?>
+          <p class="hb-rest"><i class="fas fa-moon" aria-hidden="true"></i> Not scheduled today — a rest day for this habit.</p>
         <?php endif; ?>
-        <div id="habit-btn-<?= $h['id'] ?>"<?= $dueToday ? ' data-due="1"' : '' ?>>
-          <?= renderHabitStatusControl($h['id'], $curStatus) ?>
+        <div id="habit-btn-<?= (int)$h['id'] ?>"<?= $isDue ? ' data-due="1"' : '' ?>>
+          <?= renderHabitStatusControl((int)$h['id'], $curStatus) ?>
         </div>
 
-        <!-- History toggle -->
-        <div class="u-mt-3">
-          <button class="btn btn-ghost btn-sm u-w-full u-fs-12" onclick="toggleHabitHistory(<?= $h['id'] ?>)">
-            <i class="fas fa-calendar-alt"></i> View history
-          </button>
-          <div id="habit-history-<?= $h['id'] ?>" class="habit-history hidden u-mt-2"></div>
-        </div>
-      </div>
+        <button type="button" class="hb-history-btn" onclick="toggleHabitHistory(<?= (int)$h['id'] ?>, this)" aria-expanded="false">
+          <i class="fas fa-calendar-days" aria-hidden="true"></i> Year history
+        </button>
+        <div id="habit-history-<?= (int)$h['id'] ?>" class="habit-history hidden u-mt-2"></div>
+      </article>
     <?php endforeach; ?>
   </div>
 <?php endif; ?>
 </div>
-
 <!-- Add habit modal -->
 <div id="addHabitModal" class="modal-backdrop hidden">
   <div class="modal-box">
@@ -343,29 +314,32 @@ async function setHabitStatus(id, status, btn) {
   const wasActive = btn.classList.contains('is-active');
   group.querySelectorAll('button').forEach(b => b.disabled = true);
   try {
-    // Toggling the same status off unlogs the day; switching status re-logs it
+    // Tapping the active status again clears the day; another status replaces it.
     const action = wasActive ? 'unlog' : 'log';
     const payload = { action, habit_id: id, date: TODAY };
     if (action === 'log') payload.status = status;
     const res = await Trackie.API.post(`${API_BASE}/habits.php`, payload);
-    if (res.success) {
-      group.querySelectorAll('button').forEach(b => b.classList.remove('is-active'));
-      if (!wasActive) {
-        btn.classList.add('is-active', 'pop');
-        setTimeout(() => btn.classList.remove('pop'), 350);
-        const m = HABIT_MSG[status];
-        const due = [...document.querySelectorAll('[data-due="1"]')];
-        if (status === 'done' && due.length && due.every(d => d.querySelector('.habit-status-done.is-active'))) {
-          Trackie.Delight?.burst(btn);
-          Trackie.Toast.success('Every habit done for today 🎉', 3500);
-        } else {
-          Trackie.Toast[m.toast](m.text);
-        }
+    if (!res.success) throw res;
+    if (res.achievements?.length) Trackie.showAchievementToasts?.(res.achievements);
+    group.querySelectorAll('button').forEach(b => b.classList.remove('is-active'));
+    if (wasActive) {
+      Trackie.Toast.info('Cleared for today.');
+    } else {
+      btn.classList.add('is-active', 'pop');
+      const due = [...document.querySelectorAll('[data-due="1"]')];
+      if (status === 'done' && due.length && due.every(d => d.querySelector('.habit-status-done.is-active'))) {
+        Trackie.Delight?.burst(btn);
+        Trackie.Toast.success('Every habit done for today 🎉', 3500);
       } else {
-        Trackie.Toast.info('Cleared for today.');
+        const m = HABIT_MSG[status];
+        Trackie.Toast[m.toast](m.text + (status === 'done' && res.xp?.gained ? ` +${res.xp.gained} XP` : ''));
       }
-    } else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+      await new Promise(r => setTimeout(r, 350));   // let the pop play before the card re-renders
+    }
+    await refreshHabit(id);
+  } catch (err) {
+    Trackie.UI.toastError(err, "Couldn't update that habit.");
+  }
   group.querySelectorAll('button').forEach(b => b.disabled = false);
 }
 
@@ -380,13 +354,49 @@ async function deleteHabit(id) {
     } else Trackie.Toast.error(res.error || 'Delete failed.');
   } catch { Trackie.Toast.error('Network error.'); }
 }
-async function toggleHabitHistory(id) {
+async function toggleHabitHistory(id, btn) {
   const panel = document.getElementById('habit-history-' + id);
   if (!panel) return;
   const wasHidden = panel.classList.contains('hidden');
   panel.classList.toggle('hidden');
+  btn?.setAttribute('aria-expanded', String(wasHidden));
   if (wasHidden) { loadHabitHistory(id); }
 }
+
+/** Re-render one habit card from the server (streak, week count, status are
+ *  server truth), and make the flame jump if the streak just grew. */
+async function refreshHabit(id) {
+  const before = +(document.querySelector(`#habit-${id} .hb-flame`)?.dataset.streak || 0);
+  await Trackie.refreshFragments(['habit-' + id, 'habitsStatsWrap']);
+  const flame = document.querySelector(`#habit-${id} .hb-flame`);
+  if (flame && +flame.dataset.streak > before) flame.classList.add('is-bump');
+}
+
+// Tap a day in the 7-day strip to log or un-log it.
+document.getElementById('page-main')?.addEventListener('click', async e => {
+  const day = e.target.closest('.hb-day');
+  if (!day || day.disabled || day.getAttribute('aria-busy') === 'true') return;
+  const card = day.closest('.hb-card');
+  const id = +card.dataset.id, date = day.dataset.date;
+  const wasDone = day.classList.contains('is-done');
+  const prev = day.className;
+  day.setAttribute('aria-busy', 'true');
+  day.className = day.className.replace(/is-(done|open|skip|fail|off)/, '') + (wasDone ? ' is-open' : ' is-done');
+  day.setAttribute('aria-pressed', String(!wasDone));
+  if (!wasDone) Trackie.Delight?.tap();
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/habits.php`, wasDone
+      ? { action: 'unlog', habit_id: id, date }
+      : { action: 'log', habit_id: id, date, status: 'done' });
+    if (!res.success) throw res;
+    if (res.achievements?.length) Trackie.showAchievementToasts?.(res.achievements);
+    if (!wasDone && res.xp?.gained) Trackie.Toast.success(`+${res.xp.gained} XP`, 1600);
+    await refreshHabit(id);
+  } catch (err) {
+    day.className = prev; day.setAttribute('aria-pressed', String(wasDone));
+    Trackie.UI.toastError(err, "Couldn't update that day.");
+  } finally { day.removeAttribute('aria-busy'); }
+});
 
 async function loadHabitHistory(id) {
   const panel = document.getElementById('habit-history-' + id);

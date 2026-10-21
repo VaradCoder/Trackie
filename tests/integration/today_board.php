@@ -78,6 +78,14 @@ try {
     $offWd = array_unique(array_map(static fn($d) => (int)date('w', strtotime($d)), $hist['off'] ?? []));
     ok(($hist['today'] ?? '') === $today && count($hist['off'] ?? []) === 12 && !in_array((int)$offDay, $offWd, true),
        'history: 12 of 14 days are "off" for a one-weekday habit, never its own weekday');
+    // Habit log dates: no future days (each date earns its own XP), real dates only.
+    $hl = fn(array $p) => json_decode($http('/api/habits.php', $p + ['habit_id' => $h2, 'csrf_token' => $csrf($html)]), true) ?: [];
+    ok(($hl(['action' => 'log', 'date' => $tomorrow, 'status' => 'done'])['success'] ?? true) === false
+       && !fetchOne("SELECT id FROM logs WHERE habit_id=? AND date_completed=?", [$h2, $tomorrow]), 'habit log for tomorrow refused, nothing stored');
+    ok(($hl(['action' => 'log', 'date' => '2026-02-30', 'status' => 'done'])['success'] ?? true) === false, 'habit log for an impossible date refused');
+    ok(($hl(['action' => 'log', 'date' => $yest, 'status' => 'done'])['success'] ?? false)
+       && fetchOne("SELECT id FROM logs WHERE habit_id=? AND date_completed=?", [$h2, $yest]), 'habit log for yesterday accepted (fixing a missed tick)');
+    ok(($hl(['action' => 'unlog', 'date' => $yest])['success'] ?? false) && !fetchOne("SELECT id FROM logs WHERE habit_id=? AND date_completed=?", [$h2, $yest]), 'and un-logged again');
     $hist1 = json_decode($http('/api/habits.php', ['action' => 'history', 'habit_id' => $h1, 'days' => 7, 'csrf_token' => $csrf($html)]), true) ?: [];
     ok(($hist1['dates'] ?? null) === [$today] && ($hist1['off'] ?? null) === [] && ($hist1['skipped'] ?? null) === [], 'history: every-day habit → no off days, today logged');
 } finally {
