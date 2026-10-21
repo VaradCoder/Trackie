@@ -362,3 +362,27 @@
 .cal-agenda-empty { padding: 1rem 0 1.25rem; color: var(--muted); font-size: .875rem; text-align: center; }
 .cal-agenda-empty[hidden] { display: none; }
 .cal-add { margin: 0; }
+
+/* ════════════════ Study Plan ════════════════ */
+.sp-exams { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); margin-bottom: 1rem; }
+.sp-exam { display: flex; gap: 1rem; align-items: center; padding: .875rem 1rem; border-left: 4px solid #ef4444; }
+.sp-exam-count { display: grid; place-items: center; min-width: 3.75rem; padding: .375rem .25rem; border-radius: var(--radius); background: color-mix(in srgb, #ef4444 12%, transparent); color: #ef4444; text-align: center; line-height: 1; }
+.sp-exam-count strong { font-size: 1.625rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sp-exam-count span { font-size: .6875rem; font-weight: 700; text-transform: uppercase; margin-top: .125rem; }
+.sp-exam.is-near .sp-exam-count { animation: sp-throb 2.2s ease-in-out infinite; @media (prefers-reduced-motion: reduce) { animation: none; } }
+@keyframes sp-throb { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, #ef4444 15%, transparent); } }
+.sp-exam-text { min-width: 0; }
+.sp-exam-title { font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.sp-exam-sub { font-size: .8125rem; color: var(--muted); margin-top: .125rem; }
+.sp-exam-link { margin-top: .375rem; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: .8125rem; font-weight: 600; cursor: pointer; text-align: left; }
+@media (hover: hover) { .sp-exam-link:hover { text-decoration: underline; } }
+
+.sp-filters { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1rem; }
+.sp-chip-n { color: var(--muted) !important; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pg-chip[aria-pressed="true"] .sp-chip-n { color: inherit !important; opacity: .75; }
+.sp-dot { width: .5rem; height: .5rem; border-radius: 50%; display: inline-block; }
+.sp-type { font-weight: 700; color: var(--tc); }
+.sp-res { color: var(--info); text-decoration: none; }
+@media (hover: hover) { .sp-res:hover { text-decoration: underline; } }
+.sp-nomatch[hidden] { display: none; }
+.sp-row.is-new { animation: td-enter .32s cubic-bezier(.22, 1, .36, 1); @media (prefers-reduced-motion: reduce) { animation: none; } }

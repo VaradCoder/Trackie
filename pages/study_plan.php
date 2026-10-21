@@ -10,76 +10,78 @@ $uid         = currentUserId();
 $pageTitle   = 'Study Plan';
 $currentPage = 'study_plan';
 $today       = date('Y-m-d');
+$tomorrow    = date('Y-m-d', strtotime('+1 day'));
+$weekEnd     = date('Y-m-d', strtotime('+6 day'));
 
-// Validate + carry all filter dimensions together
-$typeFilter     = in_array($_GET['type']     ?? '', ['all','study','homework','practice','project','exam','reading','revision','other']) ? $_GET['type']     : 'all';
-$subjectFilter  = sanitizeInput($_GET['subject']  ?? 'all');
-$priorityFilter = in_array($_GET['priority'] ?? '', ['all','high','medium','low']) ? $_GET['priority'] : 'all';
+const STUDY_TYPES = ['study', 'homework', 'practice', 'project', 'exam', 'reading', 'revision', 'other'];
+$typeColors = ['study' => '#3b82f6', 'homework' => '#f59e0b', 'practice' => '#22c55e', 'project' => '#8b5cf6',
+               'exam' => '#ef4444', 'reading' => '#64748b', 'revision' => '#eab308', 'other' => '#94a3b8'];
 
-function filterHref(array $overrides): string {
-    global $typeFilter, $subjectFilter, $priorityFilter;
-    $p = array_merge(
-        ['type'=>$typeFilter, 'subject'=>$subjectFilter, 'priority'=>$priorityFilter],
-        $overrides
-    );
-    $parts = [];
-    foreach ($p as $k => $v) if ($v !== 'all' && $v !== '') $parts[] = urlencode($k).'='.urlencode($v);
-    return '?' . implode('&', $parts);
+// Everything; type / subject / priority filters run in the browser (no reload).
+$tasks = fetchAll("SELECT * FROM study_plan WHERE user_id=? ORDER BY due_date IS NULL, due_date ASC, FIELD(priority,'high','medium','low'), created_at DESC", [$uid]);
+
+$groups = ['overdue' => [], 'today' => [], 'week' => [], 'later' => [], 'nodate' => [], 'done' => []];
+foreach ($tasks as $t) {
+    if ($t['completed'])              $g = 'done';
+    elseif (!$t['due_date'])          $g = 'nodate';
+    elseif ($t['due_date'] < $today)  $g = 'overdue';
+    elseif ($t['due_date'] === $today) $g = 'today';
+    elseif ($t['due_date'] <= $weekEnd) $g = 'week';
+    else                              $g = 'later';
+    $groups[$g][] = $t;
 }
+// Done: most recent first, and only the latest 30 on the page.
+usort($groups['done'], static fn($a, $b) => strcmp((string)$b['completed_at'], (string)$a['completed_at']));
+$doneTotal = count($groups['done']);
+$groups['done'] = array_slice($groups['done'], 0, 30);
+$groupMeta = ['overdue' => ['Overdue', 'fa-triangle-exclamation'], 'today' => ['Today', 'fa-sun'], 'week' => ['This week', 'fa-calendar-week'],
+              'later' => ['Later', 'fa-calendar'], 'nodate' => ['No date', 'fa-inbox']];
 
-// Build query
-$sql    = "SELECT * FROM study_plan WHERE user_id=?";
-$params = [$uid];
+// Subjects with progress → filter chips ("Physics 3/8").
+$subjects = [];
+foreach ($tasks as $t) {
+    $s = trim((string)$t['subject']); if ($s === '') continue;
+    $subjects[$s] ??= ['done' => 0, 'total' => 0];
+    $subjects[$s]['total']++; if ($t['completed']) $subjects[$s]['done']++;
+}
+uksort($subjects, 'strcasecmp');
 
-if ($typeFilter    !== 'all') { $sql .= " AND type=?";     $params[] = $typeFilter; }
-if ($subjectFilter !== 'all') { $sql .= " AND subject=?";  $params[] = $subjectFilter; }
-if ($priorityFilter !== 'all') { $sql .= " AND priority=?"; $params[] = $priorityFilter; }
+// Upcoming exams → countdown cards, with what's still open for that subject before the exam.
+$exams = array_values(array_filter($tasks, static fn($t) => $t['type'] === 'exam' && !$t['completed'] && $t['due_date'] && $t['due_date'] >= $today));
+$exams = array_slice($exams, 0, 3);
 
-$sql .= " ORDER BY due_date ASC, priority DESC, created_at DESC";
-$tasks = fetchAll($sql, $params);
+$openN = count($tasks) - $doneTotal;
+$init  = ['type' => in_array($_GET['type'] ?? '', STUDY_TYPES, true) ? $_GET['type'] : '',
+          'subject' => isset($subjects[$_GET['subject'] ?? '']) ? $_GET['subject'] : '',
+          'priority' => in_array($_GET['priority'] ?? '', ['high', 'medium', 'low'], true) ? $_GET['priority'] : ''];
 
-// Separate by date (only tasks WITH a due_date)
-$todayTasks    = array_filter($tasks, fn($t) => $t['due_date'] === $today);
-$upcomingTasks = array_filter($tasks, fn($t) => $t['due_date'] && $t['due_date'] > $today);
-$pastTasks     = array_filter($tasks, fn($t) => $t['due_date'] && $t['due_date'] < $today);
-$noDueTasks    = array_filter($tasks, fn($t) => !$t['due_date']);
-
-// ── AI-style insight ──
-$studyInsight = '';
-$overdueStudy = count(array_filter($pastTasks, fn($t) => !$t['completed']));
-if ($overdueStudy > 0) {
-    $studyInsight = "{$overdueStudy} study task" . ($overdueStudy !== 1 ? 's are' : ' is') . " past due — reschedule or knock " . ($overdueStudy !== 1 ? 'them' : 'it') . " out today.";
-} else {
-    $subjDist = fetchAll(
-        "SELECT subject, COUNT(*) c FROM study_plan
-         WHERE user_id=? AND subject IS NOT NULL AND subject<>'' GROUP BY subject ORDER BY c DESC",
-        [$uid]
-    );
-    if (count($subjDist) >= 2) {
-        $totalS = array_sum(array_column($subjDist, 'c'));
-        $least  = end($subjDist);
-        $pct    = (int)round($least['c'] / $totalS * 100);
-        $studyInsight = "\"{$least['subject']}\" gets only {$pct}% of your study tasks — the least of any subject. Balance it out?";
-    } elseif (count($todayTasks) > 0) {
-        $studyInsight = count($todayTasks) . " task" . (count($todayTasks) !== 1 ? 's' : '') . " due today — a focused block now keeps you ahead.";
+function studyRow(array $t, string $today, array $typeColors): string {
+    $done = (bool)$t['completed'];
+    $col = $typeColors[$t['type']] ?? '#94a3b8';
+    $pri = in_array($t['priority'], ['low', 'medium', 'high'], true) ? $t['priority'] : 'medium';
+    $meta = '<span class="sp-type" style="--tc:' . h($col) . '">' . h(ucfirst($t['type'])) . '</span>';
+    if ($pri !== 'medium') $meta .= '<span class="tdo-pri ' . $pri . '">' . ucfirst($pri) . '</span>';
+    if ($t['subject']) $meta .= '<span><i class="fas fa-book" aria-hidden="true"></i> ' . h($t['subject']) . '</span>';
+    if ($t['due_date'] && $t['due_date'] !== $today) {
+        $diff = (int)round((strtotime($t['due_date']) - strtotime($today)) / 86400);
+        $txt = !$done && $diff < 0 ? ($diff === -1 ? 'Yesterday' : (-$diff) . ' days late') : ($diff === 1 ? 'Tomorrow' : ($diff > 1 && $diff < 7 ? date('l', strtotime($t['due_date'])) : date('j M', strtotime($t['due_date']))));
+        $meta .= '<span class="tdo-due' . (!$done && $diff < 0 ? ' is-late' : '') . '"><i class="fas fa-calendar-day" aria-hidden="true"></i> ' . h($txt) . '</span>';
     }
+    if ($t['resource'] && preg_match('~^https?://~i', $t['resource'])) {
+        $meta .= '<a class="sp-res" href="' . h($t['resource']) . '" target="_blank" rel="noopener noreferrer"><i class="fas fa-link" aria-hidden="true"></i> Resource</a>';
+    }
+    $title = h($t['title']);
+    return '<li class="td-item tdo-row sp-row' . ($done ? ' is-done' : '') . '" id="study-' . (int)$t['id'] . '" data-id="' . (int)$t['id'] . '"'
+        . ' data-type="' . h($t['type']) . '" data-subject="' . h((string)$t['subject']) . '" data-pri="' . $pri . '" style="--item-c:' . h($col) . '">'
+        . '<button type="button" class="td-check" role="checkbox" aria-checked="' . ($done ? 'true' : 'false') . '" aria-label="' . $title . '">'
+        . '<svg viewBox="0 0 26 26" aria-hidden="true"><circle class="td-check-ring" cx="13" cy="13" r="11.5"/><path class="td-check-tick" d="M8 13.4l3.2 3.2L18 9.8"/></svg></button>'
+        . '<div class="td-body"><button type="button" class="tdo-open" onclick="openEditStudy(' . (int)$t['id'] . ')"><span class="td-title">' . $title . '</span></button>'
+        . '<div class="td-meta">' . $meta . '</div></div>'
+        . '<div class="tdo-actions">'
+        . (!$done ? '<a class="tdo-act" href="' . APP_BASE . '/pages/focus.php" title="Focus session" aria-label="Start a focus session"><i class="fas fa-stopwatch" aria-hidden="true"></i></a>' : '')
+        . '<button type="button" class="tdo-act tdo-del" onclick="deleteStudy(' . (int)$t['id'] . ')" title="Delete" aria-label="Delete ' . $title . '"><i class="fas fa-trash" aria-hidden="true"></i></button>'
+        . '</div></li>';
 }
-
-// Subjects for filter
-$subjects = array_column(
-    fetchAll("SELECT DISTINCT subject FROM study_plan WHERE user_id=? AND subject!='' AND subject IS NOT NULL", [$uid]),
-    'subject'
-);
-
-// Today's progress
-$todayTotal = count($todayTasks);
-$todayDone  = array_sum(array_column(array_values($todayTasks), 'completed'));
-$todayPct   = $todayTotal > 0 ? round($todayDone / $todayTotal * 100) : 0;
-
-$typeColors = [
-    'study'=>'blue','homework'=>'yellow','practice'=>'green','project'=>'purple',
-    'exam'=>'red','reading'=>'gray','revision'=>'yellow','other'=>'gray',
-];
 
 require_once '../includes/head.php';
 ?>
@@ -91,132 +93,92 @@ require_once '../includes/head.php';
 
 <?= renderPageHeader('Study Plan', [
   'icon'    => 'fa-book-open',
-  'sub'     => 'Plan sessions, deadlines, and revision in one place.',
-  'actions' => '<button class="btn btn-primary btn-sm" onclick="openNewStudy()"><i class="fas fa-plus"></i> Add Task</button>',
+  'sub'     => 'Sessions, deadlines and exams — with the countdown in front of you.',
+  'actions' => '<button type="button" class="btn btn-secondary btn-sm" onclick="openNewStudy()"><i class="fas fa-sliders" aria-hidden="true"></i> Detailed task</button>',
 ]) ?>
 
-<?= renderInsight($studyInsight) ?>
+<div id="studyListWrap" data-today="<?= h($today) ?>"
+     data-init-type="<?= h($init['type']) ?>" data-init-subject="<?= h($init['subject']) ?>" data-init-priority="<?= h($init['priority']) ?>">
 
-<div id="studyListWrap">
-<!-- Today's progress -->
-<?php if ($todayTotal > 0): ?>
-  <div class="u-mb-5">
-    <div class="u-flex u-justify-between u-fs-14 u-mb-1h">
-      <span class="u-c-muted">Today's progress <span class="u-fw-6 u-c-text"><?= $todayDone ?>/<?= $todayTotal ?></span></span>
-      <span class="u-fw-6"><?= $todayPct ?>%</span>
-    </div>
-    <div class="progress-track"><div class="progress-fill <?= $todayPct>=100?'green':'' ?>" style="width:<?= $todayPct ?>%"></div></div>
-  </div>
-<?php endif; ?>
-
-<!-- Filters — all dimensions preserved -->
-<div class="u-mb-4 u-flex u-flex-wrap u-gap-2h u-items-center">
-  <div class="filter-tabs">
-    <?php
-    $typeLabels = ['all'=>'All','study'=>'Study','homework'=>'HW','practice'=>'Practice',
-                   'project'=>'Project','exam'=>'Exam','reading'=>'Reading','revision'=>'Revision','other'=>'Other'];
-    foreach ($typeLabels as $k=>$lbl): ?>
-      <a class="filter-tab <?= $typeFilter===$k?'active':'' ?>" href="<?= filterHref(['type'=>$k]) ?>"><?= $lbl ?></a>
-    <?php endforeach; ?>
+  <div class="pg-strip">
+    <span><strong><?= $openN ?></strong> open</span>
+    <?php if ($groups['overdue']): ?><span class="is-late"><strong><?= count($groups['overdue']) ?></strong> overdue</span><?php endif; ?>
+    <span><strong><?= $doneTotal ?></strong> done</span>
   </div>
 
-  <?php if ($subjects): ?>
-    <select class="form-input u-fs-13 u-w-auto"
-            onchange="Trackie.SpaNav.swap('<?= filterHref([]) ?>&subject='+this.value, true)">
-      <option value="all" <?= $subjectFilter==='all'?'selected':'' ?>>All subjects</option>
-      <?php foreach ($subjects as $s): ?>
-        <option value="<?= h($s) ?>" <?= $subjectFilter===$s?'selected':'' ?>><?= h($s) ?></option>
+  <?php if ($exams): ?>
+    <div class="sp-exams">
+      <?php foreach ($exams as $e):
+        $days = (int)round((strtotime($e['due_date']) - strtotime($today)) / 86400);
+        $openForSubject = $e['subject'] ? count(array_filter($tasks, static fn($t) => !$t['completed'] && $t['id'] !== $e['id'] && strcasecmp((string)$t['subject'], $e['subject']) === 0)) : 0;
+      ?>
+        <article class="card sp-exam<?= $days <= 3 ? ' is-near' : '' ?>">
+          <div class="sp-exam-count"><strong><?= $days === 0 ? 'Today' : $days ?></strong><?= $days === 0 ? '' : '<span>' . ($days === 1 ? 'day' : 'days') . '</span>' ?></div>
+          <div class="sp-exam-text">
+            <div class="sp-exam-title"><?= h($e['title']) ?></div>
+            <div class="sp-exam-sub"><?= h(date('l j M', strtotime($e['due_date']))) ?><?= $e['subject'] ? ' · ' . h($e['subject']) : '' ?></div>
+            <?php if ($e['subject']): ?>
+              <button type="button" class="sp-exam-link" data-filter-subject="<?= h($e['subject']) ?>">
+                <?= $openForSubject ? $openForSubject . ' open task' . ($openForSubject === 1 ? '' : 's') . ' for ' . h($e['subject']) . ' →' : 'Nothing open for ' . h($e['subject']) . ' — add revision' ?>
+              </button>
+            <?php endif; ?>
+          </div>
+        </article>
       <?php endforeach; ?>
-    </select>
+    </div>
   <?php endif; ?>
 
-  <select class="form-input u-fs-13 u-w-auto"
-          onchange="Trackie.SpaNav.swap('<?= filterHref([]) ?>&priority='+this.value, true)">
-    <option value="all" <?= $priorityFilter==='all'?'selected':'' ?>>All priorities</option>
-    <option value="high"   <?= $priorityFilter==='high'  ?'selected':'' ?>>High</option>
-    <option value="medium" <?= $priorityFilter==='medium'?'selected':'' ?>>Medium</option>
-    <option value="low"    <?= $priorityFilter==='low'   ?'selected':'' ?>>Low</option>
-  </select>
-</div>
+  <form class="td-add" id="spAdd" autocomplete="off">
+    <label class="td-add-row">
+      <i class="fas fa-plus" aria-hidden="true"></i>
+      <span class="sr-only">Add a study task</span>
+      <input class="td-add-input" id="spAddInput" maxlength="150" enterkeyhint="done"
+             placeholder="e.g. “revise chapter 3 friday #physics”"
+             title="Plain words for the date; #subject; exam, homework, practice, read, revise set the type; !high / !low">
+      <button type="submit" class="btn btn-primary btn-sm td-add-btn">Add</button>
+    </label>
+    <div class="td-add-hint" id="spAddHint" aria-live="polite"></div>
+  </form>
 
-<?php
-function renderTaskList(array $tasks, string $apiBase, string $today): void {
-    global $typeColors;
-    if (empty($tasks)) {
-        echo '<p style="color:var(--muted);font-size:.875rem;padding:var(--sp-2) 0">None.</p>';
-        return;
-    }
-    foreach ($tasks as $t):
-        $tc = $typeColors[$t['type']] ?? 'gray';
-        $pc = $t['priority']==='high'?'red':($t['priority']==='medium'?'yellow':'blue');
-        ?>
-        <div class="todo-row <?= $t['completed']?'done':'' ?>" id="study-<?= $t['id'] ?>">
-          <input type="checkbox" class="todo-check"
-                 <?= $t['completed']?'checked':'' ?>
-                 onchange="toggleStudy(<?= $t['id'] ?>, this.checked, this)">
-          <div class="u-flex-1 u-min-w-0">
-            <div class="todo-title"><?= h($t['title']) ?></div>
-            <div class="todo-meta u-mt-1">
-              <span class="badge badge-<?= $tc ?>"><?= ucfirst($t['type']) ?></span>
-              <span class="badge badge-<?= $pc ?>"><?= ucfirst($t['priority']) ?></span>
-              <?php if ($t['subject']): ?><span><i class="fas fa-book u-fs-11-2"></i> <?= h($t['subject']) ?></span><?php endif; ?>
-              <?php if ($t['due_date'] && $t['due_date'] !== $today): ?><span><i class="fas fa-calendar u-fs-11-2"></i> <?= htmlspecialchars(date('M j',strtotime($t['due_date']))) ?></span><?php endif; ?>
-            </div>
-          </div>
-          <button class="btn btn-icon btn-ghost btn-sm" onclick="openEditStudy(<?= $t['id'] ?>)" aria-label="Edit task" title="Edit"><i class="fas fa-pen"></i></button>
-                <button aria-label="Delete task" class="btn btn-icon btn-ghost btn-sm u-c-accent"
-                  onclick="deleteStudy(<?= $t['id'] ?>)">
-            <i class="fas fa-trash"></i>
-          </button>
+  <?php if ($tasks): ?>
+    <div class="sp-filters">
+      <?php if ($subjects): ?>
+        <div class="pg-chips" role="toolbar" aria-label="Subjects">
+          <button type="button" class="pg-chip" data-f="subject" data-v="">All subjects</button>
+          <?php foreach ($subjects as $s => $c): ?>
+            <button type="button" class="pg-chip" data-f="subject" data-v="<?= h($s) ?>"><?= h($s) ?> <b class="sp-chip-n"><?= $c['done'] ?>/<?= $c['total'] ?></b></button>
+          <?php endforeach; ?>
         </div>
-    <?php endforeach;
-}
-?>
-
-<!-- Task sections -->
-<?php
-$studyFiltered = $typeFilter !== 'all' || $subjectFilter !== 'all' || $priorityFilter !== 'all';
-?>
-<?php if (empty($tasks)): ?>
-  <div class="card">
-    <div class="empty-state">
-      <div class="empty-state-icon"><i class="fas fa-book-open"></i></div>
-      <?php if ($studyFiltered): ?>
-        <div class="empty-state-title">No tasks match these filters</div>
-        <p>Try a different type, subject, or priority.</p>
-      <?php else: ?>
-        <div class="empty-state-title">Plan your next study session</div>
-        <p>Add a task — a chapter to revise, an assignment, a topic to practice.</p>
       <?php endif; ?>
-      <button class="btn btn-primary u-mt-3" onclick="openNewStudy()">
-        <i class="fas fa-plus"></i> Add a study task
-      </button>
+      <div class="pg-chips" role="toolbar" aria-label="Type">
+        <button type="button" class="pg-chip" data-f="type" data-v="">All types</button>
+        <?php foreach (STUDY_TYPES as $ty): if (!array_filter($tasks, static fn($t) => $t['type'] === $ty)) continue; ?>
+          <button type="button" class="pg-chip" data-f="type" data-v="<?= $ty ?>"><span class="sp-dot" style="background:<?= $typeColors[$ty] ?>" aria-hidden="true"></span> <?= ucfirst($ty) ?></button>
+        <?php endforeach; ?>
+        <button type="button" class="pg-chip" data-f="priority" data-v="high"><i class="fas fa-flag" aria-hidden="true"></i> High</button>
+      </div>
     </div>
-  </div>
-<?php else: ?>
+  <?php endif; ?>
 
-  <?php foreach ([
-    ['label'=>"Today's Tasks",'items'=>$todayTasks],
-    ['label'=>'Upcoming',     'items'=>$upcomingTasks],
-    ['label'=>'No Due Date',  'items'=>$noDueTasks],
-    ['label'=>'Past',         'items'=>$pastTasks],
-  ] as $section):
-    if (empty($section['items'])) continue; ?>
-    <div class="u-mb-6">
-      <div style="font-size:.8125rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.625rem">
-        <?= $section['label'] ?>
-        <span class="badge badge-gray u-ml-1h"><?= count($section['items']) ?></span>
-      </div>
-      <div class="card">
-        <?php renderTaskList(array_values($section['items']), APP_BASE . '/api', $today); ?>
-      </div>
-    </div>
+  <?php if (!$tasks): ?>
+    <div class="card"><?= renderEmptyState('fa-book-open', 'Plan your next study session',
+      'Type one above: “practice past paper sunday #maths”, or add your exam — “physics exam 12 nov #physics” — to get a countdown.') ?></div>
+  <?php endif; ?>
+
+  <?php foreach ($groupMeta as $g => [$label, $icon]): ?>
+    <section class="td-section tdo-group<?= $g === 'overdue' ? ' is-overdue' : '' ?>" data-group="<?= $g ?>"<?= $groups[$g] ? '' : ' hidden' ?>>
+      <h2 class="td-section-head"><span><i class="fas <?= $icon ?>" aria-hidden="true"></i> <?= $label ?></span> <span class="td-count"><?= count($groups[$g]) ?></span></h2>
+      <ul class="td-list" data-list="<?= $g ?>"><?php foreach ($groups[$g] as $t) echo studyRow($t, $today, $typeColors); ?></ul>
+    </section>
   <?php endforeach; ?>
-
-<?php endif; ?>
+  <details class="td-section td-done tdo-group" data-group="done"<?= $groups['done'] ? '' : ' hidden' ?>>
+    <summary><i class="fas fa-chevron-right" aria-hidden="true"></i> Done <span class="td-count"><?= $doneTotal ?></span></summary>
+    <ul class="td-list" data-list="done"><?php foreach ($groups['done'] as $t) echo studyRow($t, $today, $typeColors); ?></ul>
+  </details>
+  <div class="card sp-nomatch" hidden><?= renderEmptyState('fa-filter', 'Nothing matches', 'Try another subject or type.', '', true) ?></div>
 </div>
 
-<!-- Add Study Task Modal -->
+<!-- Add / edit study task -->
 <div id="studyModal" class="modal-backdrop hidden">
   <div class="modal-box" style="max-width:540px">
     <div class="modal-header">
@@ -232,7 +194,8 @@ $studyFiltered = $typeFilter !== 'all' || $subjectFilter !== 'all' || $priorityF
       <div class="form-grid-2">
         <div class="form-group">
           <label for="studySubject" class="form-label">Subject</label>
-          <input id="studySubject" class="form-input" placeholder="e.g. Math, Physics">
+          <input id="studySubject" class="form-input" placeholder="e.g. Math, Physics" list="studySubjects">
+          <datalist id="studySubjects"><?php foreach (array_keys($subjects) as $s): ?><option value="<?= h($s) ?>"><?php endforeach; ?></datalist>
         </div>
         <div class="form-group">
           <label for="studyDue" class="form-label">Due date</label>
@@ -243,9 +206,7 @@ $studyFiltered = $typeFilter !== 'all' || $subjectFilter !== 'all' || $priorityF
         <div class="form-group">
           <label for="studyType" class="form-label">Type</label>
           <select id="studyType" class="form-input">
-            <?php foreach (['study','homework','practice','project','exam','reading','revision','other'] as $t): ?>
-              <option value="<?= $t ?>"><?= ucfirst($t) ?></option>
-            <?php endforeach; ?>
+            <?php foreach (STUDY_TYPES as $t): ?><option value="<?= $t ?>"><?= ucfirst($t) ?></option><?php endforeach; ?>
           </select>
         </div>
         <div class="form-group">
@@ -269,7 +230,7 @@ $studyFiltered = $typeFilter !== 'all' || $subjectFilter !== 'all' || $priorityF
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" data-close-modal="studyModal">Cancel</button>
       <button class="btn btn-primary btn-sm" onclick="saveStudy()">
-        <i class="fas fa-save"></i> Add Task
+        <i class="fas fa-save"></i> Save
       </button>
     </div>
   </div>
@@ -280,9 +241,107 @@ $studyFiltered = $typeFilter !== 'all' || $subjectFilter !== 'all' || $priorityF
 
 <script>
 const API_BASE = '<?= APP_BASE ?>/api';
-
 const STUDY_FIELDS = { studyTitle: 'title', studySubject: 'subject', studyDue: 'due_date', studyType: 'type',
                        studyPriority: 'priority', studyDesc: 'description', studyResource: 'resource' };
+(() => {
+  const main = document.getElementById('page-main');
+  if (!main || !document.getElementById('studyListWrap')) return;
+  const $ = id => document.getElementById(id);
+  const wrap = () => $('studyListWrap');
+  const NL = Trackie.NL;
+  const reduce = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const f = { type: wrap().dataset.initType || '', subject: wrap().dataset.initSubject || '', priority: wrap().dataset.initPriority || '' };
+
+  function apply() {
+    let shown = 0;
+    wrap().querySelectorAll('.sp-row').forEach(li => {
+      const m = (!f.type || li.dataset.type === f.type) && (!f.subject || li.dataset.subject.toLowerCase() === f.subject.toLowerCase())
+             && (!f.priority || li.dataset.pri === f.priority);
+      li.hidden = !m; if (m) shown++;
+    });
+    wrap().querySelectorAll('.tdo-group').forEach(sec => {
+      const all = sec.querySelectorAll('.sp-row').length, vis = [...sec.querySelectorAll('.sp-row')].filter(r => !r.hidden).length;
+      sec.hidden = !vis;
+      const c = sec.querySelector('.td-count'); if (c && sec.dataset.group !== 'done') c.textContent = (f.type || f.subject || f.priority) ? `${vis} of ${all}` : all;
+    });
+    const nm = wrap().querySelector('.sp-nomatch'); if (nm) nm.hidden = shown > 0 || !wrap().querySelector('.sp-row');
+    wrap().querySelectorAll('[data-f]').forEach(b => b.setAttribute('aria-pressed', String((f[b.dataset.f] || '') === b.dataset.v)));
+    const u = new URL(location.href);
+    for (const k of ['type', 'subject', 'priority']) f[k] ? u.searchParams.set(k, f[k]) : u.searchParams.delete(k);
+    history.replaceState(history.state, '', u);
+  }
+
+  main.addEventListener('click', async e => {
+    const chip = e.target.closest('#studyListWrap [data-f]');
+    if (chip) { f[chip.dataset.f] = f[chip.dataset.f] === chip.dataset.v ? '' : chip.dataset.v; apply(); return; }
+    const ex = e.target.closest('[data-filter-subject]');
+    if (ex) { f.subject = ex.dataset.filterSubject; f.type = ''; apply(); wrap().querySelector('.sp-filters')?.scrollIntoView({ behavior: reduce() ? 'auto' : 'smooth', block: 'start' }); return; }
+    const btn = e.target.closest('#studyListWrap button.td-check');
+    if (!btn || btn.getAttribute('aria-busy') === 'true') return;
+    const li = btn.closest('.sp-row');
+    const done = btn.getAttribute('aria-checked') !== 'true';
+    btn.setAttribute('aria-checked', String(done)); btn.setAttribute('aria-busy', 'true');
+    li.classList.toggle('is-done', done);
+    if (done) Trackie.Delight?.tap();
+    try {
+      const res = await Trackie.API.post(`${API_BASE}/study_plan.php`, { action: 'toggle', task_id: li.dataset.id, completed: done ? 1 : 0 });
+      if (!res?.success) throw res;
+      if (res.achievements?.length) Trackie.showAchievementToasts?.(res.achievements);
+      if (done && res.xp?.gained) Trackie.Toast.success(`+${res.xp.gained} XP`, 1600);
+      await new Promise(r => setTimeout(r, done && !reduce() ? 300 : 0));
+      await refresh();   // regroup + subject counts from the server
+    } catch (err) {
+      btn.setAttribute('aria-checked', String(!done)); li.classList.toggle('is-done', !done);
+      Trackie.UI.toastError(err, "Couldn't update that task.");
+    } finally { btn.removeAttribute('aria-busy'); }
+  });
+
+  // Quick add: #subject, type from words, date and !priority from NL.
+  const TYPE_WORDS = [[/\b(exam|test|midterm|final|quiz)\b/i, 'exam'], [/\b(homework|hw|assignment|worksheet)\b/i, 'homework'],
+                      [/\b(revise|revision|review)\b/i, 'revision'], [/\b(practice|practise|past paper|drill)\b/i, 'practice'],
+                      [/\b(read|reading|chapter)\b/i, 'reading'], [/\bproject\b/i, 'project']];
+  function parseStudy(text) {
+    const p = NL.parse(text);
+    const type = (TYPE_WORDS.find(([re]) => re.test(p.title)) || [, 'study'])[1];
+    const subject = p.tags[0] ? p.tags[0].replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
+    return { ...p, type, subject };
+  }
+  function hint() {
+    const el = $('spAddHint'), v = $('spAddInput')?.value || '';
+    NL.hint(el, v, wrap().dataset.today, 'No date');
+    if (!v.trim() || !el) return;
+    const r = parseStudy(v);
+    el.querySelectorAll('.td-tag').forEach(t => { if (t.querySelector('.fa-hashtag')) t.remove(); });
+    const tag = (icon, label) => { const s = document.createElement('span'); s.className = 'td-tag'; s.innerHTML = `<i class="fas ${icon}" aria-hidden="true"></i> `; s.append(label); return s; };
+    el.prepend(tag('fa-layer-group', r.type[0].toUpperCase() + r.type.slice(1)));
+    if (r.subject) el.append(tag('fa-book', r.subject));
+  }
+  main.addEventListener('focusin', e => { if (e.target.id === 'spAddInput') NL.load().then(hint); });
+  main.addEventListener('input', e => { if (e.target.id === 'spAddInput') hint(); });
+  main.addEventListener('submit', async e => {
+    if (e.target.id !== 'spAdd') return;
+    e.preventDefault();
+    await NL.load();
+    const r = parseStudy($('spAddInput').value);
+    if (!r.title) return;
+    const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
+    try {
+      const res = await Trackie.API.post(`${API_BASE}/study_plan.php`, { action: 'add', title: r.title, subject: r.subject || f.subject, due_date: r.due || '', type: r.type, priority: r.priority, description: '', resource: '' });
+      if (!res?.success) throw res;
+      $('spAddInput').value = ''; $('spAddHint').replaceChildren();
+      await refresh();
+      const li = res.id && $('study-' + res.id);
+      if (li) { if (li.hidden) { f.type = f.subject = f.priority = ''; apply(); } li.classList.add('is-new'); li.scrollIntoView({ block: 'nearest' }); }
+      else Trackie.Toast.success('Added.', 1800);
+    } catch (err) { Trackie.UI.toastError(err, "Couldn't add that task."); }
+    finally { const b = document.querySelector('#spAdd button[type="submit"]'); if (b) b.disabled = false; $('spAddInput')?.focus(); }
+  });
+
+  async function refresh() { await Trackie.refreshFragments(['studyListWrap']); apply(); }
+  window.studyRefresh = refresh;
+  apply();
+})();
+
 function openNewStudy() {
   document.getElementById('studyId').value = '';
   Object.keys(STUDY_FIELDS).forEach(i => { const el = document.getElementById(i); el.value = el.tagName === 'SELECT' ? el.options[0].value : ''; });
@@ -293,56 +352,38 @@ function openNewStudy() {
 async function openEditStudy(id) {
   try {
     const res = await Trackie.API.post(`${API_BASE}/study_plan.php`, { action: 'get', task_id: id });
-    if (!res.success) { Trackie.Toast.error(res.error || 'Not found.'); return; }
+    if (!res.success) throw res;
     document.getElementById('studyId').value = res.task.id;
     Object.entries(STUDY_FIELDS).forEach(([i, k]) => document.getElementById(i).value = res.task[k] || '');
     const t = document.querySelector('#studyModal .modal-title'); if (t) t.textContent = 'Edit Task';
     Trackie.openModal('studyModal');
-  } catch { Trackie.Toast.error('Network error.'); }
+  } catch (e) { Trackie.UI.toastError(e, 'Could not load that task.'); }
 }
 async function saveStudy() {
   const title = document.getElementById('studyTitle').value.trim();
   if (!title) { Trackie.Toast.warning('Title is required.'); return; }
+  const v = k => document.getElementById(k).value;
   try {
-    const editId = document.getElementById('studyId').value;
+    const editId = v('studyId');
     const res = await Trackie.API.post(`${API_BASE}/study_plan.php`, {
-      action: editId ? 'edit' : 'add', task_id: editId, title,
-      subject:   document.getElementById('studySubject').value,
-      due_date:  document.getElementById('studyDue').value,
-      type:      document.getElementById('studyType').value,
-      priority:  document.getElementById('studyPriority').value,
-      description: document.getElementById('studyDesc').value,
-      resource:  document.getElementById('studyResource').value,
+      action: editId ? 'edit' : 'add', task_id: editId, title, subject: v('studySubject'), due_date: v('studyDue'),
+      type: v('studyType'), priority: v('studyPriority'), description: v('studyDesc'), resource: v('studyResource'),
     });
-    if (res.success) {
-      Trackie.Toast.success(editId ? 'Task updated.' : 'Task added!');
-      Trackie.closeModal('studyModal');
-      await Trackie.refreshFragments(['studyListWrap']);
-    }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    if (!res.success) throw res;
+    Trackie.Toast.success(editId ? 'Task updated.' : 'Task added!');
+    Trackie.closeModal('studyModal');
+    await window.studyRefresh?.();
+  } catch (e) { Trackie.UI.toastError(e, 'Save failed.'); }
 }
-
-async function toggleStudy(id, checked, el) {
-  el.disabled = true;
-  try {
-    const res = await Trackie.API.post(`${API_BASE}/study_plan.php`, {
-      action:'toggle', task_id:id, completed: checked ? 1 : 0
-    });
-    if (res.success) {
-      document.getElementById(`study-${id}`)?.classList.toggle('done', checked);
-    } else { Trackie.Toast.error(res.error || 'Failed.'); el.checked = !checked; }
-  } catch { Trackie.Toast.error('Network error.'); el.checked = !checked; }
-  el.disabled = false;
-}
-
 async function deleteStudy(id) {
-  const ok = await Trackie.confirmDialog('Delete this task?', {confirmText:'Delete', danger:true});
+  const ok = await Trackie.confirmDialog('Delete this task?', { confirmText: 'Delete', danger: true });
   if (!ok) return;
   try {
-    const res = await Trackie.API.post(`${API_BASE}/study_plan.php`, {action:'delete', task_id:id});
-    if (res.success) { document.getElementById(`study-${id}`)?.remove(); Trackie.Toast.success('Deleted.'); }
-    else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    const res = await Trackie.API.post(`${API_BASE}/study_plan.php`, { action: 'delete', task_id: id });
+    if (!res.success) throw res;
+    await Trackie.UI.transition(() => document.getElementById(`study-${id}`)?.remove(), [...document.querySelectorAll('.sp-row:not([hidden])')]);
+    window.studyRefresh?.();
+    Trackie.Toast.success('Deleted.');
+  } catch (e) { Trackie.UI.toastError(e, 'Delete failed.'); }
 }
 </script>
