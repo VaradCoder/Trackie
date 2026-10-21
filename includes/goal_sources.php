@@ -90,3 +90,35 @@ function syncLinkedGoals(int $uid): array {
     }
     return $completed;
 }
+
+/**
+ * Is a goal on pace for its deadline? Pure — tests pass `$today`.
+ * Straight-line expectation from the start (source_since, else the day it was
+ * created) to the deadline, with a 3% band so "on track" isn't a coin toss.
+ *
+ * @return array{state:string, diff:int, expected:int, daysLeft:?int, perDay:?float}
+ *   state: done | none (no deadline) | overdue | ahead | on | behind
+ */
+function goalPace(array $g, ?string $today = null): array {
+    $today  = $today ?? date('Y-m-d');
+    $target = max(1, (int)$g['target_value']);
+    $prog   = (int)$g['progress'];
+    $out    = ['state' => 'none', 'diff' => 0, 'expected' => $prog, 'daysLeft' => null, 'perDay' => null];
+    if ($prog >= $target) return ['state' => 'done'] + $out;
+    if (empty($g['deadline'])) return $out;
+
+    $day   = static fn(string $d) => (int)floor(strtotime($d . ' 12:00:00') / 86400);
+    $start = !empty($g['source_since']) ? $g['source_since'] : substr((string)($g['created_at'] ?? $today), 0, 10);
+    $s = $day($start); $e = $day($g['deadline']); $t = $day($today);
+    if ($s >= $e) $s = $e - 1;
+    $left = $target - $prog;
+    if ($t > $e) return ['state' => 'overdue', 'diff' => -$left, 'expected' => $target, 'daysLeft' => $t - $e, 'perDay' => null] + $out;
+
+    $expected = (int)round($target * max(0, min(1, ($t - $s) / ($e - $s))));
+    $diff     = $prog - $expected;
+    $band     = max(1, (int)round($target * 0.03));
+    $state    = abs($diff) <= $band ? 'on' : ($diff > 0 ? 'ahead' : 'behind');
+    $daysLeft = $e - $t;                                   // whole days after today
+    return ['state' => $state, 'diff' => $diff, 'expected' => $expected, 'daysLeft' => $daysLeft,
+            'perDay' => round($left / ($daysLeft + 1), 1)]; // today still counts
+}
