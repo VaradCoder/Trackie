@@ -63,147 +63,128 @@ require_once '../includes/head.php';
 ]) ?>
 
 <div id="routinesListWrap">
+<?php
+// Next up: the first routine still owed today whose time hasn't passed.
+$nowHm = date('H:i');
+$nextUp = null;
+foreach ($routines as $r) if ($r['state'] === 'due' && substr($r['time_slot'], 0, 5) >= $nowHm) { $nextUp = $r; break; }
+?>
 <?php if ($isRestDay): ?>
-  <div class="card card-body u-mb-5 u-flex u-items-center u-justify-between u-gap-4" role="status">
+  <div class="card card-body u-mb-4 u-flex u-items-center u-justify-between u-gap-4 rt-rest" role="status">
     <div><div class="u-fw-6 u-c-text"><i class="fas fa-couch u-mr-1h" aria-hidden="true"></i> Rest day</div>
       <div class="u-fs-13 u-c-muted">Nothing on your routine is expected today. Anything you do still counts.</div></div>
     <button type="button" class="btn btn-secondary btn-sm" onclick="setRoutineRestDay(false)">Back to normal</button>
   </div>
-<?php elseif ($canExcept && $routines): ?>
-  <div class="u-flex u-justify-end u-mb-2">
-    <button type="button" class="btn btn-ghost btn-sm" onclick="setRoutineRestDay(true)"><i class="fas fa-couch" aria-hidden="true"></i> Make today a rest day</button>
-  </div>
-<?php endif; ?>
-<?php if ($totalCount): ?>
-  <div class="card card-body routine-progress u-mb-5">
-    <div class="u-flex u-items-baseline u-justify-between u-gap-4 u-mb-2">
-      <div class="u-fw-6 u-c-text">Today's routine</div>
-      <div class="u-fs-13 u-c-muted">
-        <strong class="u-c-text"><?= $doneCount ?></strong> of <?= $totalCount ?> done
-      </div>
-    </div>
-    <div class="progress-track" role="progressbar" aria-valuenow="<?= $pct ?>"
-         aria-valuemin="0" aria-valuemax="100"
-         aria-label="Routines completed today">
-      <div class="progress-fill green" id="routineProgressFill" style="width:<?= $pct ?>%"></div>
-    </div>
-  </div>
 <?php endif; ?>
 
-<?php if (empty($routines) && $notToday): ?>
-  <div class="card card-body u-mb-6">
-    <p class="text-muted u-m-0 u-fs-14">Nothing scheduled for today. Your other routines are listed below.</p>
-  </div>
-<?php elseif (empty($routines)): ?>
-  <div class="card">
-    <div class="empty-state">
-      <div class="empty-state-icon"><i class="fas fa-clock"></i></div>
-      <div class="empty-state-title">No routines yet</div>
-      <p>Build structure into your day with a daily routine.</p>
-      <button class="btn btn-primary u-mt-3" onclick="openRoutineModal()">
-        <i class="fas fa-plus"></i> Add your first routine
-      </button>
+<?php if ($routines || $notToday): ?>
+  <section class="rt-head">
+    <div class="td-ring rt-ring<?= $totalCount && $doneCount === $totalCount ? ' is-complete' : '' ?><?= $doneCount ? '' : ' is-empty' ?>" style="--p:<?= $pct ?>" aria-hidden="true">
+      <svg viewBox="0 0 100 100"><circle class="td-ring-track" cx="50" cy="50" r="42" pathLength="100"/><circle class="td-ring-fill" cx="50" cy="50" r="42" pathLength="100"/></svg>
+      <div class="td-ring-label"><span class="td-ring-num"><?= $doneCount ?>/<?= $totalCount ?></span></div>
     </div>
-  </div>
+    <div class="rt-head-text routine-progress">
+      <div class="u-fs-13 u-c-muted"><strong class="u-c-text"><?= $doneCount ?></strong> of <?= $totalCount ?> done</div>
+      <div class="rt-next" id="rtNext" data-time="<?= $nextUp ? h(substr($nextUp['time_slot'], 0, 5)) : '' ?>">
+        <?php if ($isRestDay): ?>Taking it easy today.
+        <?php elseif ($nextUp): ?>Next up: <strong><?= h($nextUp['title']) ?></strong> at <?= date('g:i A', strtotime($nextUp['time_slot'])) ?> <span class="rt-in"></span>
+        <?php elseif ($totalCount && $doneCount === $totalCount): ?>All done for today. 🎉
+        <?php elseif ($totalCount): ?>Nothing else is scheduled later today.
+        <?php else: ?>Nothing scheduled today.<?php endif; ?>
+      </div>
+      <div class="progress-track rt-bar" role="progressbar" aria-valuenow="<?= $pct ?>" aria-valuemin="0" aria-valuemax="100" aria-label="Routines completed today">
+        <div class="progress-fill green" id="routineProgressFill" style="width:<?= $pct ?>%"></div>
+      </div>
+    </div>
+    <?php if (!$isRestDay && $canExcept && $routines): ?>
+      <button type="button" class="btn btn-ghost btn-sm rt-rest-btn" onclick="setRoutineRestDay(true)"><i class="fas fa-couch" aria-hidden="true"></i> Make today a rest day</button>
+    <?php endif; ?>
+  </section>
+<?php endif; ?>
+
+<form class="td-add" id="rtAdd" autocomplete="off">
+  <label class="td-add-row">
+    <i class="fas fa-plus" aria-hidden="true"></i>
+    <span class="sr-only">Add a routine</span>
+    <input class="td-add-input" id="rtAddInput" maxlength="150" enterkeyhint="done"
+           placeholder="Add a routine, e.g. “stretch 7am weekdays”"
+           title="A time (7am, 18:30) and, if not every day: weekdays, weekends, or days like mon wed fri">
+    <button type="submit" class="btn btn-primary btn-sm td-add-btn">Add</button>
+  </label>
+  <div class="td-add-hint" id="rtAddHint" aria-live="polite"></div>
+</form>
+
+<?php if (!$routines && !$notToday): ?>
+  <div class="card"><?= renderEmptyState('fa-clock', 'No routines yet',
+    'A routine is something you do at about the same time: “meditate 7am”, “review the day 9pm weekdays”. Type one above.') ?></div>
+<?php elseif (!$routines): ?>
+  <div class="card card-body u-mb-6"><p class="u-c-muted u-m-0 u-fs-14">Nothing scheduled for today. Your other routines are listed below.</p></div>
 <?php else: ?>
-  <?php foreach ($groups as $period => $items): if (empty($items)) continue; ?>
-    <div class="u-mb-6">
-      <div style="font-size:.8125rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--sp-3)">
-        <?= $period ?>
-      </div>
-      <div class="u-flex u-flex-col u-gap-2h">
-        <?php foreach ($items as $r):
-          $cc   = $catColors[$r['category']] ?? '#64748b';
-          $done = (int)$r['done_today'];
-          $st   = $r['state'];
-        ?>
-          <div class="card card-body routine-row<?= $done ? ' is-done' : '' ?><?= $st === 'skipped' ? ' is-skipped' : '' ?><?= $st === 'rest' ? ' is-rest' : '' ?> u-flex u-items-center u-gap-4" id="routine-<?= $r['id'] ?>"
-              >
-            <button type="button"
-                    class="routine-check<?= $done ? ' checked' : '' ?>"
-                    role="switch"
-                    aria-checked="<?= $done ? 'true' : 'false' ?>"
-                    aria-label="Mark &quot;<?= h($r['title']) ?>&quot; done for today"
-                    onclick="toggleRoutine(<?= $r['id'] ?>, this)">
-              <i class="fas fa-check" aria-hidden="true"></i>
-            </button>
-            <div style="width:52px;text-align:center;flex-shrink:0">
-              <div class="u-fs-15 u-fw-7 u-c-text">
-                <?= date('g:i', strtotime($r['time_slot'])) ?>
-              </div>
-              <div class="u-fs-11 u-c-muted">
-                <?= date('A', strtotime($r['time_slot'])) ?>
-              </div>
+  <ol class="rt-timeline" id="rtTimeline" aria-label="Today's routines">
+    <?php foreach ($routines as $r):
+      $cc   = $catColors[$r['category']] ?? '#64748b';
+      $done = (int)$r['done_today'];
+      $st   = $r['state'];
+      $hm   = substr($r['time_slot'], 0, 5);
+    ?>
+      <li class="routine-row rt-item<?= $done ? ' is-done' : '' ?><?= $st === 'skipped' ? ' is-skipped' : '' ?><?= $st === 'rest' ? ' is-rest' : '' ?><?= $nextUp && $nextUp['id'] === $r['id'] ? ' is-next' : '' ?>"
+          id="routine-<?= (int)$r['id'] ?>" data-time="<?= h($hm) ?>" data-state="<?= h($st) ?>" style="--cc:<?= $cc ?>">
+        <time class="rt-time" datetime="<?= h($hm) ?>"><?= date('g:i', strtotime($r['time_slot'])) ?><small><?= date('A', strtotime($r['time_slot'])) ?></small></time>
+        <span class="rt-node" aria-hidden="true"></span>
+        <div class="rt-card">
+          <button type="button" class="routine-check<?= $done ? ' checked' : '' ?>" role="switch"
+                  aria-checked="<?= $done ? 'true' : 'false' ?>"
+                  aria-label="Mark &quot;<?= h($r['title']) ?>&quot; done for today"
+                  onclick="toggleRoutine(<?= (int)$r['id'] ?>, this)">
+            <i class="fas fa-check" aria-hidden="true"></i>
+          </button>
+          <div class="routine-main">
+            <div class="routine-title"><?= h($r['title']) ?></div>
+            <div class="rt-meta">
+              <span class="rt-cat"><?= h($r['category']) ?></span>
+              <?php if ((string)($r['schedule_days'] ?? '') !== ''): ?><span><i class="fas fa-calendar-day" aria-hidden="true"></i> <?= h(habitScheduleLabel($routineSched($r))) ?></span><?php endif; ?>
+              <?php if ($st === 'skipped'): ?><span><i class="fas fa-forward" aria-hidden="true"></i> Skipped today — your weekly plan is unchanged</span>
+              <?php elseif ($st === 'rest'): ?><span><i class="fas fa-couch" aria-hidden="true"></i> Rest day</span>
+              <?php elseif (!routineScheduledOn($r, $today)): ?><span><i class="fas fa-plus" aria-hidden="true"></i> Done today as an extra</span>
+              <?php endif; ?>
+              <span class="rt-late" hidden>Running late</span>
             </div>
-            <?php /* Class, not an inline style: the responsive rule needs to
-                     change this element's flex basis at narrow widths, and an
-                     inline `flex:1` would win over the stylesheet. */ ?>
-            <div class="routine-main">
-              <div class="routine-title"><?= h($r['title']) ?></div>
-              <?php if ((string)($r['schedule_days'] ?? '') !== ''): ?>
-                <div class="routine-desc"><i class="fas fa-calendar-day" aria-hidden="true"></i> <?= h(habitScheduleLabel($routineSched($r))) ?></div>
-              <?php endif; ?>
-              <?php if ($r['description']): ?>
-                <div class="routine-desc"><?= h($r['description']) ?></div>
-              <?php endif; ?>
-              <?php if ($st === 'skipped'): ?>
-                <div class="routine-desc"><i class="fas fa-forward" aria-hidden="true"></i> Skipped today — your weekly plan is unchanged</div>
-              <?php elseif ($st === 'rest'): ?>
-                <div class="routine-desc"><i class="fas fa-couch" aria-hidden="true"></i> Rest day</div>
-              <?php elseif (!routineScheduledOn($r, $today)): ?>
-                <div class="routine-desc"><i class="fas fa-plus" aria-hidden="true"></i> Done today as an extra</div>
-              <?php endif; ?>
-            </div>
-            <span class="badge" style="background:<?= $cc ?>20;color:<?= $cc ?>;flex-shrink:0">
-              <?= h($r['category']) ?>
-            </span>
-            <div class="u-flex u-gap-1 u-shrink-0">
-              <?php if ($canExcept && !$done && $st !== 'rest'): ?>
-                <button type="button" class="btn btn-icon btn-ghost btn-sm"
-                        title="<?= $st === 'skipped' ? 'Undo skip' : 'Skip today' ?>"
-                        aria-label="<?= $st === 'skipped' ? 'Undo skip for' : 'Skip today:' ?> <?= h($r['title']) ?>"
-                        onclick="skipRoutine(<?= $r['id'] ?>, <?= $st === 'skipped' ? 'false' : 'true' ?>)">
-                  <i class="fas <?= $st === 'skipped' ? 'fa-rotate-left' : 'fa-forward' ?>" aria-hidden="true"></i>
-                </button>
-              <?php endif; ?>
-              <button class="btn btn-icon btn-ghost btn-sm" title="Edit" aria-label="Edit <?= h($r['title']) ?>"
-                      onclick="editRoutine(<?= $r['id'] ?>)">
-                <i class="fas fa-pen"></i>
-              </button>
-              <button class="btn btn-icon btn-ghost btn-sm u-c-accent" title="Delete" aria-label="Delete <?= h($r['title']) ?>"
-                      onclick="deleteRoutine(<?= $r['id'] ?>)">
-                <i class="fas fa-trash"></i>
-              </button>
-            </div>
+            <?php if ($r['description']): ?><div class="routine-desc"><?= h($r['description']) ?></div><?php endif; ?>
           </div>
-        <?php endforeach; ?>
-      </div>
-    </div>
-  <?php endforeach; ?>
+          <div class="hb-menu rt-actions">
+            <?php if ($canExcept && !$done && $st !== 'rest'): ?>
+              <button type="button" class="pg-icon-btn" title="<?= $st === 'skipped' ? 'Undo skip' : 'Skip today' ?>"
+                      aria-label="<?= $st === 'skipped' ? 'Undo skip for' : 'Skip today:' ?> <?= h($r['title']) ?>"
+                      onclick="skipRoutine(<?= (int)$r['id'] ?>, <?= $st === 'skipped' ? 'false' : 'true' ?>)">
+                <i class="fas <?= $st === 'skipped' ? 'fa-rotate-left' : 'fa-forward' ?>" aria-hidden="true"></i>
+              </button>
+            <?php endif; ?>
+            <button type="button" class="pg-icon-btn" title="Edit" aria-label="Edit <?= h($r['title']) ?>" onclick="editRoutine(<?= (int)$r['id'] ?>)"><i class="fas fa-pen" aria-hidden="true"></i></button>
+            <button type="button" class="pg-icon-btn is-danger" title="Delete" aria-label="Delete <?= h($r['title']) ?>" onclick="deleteRoutine(<?= (int)$r['id'] ?>)"><i class="fas fa-trash" aria-hidden="true"></i></button>
+          </div>
+        </div>
+      </li>
+    <?php endforeach; ?>
+  </ol>
 <?php endif; ?>
 
 <?php if ($notToday): ?>
-  <div class="u-mb-6">
-    <div style="font-size:.8125rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:var(--sp-3)">
-      Not today
-    </div>
-    <div class="u-flex u-flex-col u-gap-2h">
-      <?php foreach ($notToday as $r): $cc = $catColors[$r['category']] ?? '#64748b'; ?>
-        <div class="card card-body routine-off u-flex u-items-center u-gap-4">
-          <div style="width:52px;text-align:center;flex-shrink:0;color:var(--muted);font-size:.875rem;font-weight:600"><?= date('g:i A', strtotime($r['time_slot'])) ?></div>
-          <div class="routine-main">
-            <div class="routine-title"><?= h($r['title']) ?></div>
-            <div class="routine-desc"><i class="fas fa-calendar-day" aria-hidden="true"></i> <?= h(habitScheduleLabel($routineSched($r))) ?></div>
+  <details class="td-section td-done rt-off">
+    <summary><i class="fas fa-chevron-right" aria-hidden="true"></i> Not today <span class="td-count"><?= count($notToday) ?></span></summary>
+    <ul class="td-list">
+      <?php foreach ($notToday as $r): ?>
+        <li class="td-item">
+          <span class="td-check td-check-static rt-off-time" aria-hidden="true"><?= date('g:i', strtotime($r['time_slot'])) ?></span>
+          <div class="td-body"><div class="td-title"><?= h($r['title']) ?></div>
+            <div class="td-meta"><span><i class="fas fa-calendar-day" aria-hidden="true"></i> <?= h(habitScheduleLabel($routineSched($r))) ?></span></div></div>
+          <div class="hb-menu">
+            <button type="button" class="pg-icon-btn" aria-label="Edit <?= h($r['title']) ?>" onclick="editRoutine(<?= (int)$r['id'] ?>)"><i class="fas fa-pen" aria-hidden="true"></i></button>
+            <button type="button" class="pg-icon-btn is-danger" aria-label="Delete <?= h($r['title']) ?>" onclick="deleteRoutine(<?= (int)$r['id'] ?>)"><i class="fas fa-trash" aria-hidden="true"></i></button>
           </div>
-          <span class="badge" style="background:<?= $cc ?>20;color:<?= $cc ?>;flex-shrink:0"><?= h($r['category']) ?></span>
-          <div class="u-flex u-gap-1 u-shrink-0">
-            <button class="btn btn-icon btn-ghost btn-sm" aria-label="Edit <?= h($r['title']) ?>" onclick="editRoutine(<?= $r['id'] ?>)"><i class="fas fa-pen"></i></button>
-            <button class="btn btn-icon btn-ghost btn-sm u-c-accent" aria-label="Delete <?= h($r['title']) ?>" onclick="deleteRoutine(<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button>
-          </div>
-        </div>
+        </li>
       <?php endforeach; ?>
-    </div>
-  </div>
+    </ul>
+  </details>
 <?php endif; ?>
 </div>
 
@@ -349,7 +330,7 @@ async function toggleRoutine(id, btn) {
       return;
     }
     const row = btn.closest('.routine-row');
-    if (row && (row.classList.contains('is-skipped') || row.classList.contains('is-rest'))) Trackie.refreshFragments(['routinesListWrap']);
+    if (row && (row.classList.contains('is-skipped') || row.classList.contains('is-rest'))) Trackie.refreshFragments(['routinesListWrap']).then(rtTick);
     // Every routine expected today is done → celebrate.
     if (nowDone && !document.querySelector('#routinesListWrap .routine-row:not(.is-done):not(.is-skipped):not(.is-rest)')) {
       Trackie.Delight?.burst(btn);
@@ -373,7 +354,7 @@ async function skipRoutine(id, on) {
     const res = await Trackie.API.post(`${API_BASE}/routines.php`, { action: on ? 'skip' : 'unskip', routine_id: id });
     if (!res.success) return Trackie.UI.toastError(res, "Couldn't update that routine.");
     Trackie.Toast.success(on ? 'Skipped for today — next week is unchanged.' : 'Skip undone.');
-    Trackie.refreshFragments(['routinesListWrap']);
+    Trackie.refreshFragments(['routinesListWrap']).then(rtTick);
   } catch (e) { Trackie.UI.toastError(e, "Couldn't update that routine."); }
 }
 
@@ -382,7 +363,7 @@ async function setRoutineRestDay(on) {
     const res = await Trackie.API.post(`${API_BASE}/routines.php`, { action: 'rest_day', on: on ? 1 : 0 });
     if (!res.success) return Trackie.UI.toastError(res, "Couldn't update today.");
     Trackie.Toast.success(on ? 'Rest day — nothing is expected today.' : 'Back to your normal routine.');
-    Trackie.refreshFragments(['routinesListWrap']);
+    Trackie.refreshFragments(['routinesListWrap']).then(rtTick);
   } catch (e) { Trackie.UI.toastError(e, "Couldn't update today."); }
 }
 
@@ -397,13 +378,139 @@ function updateRoutineProgress() {
   const done = document.querySelectorAll('#routinesListWrap .routine-row.is-done').length;
   const due  = document.querySelectorAll('#routinesListWrap .routine-row:not(.is-done):not(.is-skipped):not(.is-rest)').length;
   const expected = done + due;
+  const pct = expected ? Math.round(done / expected * 100) : 0;
   const fill = document.getElementById('routineProgressFill');
-  if (!expected || !fill) return;
-  const pct = Math.round(done / expected * 100);
-  fill.style.width = pct + '%';
-  const bar = fill.parentElement;
-  bar?.setAttribute('aria-valuenow', pct);
-  const label = bar?.closest('.routine-progress')?.querySelector('strong');
+  if (fill) {
+    fill.style.width = pct + '%';
+    fill.parentElement?.setAttribute('aria-valuenow', pct);
+  }
+  const label = document.querySelector('#routinesListWrap .routine-progress strong');
   if (label) label.textContent = done;
+  const ring = document.querySelector('.rt-ring');
+  if (ring) {
+    ring.style.setProperty('--p', pct);
+    ring.classList.toggle('is-complete', expected > 0 && done === expected);
+    ring.classList.toggle('is-empty', !done);
+    const num = ring.querySelector('.td-ring-num'); if (num) num.textContent = `${done}/${expected}`;
+  }
+  rtTick();
 }
+
+/* ── Live timeline: the "now" line, "next up · in 25 min", running late ── */
+const hmNow = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const hmMin = hm => +hm.slice(0, 2) * 60 + +hm.slice(3, 5);
+function rtTick() {
+  const tl = document.getElementById('rtTimeline');
+  const now = hmNow(), nowMin = hmMin(now);
+  const items = tl ? [...tl.querySelectorAll('.rt-item')] : [];
+  const owed = r => !r.classList.contains('is-done') && !r.classList.contains('is-skipped') && !r.classList.contains('is-rest');
+  items.forEach(r => {
+    const late = owed(r) && nowMin - hmMin(r.dataset.time) > 15;   // 15 minutes of grace
+    r.classList.toggle('is-late', late);
+    const tag = r.querySelector('.rt-late'); if (tag) tag.hidden = !late;
+  });
+  if (tl) {
+    let line = tl.querySelector('.rt-now');
+    if (!line) {
+      line = Object.assign(document.createElement('li'), { className: 'rt-now' });
+      line.setAttribute('aria-hidden', 'true');
+      line.innerHTML = '<span class="rt-now-time"></span><span class="rt-now-rule"></span>';
+    }
+    line.querySelector('.rt-now-time').textContent = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const after = items.find(r => r.dataset.time > now) || null;
+    if (!line.isConnected || line.nextElementSibling !== after) tl.insertBefore(line, after);
+  }
+  // Next up: first routine still owed whose time hasn't passed.
+  const next = items.find(r => owed(r) && r.dataset.time >= now);
+  items.forEach(r => r.classList.toggle('is-next', r === next));
+  const box = document.getElementById('rtNext');
+  if (!box || document.querySelector('.rt-rest')) return;
+  if (next) {
+    const mins = hmMin(next.dataset.time) - nowMin;
+    const when = mins <= 0 ? 'now' : mins < 60 ? `in ${mins} min` : `in ${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ''}`;
+    const t = next.querySelector('.rt-time');
+    box.replaceChildren('Next up: ', Object.assign(document.createElement('strong'), { textContent: next.querySelector('.routine-title').textContent }),
+      ` at ${t.childNodes[0].textContent} ${t.querySelector('small').textContent} `,
+      Object.assign(document.createElement('span'), { className: 'rt-in', textContent: '· ' + when }));
+  } else if (items.length && !items.some(owed)) {
+    box.textContent = 'All done for today. 🎉';
+  } else if (items.length) {
+    box.textContent = 'A few are still open from earlier today.';
+  }
+}
+rtTick();
+setInterval(rtTick, 30000);
+
+/* ── Quick add: "stretch 7am weekdays", "gym mon wed fri 6:30pm" ────── */
+const RT_DAY = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+const RT_DAY_RE = /\b(?:on\s+|every\s+)?(sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)(?:day|nesday|sday|urday)?s?\b/gi;
+function parseRoutine(text) {
+  let rest = ` ${text} `, days = null;
+  if (/\b(every\s*day|daily)\b/i.test(rest)) { days = ''; rest = rest.replace(/\b(every\s*day|daily)\b/i, ' '); }
+  else if (/\bweekdays?\b/i.test(rest)) { days = '1,2,3,4,5'; rest = rest.replace(/\b(on\s+|every\s+)?weekdays?\b/i, ' '); }
+  else if (/\bweekends?\b/i.test(rest)) { days = '0,6'; rest = rest.replace(/\b(on\s+|every\s+)?weekends?\b/i, ' '); }
+  else {
+    const set = new Set();
+    rest = rest.replace(RT_DAY_RE, (m, d) => { set.add(RT_DAY[d.slice(0, 3).toLowerCase()]); return ' '; });
+    if (set.size) { days = [...set].sort((a, b) => a - b).join(','); rest = rest.replace(/\s(?:and|&|,)(?=\s)/g, ' ').replace(/,/g, ' '); }
+  }
+  let time = null;
+  const r = window.chrono?.parse(rest, new Date())?.find(x => x.start.isCertain('hour'));
+  if (r) {
+    time = `${String(r.start.get('hour')).padStart(2, '0')}:${String(r.start.get('minute') || 0).padStart(2, '0')}`;
+    rest = rest.replace(r.text, ' ');
+  }
+  rest = rest.replace(/\s(at|on|every)\s*$/i, ' ');
+  return { title: rest.replace(/\s+/g, ' ').trim(), time, days: days ?? '' };
+}
+function rtDaysLabel(csv) {
+  if (!csv) return 'Every day';
+  if (csv === '1,2,3,4,5') return 'Weekdays';
+  if (csv === '0,6') return 'Weekends';
+  const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return csv.split(',').map(d => names[+d]).join(' · ');
+}
+function rtHint() {
+  const el = document.getElementById('rtAddHint'), v = document.getElementById('rtAddInput')?.value.trim() || '';
+  if (!el) return;
+  if (!v) { el.replaceChildren(); return; }
+  const r = parseRoutine(v);
+  const tag = (icon, label, muted) => {
+    const s = document.createElement('span'); s.className = 'td-tag' + (muted ? ' is-muted' : '');
+    s.innerHTML = `<i class="fas ${icon}" aria-hidden="true"></i> `; s.append(label); return s;
+  };
+  const t = r.time ? new Date(`2000-01-01T${r.time}`).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : null;
+  el.replaceChildren(tag('fa-clock', t || 'Add a time, e.g. 7am', !t), tag('fa-calendar-day', rtDaysLabel(r.days)),
+    ...(r.title ? [] : [tag('fa-pen', 'Add a few words', true)]));
+}
+const rtMain = document.getElementById('page-main');
+rtMain?.addEventListener('focusin', e => { if (e.target.id === 'rtAddInput') Trackie.NL.load().then(rtHint); });
+rtMain?.addEventListener('input', e => { if (e.target.id === 'rtAddInput') rtHint(); });
+rtMain?.addEventListener('submit', async e => {
+  if (e.target.id !== 'rtAdd') return;
+  e.preventDefault();
+  await Trackie.NL.load();
+  const input = document.getElementById('rtAddInput');
+  const r = parseRoutine(input.value);
+  if (!r.title || !r.time) {
+    rtHint(); input.focus();
+    Trackie.Toast.warning(!r.title ? 'Add a name for the routine.' : 'Add a time, e.g. “7am” or “18:30”.');
+    return;
+  }
+  const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
+  try {
+    const res = await Trackie.API.post(`${API_BASE}/routines.php`, { action: 'add', title: r.title, time_slot: r.time, schedule_days: r.days, category: 'Personal', description: '' });
+    if (!res.success) throw res;
+    input.value = ''; rtHint();
+    await Trackie.refreshFragments(['routinesListWrap']);
+    rtTick();
+    const row = document.getElementById('routine-' + res.id);
+    if (row) { row.classList.add('is-new'); row.scrollIntoView({ block: 'nearest' }); }
+    else Trackie.Toast.success(`Added — runs ${rtDaysLabel(r.days).toLowerCase()}.`, 2500);
+  } catch (err) { Trackie.UI.toastError(err, "Couldn't add that routine."); }
+  finally {
+    const b = document.querySelector('#rtAdd button[type="submit"]'); if (b) b.disabled = false;
+    document.getElementById('rtAddInput')?.focus();
+  }
+});
 </script>

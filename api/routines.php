@@ -15,6 +15,13 @@ $validCats = ['Fitness','Work','Study','Personal','Health','Break'];
 require_once '../includes/habit_schedule.php';
 require_once '../includes/routines.php';
 
+/** 'HH:MM' (or HH:MM:SS) from POST time_slot, or null — it goes into a TIME column. */
+function routineTimeInput(): ?string {
+    $t = trim((string)($_POST['time_slot'] ?? ''));
+    if (!preg_match('/^([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/', $t, $m)) return null;
+    return sprintf('%02d:%02d:%02d', $m[1], $m[2], $m[3] ?? 0);
+}
+
 /** A Y-m-d from POST 'date' (default today), or null when malformed. */
 function routineDateInput(): ?string {
     $d = (string)($_POST['date'] ?? date('Y-m-d'));
@@ -30,11 +37,11 @@ switch ($action) {
 
     case 'add':
         $title    = sanitizeInput($_POST['title']       ?? '');
-        $time     = sanitizeInput($_POST['time_slot']   ?? '');
+        $time     = routineTimeInput();
         $category = sanitizeInput($_POST['category']    ?? 'Personal');
         $desc     = sanitizeInput($_POST['description'] ?? '');
 
-        if (!$title || !$time) json_out(['success' => false, 'error' => 'Title and time are required.'], 422);
+        if (!$title || !$time) json_out(['success' => false, 'error' => 'A title and a valid time (like 07:30) are required.'], 422);
         if (!in_array($category, $validCats, true)) $category = 'Personal';
 
         $id = insert(
@@ -46,7 +53,7 @@ switch ($action) {
     case 'edit':
         $id       = (int)($_POST['routine_id']   ?? 0);
         $title    = sanitizeInput($_POST['title']       ?? '');
-        $time     = sanitizeInput($_POST['time_slot']   ?? '');
+        $time     = routineTimeInput();
         $category = sanitizeInput($_POST['category']    ?? 'Personal');
         $desc     = sanitizeInput($_POST['description'] ?? '');
 

@@ -114,6 +114,13 @@ try {
     ok(($api(['action' => 'skip', 'routine_id' => 999999999])['success'] ?? true) === false, 'skip someone else\'s / unknown routine → refused');
     ok(($api(['action' => 'skip', 'routine_id' => $A, 'date' => 'nope'])['success'] ?? true) === false, 'malformed date → refused');
     ok(($api(['action' => 'complete', 'routine_id' => $A, 'date' => $tomorrow])['success'] ?? true) === false, 'completing a future day is still refused');
+
+    // Times go into a TIME column: only real clock times are accepted, normalised.
+    ok(($api(['action' => 'add', 'title' => 'x', 'time_slot' => 'abc'])['success'] ?? true) === false
+       && ($api(['action' => 'add', 'title' => 'x', 'time_slot' => '25:00'])['success'] ?? true) === false, 'routine time "abc" / "25:00" refused');
+    $okAdd = $api(['action' => 'add', 'title' => 'Early', 'time_slot' => '7:05', 'schedule_days' => '1,3,5']);
+    ok(($okAdd['success'] ?? false) && fetchOne("SELECT time_slot, schedule_days FROM routines WHERE id=?", [(int)$okAdd['id']]) == ['time_slot' => '07:05:00', 'schedule_days' => '1,3,5'],
+       'routine time "7:05" stored as 07:05:00 with its days');
 } finally {
     update("DELETE FROM users WHERE id=?", [$uid]);
     @unlink($jar);
