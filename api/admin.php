@@ -26,6 +26,26 @@ $needUser = static function () use ($user) { if (!$user) json_out(['success' => 
 
 switch ($action) {
 
+    // Live reachability of the free public APIs the hobby modules call (uncached).
+    case 'api_health': {
+        $targets = [
+            'TheMealDB (Cooking)'     => 'https://www.themealdb.com/api/json/v1/1/categories.php',
+            'Open-Meteo (weather, rain)' => 'https://api.open-meteo.com/v1/forecast?latitude=0&longitude=0&daily=precipitation_sum&forecast_days=1',
+            'ZenQuotes (Meditation)'  => 'https://zenquotes.io/api/today',
+            'Open Library (Reading)'  => 'https://openlibrary.org/search.json?q=dune&limit=1&fields=key',
+            'ip-api (location)'       => 'http://ip-api.com/json/8.8.8.8?fields=status',
+        ];
+        $out = [];
+        foreach ($targets as $name => $url) {
+            $t = microtime(true);
+            $raw = @file_get_contents($url, false, stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true, 'header' => "User-Agent: Trackie/1.0\r\n"]]));
+            $code = isset($http_response_header[0]) && preg_match('~\s(\d{3})\s~', $http_response_header[0], $m) ? (int)$m[1] : 0;
+            $out[] = ['name' => $name, 'ok' => $raw !== false && $code >= 200 && $code < 300 && json_decode($raw) !== null,
+                      'status' => $code ?: null, 'ms' => (int)round((microtime(true) - $t) * 1000)];
+        }
+        json_out(['success' => true, 'apis' => $out]);
+    }
+
     case 'toggle_admin':
         $needUser();
         if ($target === $uid) json_out(['success' => false, 'error' => "You can't change your own role."], 422);

@@ -144,6 +144,17 @@ try {
     ok(($hl(['action' => 'unlog', 'date' => $yest])['success'] ?? false) && !fetchOne("SELECT id FROM logs WHERE habit_id=? AND date_completed=?", [$h2, $yest]), 'and un-logged again');
     $hist1 = json_decode($http('/api/habits.php', ['action' => 'history', 'habit_id' => $h1, 'days' => 7, 'csrf_token' => $csrf($html)]), true) ?: [];
     ok(($hist1['dates'] ?? null) === [$today] && ($hist1['off'] ?? null) === [] && ($hist1['skipped'] ?? null) === [], 'history: every-day habit → no off days, today logged');
+    // Admin: hobby adoption rows and the external API health check (live network).
+    update("UPDATE users SET is_admin=1 WHERE id=?", [$uid]);
+    file_put_contents($jar, '');   // fresh session: the admin flag is cached per session
+    $http('/api/auth.php', ['action' => 'login', 'email' => $email, 'password' => $pw, 'csrf_token' => $csrf($http('/pages/auth.php'))]);
+    releaseTestLogin($email);
+    $adm = $http('/pages/admin.php');
+    ok(preg_match('~<span class="ad-hb-name"><i class="fas fa-book" aria-hidden="true"></i> Reading</span>.*?<strong>(\d+)</strong> users~s', $adm, $am) && (int)$am[1] >= 1
+       && str_contains($adm, 'id="adApiCheck"') && !preg_match('/fatal error|warning:|notice:/i', $adm), "admin: hobby adoption lists Reading ({$am[1]} users) and the API check");
+    $health = json_decode($http('/api/admin.php', ['action' => 'api_health', 'csrf_token' => $csrf($adm)]), true) ?: [];
+    ok(count($health['apis'] ?? []) === 5 && isset($health['apis'][0]['ok'], $health['apis'][0]['ms']),
+       'admin: api_health reports 5 services (' . implode(', ', array_map(static fn($a) => explode(' ', $a['name'])[0] . ($a['ok'] ? ' ok' : ' DOWN'), $health['apis'] ?? [])) . ')');
 } finally {
     update("DELETE FROM users WHERE id=?", [$uid]);
     @unlink($jar);

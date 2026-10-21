@@ -46,6 +46,30 @@ function hobbyNudge(array $p): string {
     return $p['best'] > 0 ? "Best streak so far: {$p['best']} days. Start a new one today." : 'Log your first session to start a streak.';
 }
 
+/**
+ * "What should I play?" — the games worth suggesting, each with a weight and
+ * the reason it's suggested. Games in progress that went quiet come first
+ * (finish what you started), then rated/recent backlog, then the rest.
+ * @param array<array{id:int|string,title:string,status:string,rating:?int,last_played:?string,cover_url:?string,hours_played:?float}> $games
+ */
+function gameCandidates(array $games, string $today): array {
+    $out = [];
+    foreach ($games as $g) {
+        if (!in_array($g['status'], ['playing', 'backlog'], true)) continue;
+        $idle = $g['last_played'] ? (int)floor((strtotime($today) - strtotime(substr($g['last_played'], 0, 10))) / 86400) : null;
+        if ($g['status'] === 'playing') {
+            if ($idle !== null && $idle >= 3) [$w, $why] = [6, "You haven't played it in $idle days — pick it back up."];
+            elseif ($idle === null) [$w, $why] = [4, 'You started it — keep the run going.'];
+            else [$w, $why] = [3, 'You were just playing it — keep the momentum.'];
+        } elseif ((int)($g['rating'] ?? 0) >= 4) [$w, $why] = [3, 'One of the highest-rated games in your backlog.'];
+        else [$w, $why] = [1, 'A fresh pick from your backlog.'];
+        $out[] = ['id' => (int)$g['id'], 'title' => (string)$g['title'], 'cover' => str_starts_with((string)($g['cover_url'] ?? ''), 'https://') ? $g['cover_url'] : null,
+                  'hours' => round((float)($g['hours_played'] ?? 0), 1), 'status' => $g['status'], 'weight' => $w, 'why' => $why];
+    }
+    usort($out, static fn($a, $b) => $b['weight'] <=> $a['weight']);
+    return $out;
+}
+
 function hobbyHero(string $hobby, string $actionsHtml = '', ?string $tagline = null): string {
     $m = allHobbiesMeta()[$hobby] ?? ['icon' => 'fa-star', 'color' => '#6366f1', 'moduleLabel' => $hobby];
     $p = hobbyPulse(currentUserId(), HOBBY_MODULE[$hobby] ?? strtolower($hobby));

@@ -221,6 +221,21 @@ try {
     $secLog = fetchAll("SELECT identifier, action, attempts, window_start FROM rate_limits ORDER BY window_start DESC LIMIT 15");
 } catch (Throwable $e) {}
 
+// ── Hobbies: who picked what, and what was logged in the last 7 days ──
+$hobbyStats = [];
+$hobbyMod = ['Fitness' => 'fitness', 'Reading' => 'reading', 'Gaming' => 'gaming', 'Photography' => 'photography', 'Sports' => 'sports',
+             'Meditation' => 'meditation', 'Coding' => 'coding', 'Cooking' => 'cooking', 'Writing' => 'writing', 'Art' => 'art', 'Gardening' => 'gardening'];
+try {
+    $act7 = array_column(fetchAll("SELECT module, COUNT(*) n, COUNT(DISTINCT user_id) u FROM activity_log WHERE occurred_on >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY module"), null, 'module');
+    foreach (allHobbiesMeta() as $hn => $hm) {
+        $hobbyStats[] = ['name' => $hn, 'icon' => $hm['icon'], 'color' => $hm['color'],
+            'picked' => (int)(fetchOne("SELECT COUNT(*) c FROM users WHERE FIND_IN_SET(?, REPLACE(hobbies, ', ', ','))", [$hn])['c'] ?? 0),
+            'entries' => (int)($act7[$hobbyMod[$hn]]['n'] ?? 0), 'active' => (int)($act7[$hobbyMod[$hn]]['u'] ?? 0)];
+    }
+    usort($hobbyStats, static fn($a, $b) => [$b['picked'], $b['entries']] <=> [$a['picked'], $a['entries']]);
+} catch (Throwable $e) { $hobbyStats = []; }
+$hobbyMax = max(1, ...array_map(static fn($x) => $x['picked'], $hobbyStats ?: [['picked' => 1]]));
+
 require_once '../includes/head.php';
 ?>
 <div class="app-shell">
@@ -389,6 +404,31 @@ require_once '../includes/head.php';
       </div>
     <?php endforeach; ?>
     <p class="form-hint u-mt-2h">Backups: use vPanel → MySQL → Backups (InfinityFree), or export <code>database/final.sql</code>.</p>
+  </div>
+</div>
+
+<!-- Hobbies + external APIs -->
+<div class="grid-2 u-mb-6">
+  <div class="card card-body">
+    <div class="ad-card-title">Hobbies <span class="form-hint u-m-0">— users who picked each · entries in the last 7 days</span></div>
+    <?php if (!$hobbyStats): ?><p class="form-hint">No hobby data yet.</p><?php endif; ?>
+    <ul class="ad-hobbies">
+      <?php foreach ($hobbyStats as $i => $hs): ?>
+      <li style="--c:<?= h($hs['color']) ?>;--w:<?= round($hs['picked'] / $hobbyMax * 100) ?>%;--i:<?= $i ?>">
+        <span class="ad-hb-name"><i class="fas <?= h($hs['icon']) ?>" aria-hidden="true"></i> <?= h($hs['name']) ?></span>
+        <span class="ad-hb-bar" aria-hidden="true"><i></i></span>
+        <span class="ad-hb-num"><strong><?= $hs['picked'] ?></strong> users</span>
+        <span class="ad-hb-act"><?= $hs['entries'] ?> entries<?= $hs['active'] ? ' · ' . $hs['active'] . ' active' : '' ?></span>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <div class="card card-body">
+    <div class="ad-card-title" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">
+      <span>External APIs <span class="form-hint u-m-0">— free services the hobby pages use</span></span>
+      <button type="button" class="btn btn-secondary btn-sm" id="adApiCheck"><i class="fas fa-satellite-dish" aria-hidden="true"></i> Check now</button>
+    </div>
+    <ul class="ad-apis" id="adApis"><li class="form-hint">Press “Check now” to test each service from this server.</li></ul>
   </div>
 </div>
 
@@ -629,4 +669,17 @@ async function toggleAdmin(id) {
     } else Trackie.Toast.error(res.error || 'Failed.');
   } catch { Trackie.Toast.error('Network error.'); }
 }
+
+/* ── External API health ── */
+document.getElementById('adApiCheck')?.addEventListener('click', async e => {
+  const btn = e.currentTarget, list = document.getElementById('adApis');
+  btn.disabled = true; list.innerHTML = '<li class="form-hint"><i class="fas fa-spinner fa-spin"></i> Checking…</li>';
+  try {
+    const r = await Trackie.API.post(ADMIN_API, { action: 'api_health' }, { button: null });
+    if (!r.success) throw new Error(r.error);
+    list.innerHTML = r.apis.map(a => `<li class="${a.ok ? 'is-ok' : 'is-bad'}"><span class="ad-dot" aria-hidden="true"></span><span>${escHtml(a.name)}</span>
+      <span class="ad-api-meta">${a.ok ? 'OK' : (a.status ? 'HTTP ' + a.status : 'Unreachable')} · ${a.ms} ms</span></li>`).join('');
+  } catch (err) { list.innerHTML = '<li class="is-bad">Check failed — ' + escHtml(err.message || 'network error') + '</li>'; }
+  finally { btn.disabled = false; }
+});
 </script>

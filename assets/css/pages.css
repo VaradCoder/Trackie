@@ -907,3 +907,37 @@ a.bd-box:not(.is-on) { color: var(--accent); border-color: color-mix(in srgb, va
 #page-main:has(> .hx-hero) .stat-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--hx); opacity: .7; }
 #page-main:has(> .hx-hero) .stat-val { font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 #page-main:has(> .hx-hero) .filter-tab.active { background: color-mix(in srgb, var(--hx) 14%, var(--surface)); color: var(--text); border-color: color-mix(in srgb, var(--hx) 40%, transparent); }
+
+/* ── Admin: hobbies adoption + external API health ── */
+.ad-hobbies, .ad-apis { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.ad-hobbies li { display: grid; grid-template-columns: 8.5rem 1fr auto; grid-template-areas: "name bar num" "name bar act"; align-items: center; gap: 0 .75rem; font-size: .8125rem; }
+.ad-hb-name { grid-area: name; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-hb-name i { color: var(--c); width: 1.1em; }
+.ad-hb-bar { grid-area: bar; height: .5rem; border-radius: 999px; background: var(--surface2); overflow: hidden; }
+.ad-hb-bar i { display: block; height: 100%; width: var(--w); background: var(--c); border-radius: inherit; transform-origin: left;
+  animation: ov-fill .7s cubic-bezier(.22, 1, .36, 1) both; animation-delay: calc(var(--i) * 40ms); @media (prefers-reduced-motion: reduce) { animation: none; } }
+.ad-hb-num { grid-area: num; text-align: right; color: var(--muted); }
+.ad-hb-num strong { color: var(--text); }
+.ad-hb-act { grid-area: act; text-align: right; color: var(--muted); font-size: .6875rem; }
+.ad-apis li { display: flex; align-items: center; gap: .625rem; padding: .5rem .75rem; border-radius: .625rem; background: var(--surface2); font-size: .875rem; }
+.ad-api-meta { margin-left: auto; color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.ad-dot { width: .5rem; height: .5rem; border-radius: 50%; background: var(--muted); flex: none; }
+.ad-apis li.is-ok .ad-dot { background: var(--success, #16a34a); box-shadow: 0 0 0 4px color-mix(in srgb, var(--success, #16a34a) 20%, transparent); }
+.ad-apis li.is-bad .ad-dot { background: var(--accent); }
+.ad-apis li.is-bad .ad-api-meta { color: var(--accent); }
+
+/* ── Gaming: What should I play? ── */
+.gm-pick { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; padding: 1rem 1.25rem; border-radius: 1.25rem;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--hx, #22c55e) 12%, var(--surface)), var(--surface) 70%);
+  border: 1px solid color-mix(in srgb, var(--hx, #22c55e) 25%, var(--border)); box-shadow: var(--shadow-sm); }
+.gm-pick-art { display: grid; place-items: center; flex: none; width: 7.5rem; height: 3.5rem; border-radius: .75rem; overflow: hidden;
+  background: color-mix(in srgb, var(--hx, #22c55e) 18%, transparent); color: var(--hx, #22c55e); font-size: 1.5rem; }
+.gm-pick-art img { width: 100%; height: 100%; object-fit: cover; }
+.gm-pick-body { flex: 1; min-width: 12rem; }
+.gm-pick-body h2 { margin: 0; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.gm-pick-name { margin: .125rem 0 0; font-size: 1rem; font-weight: 700; color: var(--text); }
+.gm-pick-why { margin: .125rem 0 0; font-size: .8125rem; color: var(--muted); min-height: 1em; }
+.gm-pick-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.gm-pick.is-picked .gm-pick-name { font-size: 1.25rem; animation: gm-land .45s cubic-bezier(.34, 1.56, .64, 1) both; @media (prefers-reduced-motion: reduce) { animation: none; } }
+.gm-pick.is-picked .gm-pick-art { animation: gm-land .45s cubic-bezier(.34, 1.56, .64, 1) both; @media (prefers-reduced-motion: reduce) { animation: none; } }
+@keyframes gm-land { from { scale: .85; opacity: .4; } }

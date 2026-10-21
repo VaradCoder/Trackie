@@ -40,6 +40,8 @@ $statusMeta = [
 
 // ── Steam connection state ───────────────────────────────────────
 $steamConfigured = (bool)env('STEAM_API_KEY');
+// "What should I play?" candidates (in-progress first, then the backlog).
+$pickFrom = gameCandidates(fetchAll("SELECT id, title, status, rating, last_played, cover_url, hours_played FROM games WHERE user_id=? AND status IN ('playing','backlog')", [$uid]), date('Y-m-d'));
 $steamLink = $steamConfigured
     ? fetchOne("SELECT external_id, last_sync, sync_status, last_error FROM user_integrations WHERE user_id=? AND provider='steam'", [$uid])
     : null;
@@ -57,6 +59,22 @@ require_once '../includes/head.php';
 <?php ob_start(); ?>
 <button class="btn btn-primary btn-sm" onclick="openAddGame()"><i class="fas fa-plus"></i> Add Game</button>
 <?= hobbyHero('Gaming', ob_get_clean()) ?>
+
+<?php if ($pickFrom): ?>
+<section class="gm-pick" aria-labelledby="gmPickTitle">
+  <div class="gm-pick-art" id="gmPickArt" aria-hidden="true"><i class="fas fa-dice-d20"></i></div>
+  <div class="gm-pick-body" aria-live="polite">
+    <h2 id="gmPickTitle">What should I play?</h2>
+    <p class="gm-pick-name" id="gmPickName">Can't decide? Let Trackie pick from your <?= count($pickFrom) ?> game<?= count($pickFrom) === 1 ? '' : 's' ?> in progress and in the backlog.</p>
+    <p class="gm-pick-why" id="gmPickWhy"></p>
+  </div>
+  <div class="gm-pick-actions">
+    <button type="button" class="btn btn-primary btn-sm" id="gmPickBtn"><i class="fas fa-shuffle" aria-hidden="true"></i> Pick for me</button>
+    <button type="button" class="btn btn-secondary btn-sm hidden" id="gmPickPlay"><i class="fas fa-play" aria-hidden="true"></i> Start playing</button>
+  </div>
+  <script type="application/json" id="gmPickData"><?= json_encode($pickFrom, JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
+</section>
+<?php endif; ?>
 
 <div id="steamCardWrap" class="u-mb-6">
 <?php if (!$steamConfigured): ?>
@@ -502,4 +520,39 @@ if (<?= json_encode($initialTab) ?> === 'wrap') { gmWrapLoaded = true; loadWrapp
 // Steam has no playtime history, so Trackie snapshots it: sync quietly when
 // the last sync is over 6 hours old (at most once per page open).
 <?php if ($steamStale): ?>syncSteam(true);<?php endif; ?>
+
+/* ── What should I play? weighted pick with a short shuffle ── */
+(() => {
+  const data = document.getElementById('gmPickData'); if (!data) return;
+  const games = JSON.parse(data.textContent);
+  const name = document.getElementById('gmPickName'), why = document.getElementById('gmPickWhy');
+  const art = document.getElementById('gmPickArt'), btn = document.getElementById('gmPickBtn'), play = document.getElementById('gmPickPlay');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let last = null, current = null;
+  const draw = () => {
+    const pool = games.length > 1 ? games.filter(g => g.id !== last) : games;
+    let n = Math.random() * pool.reduce((t, g) => t + g.weight, 0);
+    return pool.find(g => (n -= g.weight) < 0) || pool[0];
+  };
+  const show = (g, final) => {
+    name.textContent = g.title;
+    art.innerHTML = g.cover ? `<img src="${escHtml(g.cover)}" alt="" width="120" height="56">` : '<i class="fas fa-gamepad"></i>';
+    if (final) {
+      why.textContent = g.why + (g.hours ? ` · ${g.hours} h played` : '');
+      play.classList.toggle('hidden', g.status !== 'backlog');
+      document.querySelector('.gm-pick').classList.add('is-picked');
+    }
+  };
+  btn.addEventListener('click', async () => {
+    const pick = draw(); last = pick.id; current = pick;
+    btn.disabled = true; why.textContent = ''; play.classList.add('hidden');
+    document.querySelector('.gm-pick').classList.remove('is-picked');
+    if (!reduce && games.length > 1) {
+      for (let i = 0; i < 12; i++) { show(games[i % games.length], false); await new Promise(r => setTimeout(r, 40 + i * 9)); }
+    }
+    show(pick, true); Trackie.Delight?.tap?.(btn);
+    btn.innerHTML = '<i class="fas fa-shuffle" aria-hidden="true"></i> Pick again'; btn.disabled = false;
+  });
+  play.addEventListener('click', () => { if (current) { setGameStatus(current.id, 'playing'); play.classList.add('hidden'); } });
+})();
 </script>
