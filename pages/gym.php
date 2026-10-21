@@ -3,6 +3,7 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/hobby_ui.php';
 require_once '../includes/gamification.php';
 
 requireAuth();
@@ -236,8 +237,11 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div class="fit-header">
-  <div>
+<?php $fp = hobbyPulse($uid, 'fitness'); $fpMax = max(1, max(array_column($fp['strip'], 'n'))); $fpDelta = $fp['week'] - $fp['prev']; ?>
+<style>#page-main { --hx: #ef4444; }</style>
+<div class="fit-header fit-hero">
+  <span class="hx-ic fit-hero-ic" aria-hidden="true" style="--c:#ef4444"><i class="fas fa-dumbbell"></i></span>
+  <div class="fit-hero-text">
     <div class="fit-page-title"><i class="fas fa-dumbbell"></i> Fitness</div>
     <h1 class="fit-greeting"><?= h($fitGreeting) ?>, <?= h($userName) ?>! <span aria-hidden="true">👋</span></h1>
     <div class="fit-subgreeting">Let's build consistency. One rep at a time.</div>
@@ -253,6 +257,19 @@ require_once '../includes/head.php';
         <span class="fit-xp-total"><i class="fas fa-bolt" aria-hidden="true"></i> <?= number_format($xpTotal) ?> XP</span>
       </a>
     <?php endif; ?>
+  </div>
+  <div class="fit-hero-pulse" style="--c:#ef4444">
+    <div class="hx-week">
+      <strong><?= $fp['week'] ?></strong> logged this week
+      <?php if ($fp['week'] || $fp['prev']): ?>
+        <span class="hx-delta <?= $fpDelta > 0 ? 'is-up' : ($fpDelta < 0 ? 'is-down' : '') ?>"><?= $fpDelta > 0 ? '▲ ' . $fpDelta : ($fpDelta < 0 ? '▼ ' . abs($fpDelta) : '＝') ?> vs last week</span>
+      <?php endif; ?>
+    </div>
+    <ol class="hx-strip" aria-label="Training activity, last 14 days">
+      <?php foreach ($fp['strip'] as $i => $d): ?>
+        <li style="--a:<?= $d['n'] ? round(.3 + .7 * $d['n'] / $fpMax, 2) : 0 ?>;--i:<?= $i ?>"<?= $d['d'] === date('Y-m-d') ? ' class="is-today"' : '' ?> title="<?= h(date('D j M', strtotime($d['d']))) ?>: <?= $d['n'] ?>"><span class="sr-only"><?= h(date('D j M', strtotime($d['d']))) ?>: <?= $d['n'] ?></span></li>
+      <?php endforeach; ?>
+    </ol>
   </div>
 </div>
 

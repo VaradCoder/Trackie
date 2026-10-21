@@ -892,21 +892,21 @@ a.bd-box:not(.is-on) { color: var(--accent); border-color: color-mix(in srgb, va
 @container (max-width: 760px) { .hx-hero { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .hx-hero { grid-template-columns: 1fr; padding: 1.125rem; } .hx-actions { width: 100%; } .hx-actions .btn { flex: 1; justify-content: center; } }
 
-#page-main:has(> .hx-hero) .grid-stats { gap: .875rem; }
-#page-main:has(> .hx-hero) .stat-card {
+#page-main:is(:has(> .hx-hero), :has(> .fit-hero)) .grid-stats { gap: .875rem; }
+#page-main:is(:has(> .hx-hero), :has(> .fit-hero)) .stat-card {
   position: relative; overflow: hidden; border-radius: 1.125rem; border: 1px solid color-mix(in srgb, var(--hx) 16%, var(--border));
   background: linear-gradient(160deg, color-mix(in srgb, var(--hx) 8%, var(--surface)), var(--surface) 65%);
   transition: transform .2s cubic-bezier(.22, 1, .36, 1), border-color .2s;
   animation: td-enter .5s cubic-bezier(.22, 1, .36, 1) both;
   @media (prefers-reduced-motion: reduce) { animation: none; transition: none; }
 }
-#page-main:has(> .hx-hero) .stat-card:nth-child(2) { animation-delay: 50ms; }
-#page-main:has(> .hx-hero) .stat-card:nth-child(3) { animation-delay: 100ms; }
-#page-main:has(> .hx-hero) .stat-card:nth-child(n+4) { animation-delay: 150ms; }
-@media (hover: hover) { #page-main:has(> .hx-hero) .stat-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--hx) 40%, var(--border)); } }
-#page-main:has(> .hx-hero) .stat-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--hx); opacity: .7; }
-#page-main:has(> .hx-hero) .stat-val { font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-#page-main:has(> .hx-hero) .filter-tab.active { background: color-mix(in srgb, var(--hx) 14%, var(--surface)); color: var(--text); border-color: color-mix(in srgb, var(--hx) 40%, transparent); }
+#page-main:is(:has(> .hx-hero), :has(> .fit-hero)) .stat-card:nth-child(2) { animation-delay: 50ms; }
+#page-main:is(:has(> .hx-hero), :has(> .fit-hero)) .stat-card:nth-child(3) { animation-delay: 100ms; }
+#page-main:is(:has(> .hx-hero), :has(> .fit-hero)) .stat-card:nth-child(n+4) { animation-delay: 150ms; }
+@media (hover: hover) { #page-main:is(:has(> .hx-hero), :has(> .fit-hero)) .stat-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--hx) 40%, var(--border)); } }
+#page-main:is(:has(> .hx-hero), :has(> .fit-hero)) .stat-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--hx); opacity: .7; }
+#page-main:is(:has(> .hx-hero), :has(> .fit-hero)) .stat-val { font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+#page-main:is(:has(> .hx-hero), :has(> .fit-hero)) .filter-tab.active { background: color-mix(in srgb, var(--hx) 14%, var(--surface)); color: var(--text); border-color: color-mix(in srgb, var(--hx) 40%, transparent); }
 
 /* ── Admin: hobbies adoption + external API health ── */
 .ad-hobbies, .ad-apis { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
@@ -941,3 +941,24 @@ a.bd-box:not(.is-on) { color: var(--accent); border-color: color-mix(in srgb, va
 .gm-pick.is-picked .gm-pick-name { font-size: 1.25rem; animation: gm-land .45s cubic-bezier(.34, 1.56, .64, 1) both; @media (prefers-reduced-motion: reduce) { animation: none; } }
 .gm-pick.is-picked .gm-pick-art { animation: gm-land .45s cubic-bezier(.34, 1.56, .64, 1) both; @media (prefers-reduced-motion: reduce) { animation: none; } }
 @keyframes gm-land { from { scale: .85; opacity: .4; } }
+
+/* ── Fitness: its own header, dressed as a hobby hero ── */
+.fit-header.fit-hero {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "ic text badges" "pulse pulse pulse";
+  align-items: center; gap: 1rem 1.25rem; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; border-radius: 1.5rem;
+  border: 1px solid color-mix(in srgb, #ef4444 22%, var(--border));
+  background: radial-gradient(90% 140% at 0% 0%, color-mix(in srgb, #ef4444 18%, transparent), transparent 60%),
+              radial-gradient(60% 120% at 100% 100%, color-mix(in srgb, #f97316 12%, transparent), transparent 70%), var(--surface);
+  box-shadow: var(--shadow-sm);
+  animation: td-enter .55s cubic-bezier(.22, 1, .36, 1) both; @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+.fit-hero-ic { grid-area: ic; }
+.fit-hero-text { grid-area: text; min-width: 0; }
+.fit-hero .fit-header-badges { grid-area: badges; }
+.fit-hero .fit-page-title { color: #ef4444; }
+.fit-hero-pulse { grid-area: pulse; display: grid; grid-template-columns: 1fr; gap: .5rem; }
+.fit-hero-pulse .hx-week { text-align: left; display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.fit-hero-pulse .hx-delta { display: inline; }
+@media (max-width: 760px) {
+  .fit-header.fit-hero { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "ic text" "badges badges" "pulse pulse"; padding: 1.125rem; }
+}
