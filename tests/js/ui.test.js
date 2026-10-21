@@ -169,6 +169,28 @@ class ApiError extends Error { constructor(m, s) { super(m); this.name = 'ApiErr
     ok([...h2.innerHTML.matchAll(/is-pad/g)].length === 3, 'heatmap: Monday-start week shifts the padding (Thu → 3 blanks)');
   }
 
+  // NL: plain-language entry, with the real vendored chrono build
+  {
+    const NL = ctx.window.Trackie.NL;
+    const raw = NL.parse('call mom tomorrow 6pm !high #Family');
+    ok(raw.title === 'call mom tomorrow 6pm' && raw.priority === 'high' && raw.tags.join() === 'family' && raw.due === null,
+       'NL without the parser: priority + tags still understood, date left in the title', raw);
+    const cx = { window: {} }; cx.window.window = cx.window;
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../assets/vendor/chrono.min.js'), 'utf8'), cx.window);
+    ctx.window.chrono = cx.window.chrono;
+    const now = new Date(2026, 9, 21, 10, 0);   // Wed 21 Oct 2026, 10:00 local
+    const r = NL.parse('call mom tomorrow 6pm !high #Family', now);
+    ok(r.title === 'call mom' && r.due === '2026-10-22' && r.hasTime && r.when.getHours() === 18, 'NL: "tomorrow 6pm" → 22 Oct 18:00, removed from the title', r);
+    const f = NL.parse('pay rent on friday !low', now);
+    ok(f.title === 'pay rent' && f.due === '2026-10-23' && f.priority === 'low' && !f.hasTime, 'NL: "on friday" → the coming Friday, no time', f);
+    const plain = NL.parse('  buy   milk  ', now);
+    ok(plain.title === 'buy milk' && plain.due === null && plain.priority === 'medium' && plain.tags.length === 0, 'NL: plain text stays plain');
+    ok(NL.parse('fix #bug-42 now', now).tags.join() === 'bug-42' && NL.parse('email a#b', now).tags.length === 0, 'NL: #tags need a word boundary');
+    ok(NL.describe('2026-10-21', '2026-10-21') === 'Today' && NL.describe('2026-10-22', '2026-10-21') === 'Tomorrow' && NL.describe('2026-10-20', '2026-10-21') === 'Yesterday',
+       'NL.describe: today / tomorrow / yesterday');
+    delete ctx.window.chrono;
+  }
+
   UI.toastError(new ApiError('Steam is down.', 503), 'Failed.');
   UI.toastError(new Error('boom'), 'Could not save.');
   UI.toastError(new ApiError('Your session has expired.', 401), 'Failed.');

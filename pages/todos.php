@@ -12,78 +12,118 @@ $currentPage = 'todos';
 
 // Roll over any recurring todos whose completion is from a previous day/week/month
 resetRecurringTodos($uid);
-$filter = in_array($_GET['filter'] ?? '', ['all','pending','completed','overdue','today'])
-        ? $_GET['filter'] : 'all';
-$search = sanitizeInput($_GET['search'] ?? '');
 
-// Top-level todos only: subtasks (parent_id set) live in their parent's panel.
-$sql    = "SELECT * FROM todos WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL";
-$params = [$uid];
+$today    = date('Y-m-d');
+$tomorrow = date('Y-m-d', strtotime('+1 day'));
+$weekEnd  = date('Y-m-d', strtotime('+6 day'));
 
-if ($filter === 'completed') $sql .= " AND completed=1";
-elseif ($filter === 'pending') $sql .= " AND completed=0";
-elseif ($filter === 'overdue') $sql .= " AND completed=0 AND due_date < CURDATE()";
-elseif ($filter === 'today')   $sql .= " AND DATE(due_date)=CURDATE()";
+/* ════════════════════════════════════════════════════════════════
+   One page, grouped by when things are due. Filters and search run in the
+   browser, so switching never reloads. (Replaces the List / Timeline split
+   and the five reload-per-click filter tabs.)
+   ════════════════════════════════════════════════════════════════ */
+$open = fetchAll(
+    "SELECT * FROM todos WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL AND completed=0
+      ORDER BY FIELD(priority,'high','medium','low'), due_date IS NULL, due_date, created_at DESC", [$uid]);
+// Done: the most recent ones; the full archive isn't needed to plan a day.
+$done = fetchAll(
+    "SELECT * FROM todos WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL AND completed=1
+      ORDER BY completed_at DESC LIMIT 40", [$uid]);
+$doneTotal = (int)(fetchOne("SELECT COUNT(*) c FROM todos WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL AND completed=1", [$uid])['c'] ?? 0);
 
-if ($search) {
-    $sql .= " AND (title LIKE ? OR description LIKE ?)";
-    $params[] = "%{$search}%";
-    $params[] = "%{$search}%";
-}
-$sql  .= " ORDER BY completed ASC, priority DESC, due_date ASC, created_at DESC";
-$todos = fetchAll($sql, $params);
-
-$stats = fetchOne(
-    "SELECT COUNT(*) total,
-            SUM(completed=1) done,
-            SUM(completed=0) pending,
-            SUM(completed=0 AND due_date < CURDATE()) overdue
-     FROM todos WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL",
-    [$uid]
-);
-
-// ── Timeline view (Phase 2 Week 2) — one scannable page: Overdue / Today /
-// Upcoming / No date / Completed, instead of clicking through five separate
-// filter tabs to see "where do things stand." Independent of $filter/$search
-// above — a timeline shows everything, grouped by date, not a filtered slice.
-$view = ($_GET['view'] ?? '') === 'timeline' ? 'timeline' : 'list';
-$timelineGroups = [];
-if ($view === 'timeline') {
-    $allTodos = fetchAll(
-        "SELECT * FROM todos WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL
-         ORDER BY completed ASC, FIELD(priority,'high','medium','low'), due_date ASC, created_at DESC",
-        [$uid]
-    );
-    $today = date('Y-m-d');
-    $timelineGroups = ['Overdue' => [], 'Today' => [], 'Upcoming' => [], 'No due date' => [], 'Completed' => []];
-    foreach ($allTodos as $t) {
-        if ($t['completed'])                                  $timelineGroups['Completed'][] = $t;
-        elseif (!$t['due_date'])                               $timelineGroups['No due date'][] = $t;
-        elseif ($t['due_date'] < $today)                       $timelineGroups['Overdue'][] = $t;
-        elseif ($t['due_date'] === $today)                     $timelineGroups['Today'][] = $t;
-        else                                                   $timelineGroups['Upcoming'][] = $t;
-    }
+$subs = [];
+foreach (fetchAll("SELECT parent_id, COUNT(*) total, SUM(completed) done FROM todos
+                    WHERE user_id=? AND parent_id IS NOT NULL AND deleted_at IS NULL GROUP BY parent_id", [$uid]) as $r) {
+    $subs[$r['parent_id']] = ['total' => (int)$r['total'], 'done' => (int)$r['done']];
 }
 
-// ── AI-style insight (rule-based) ──
-$todosInsight = '';
-$pendingTotal = (int)($stats['pending'] ?? 0);
-if (($stats['overdue'] ?? 0) > 0) {
-    $od = (int)$stats['overdue'];
-    $todosInsight = "You have {$od} overdue task" . ($od !== 1 ? 's' : '') . " — clearing these first frees the most mental space.";
-} elseif ($pendingTotal > 0) {
-    $prio = fetchOne(
-        "SELECT priority, COUNT(*) c FROM todos
-         WHERE user_id=? AND deleted_at IS NULL AND parent_id IS NULL AND completed=0
-         GROUP BY priority ORDER BY c DESC LIMIT 1",
-        [$uid]
-    );
-    if ($prio) {
-        $pct = (int)round($prio['c'] / $pendingTotal * 100);
-        $todosInsight = "Most of your open tasks ({$pct}%) are {$prio['priority']} priority.";
-    }
-} elseif (($stats['total'] ?? 0) > 0) {
-    $todosInsight = "Inbox zero — every task is done. Nice work.";
+/** Which group an OPEN todo belongs in (also used for a done todo's "home" if re-opened). */
+function todoGroup(array $t, string $today, string $tomorrow, string $weekEnd): string {
+    if (($t['recurring'] ?? 'none') !== 'none' && (!$t['due_date'] || $t['due_date'] <= $today)) return 'today';
+    if (!$t['due_date'])              return 'nodate';
+    if ($t['due_date'] < $today)      return 'overdue';
+    if ($t['due_date'] === $today)    return 'today';
+    if ($t['due_date'] === $tomorrow) return 'tomorrow';
+    if ($t['due_date'] <= $weekEnd)   return 'week';
+    return 'later';
+}
+
+$groups = ['overdue' => [], 'today' => [], 'tomorrow' => [], 'week' => [], 'later' => [], 'nodate' => []];
+foreach ($open as $t) $groups[todoGroup($t, $today, $tomorrow, $weekEnd)][] = $t;
+$groupMeta = [
+    'overdue'  => ['Overdue',     'fa-triangle-exclamation'],
+    'today'    => ['Today',       'fa-sun'],
+    'tomorrow' => ['Tomorrow',    'fa-cloud-sun'],
+    'week'     => ['This week',   'fa-calendar-week'],
+    'later'    => ['Later',       'fa-calendar'],
+    'nodate'   => ['No date',     'fa-inbox'],
+];
+
+// Top tags among open todos → one-tap filters.
+$tagCount = [];
+foreach ($open as $t) foreach (array_filter(array_map('trim', explode(',', (string)$t['tags']))) as $tg) $tagCount[strtolower($tg)] = ($tagCount[strtolower($tg)] ?? 0) + 1;
+arsort($tagCount);
+$topTags = array_slice(array_keys($tagCount), 0, 6);
+
+$overdueN  = count($groups['overdue']);
+$weekDone  = (int)(fetchOne("SELECT COUNT(*) c FROM activity_log WHERE user_id=? AND action='todo' AND occurred_on >= ?",
+                 [$uid, date('Y-m-d', strtotime('-6 day'))])['c'] ?? 0);
+$initialFilter = in_array($_GET['filter'] ?? '', ['today', 'overdue', 'high'], true) ? $_GET['filter'] : 'all';
+if (($_GET['filter'] ?? '') === 'completed') $initialFilter = 'done';
+$initialDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') ? $_GET['date'] : '';
+
+/** Relative due label: Today · Tomorrow · Fri 24 Oct · 3 days late */
+function todoDueLabel(?string $due, string $today, bool $done): array {
+    if (!$due) return ['', ''];
+    $diff = (int)round((strtotime($due) - strtotime($today)) / 86400);
+    if (!$done && $diff < 0) return [$diff === -1 ? 'Yesterday' : (-$diff) . ' days late', 'is-late'];
+    if ($diff === 0) return ['Today', 'is-today'];
+    if ($diff === 1) return ['Tomorrow', ''];
+    if ($diff > 1 && $diff < 7) return [date('l', strtotime($due)), ''];
+    return [date('j M', strtotime($due)) . (date('Y', strtotime($due)) !== date('Y') ? ' ' . date('Y', strtotime($due)) : ''), ''];
+}
+
+function renderTodoRow(array $t, string $group, array $subs, string $today): string {
+    $done = (bool)$t['completed'];
+    [$dueTxt, $dueCls] = todoDueLabel($t['due_date'], $today, $done);
+    $tags = array_values(array_filter(array_map(static fn($x) => strtolower(trim($x)), explode(',', (string)$t['tags']))));
+    $s = $subs[$t['id']] ?? null;
+    $title = h($t['title']);
+    $pri = in_array($t['priority'], ['low', 'medium', 'high'], true) ? $t['priority'] : 'medium';
+    $search = strtolower($t['title'] . ' ' . $t['description'] . ' ' . $t['category'] . ' ' . implode(' ', $tags) . ' ' . $t['location']);
+
+    $meta = '';
+    if ($dueTxt) $meta .= '<span class="tdo-due ' . $dueCls . '"><i class="fas fa-calendar-day" aria-hidden="true"></i> ' . h($dueTxt) . '</span>';
+    if (($t['recurring'] ?? 'none') !== 'none') $meta .= '<span title="Repeats ' . h($t['recurring']) . '"><i class="fas fa-repeat" aria-hidden="true"></i> ' . h(ucfirst($t['recurring'])) . '</span>';
+    if ($s) $meta .= '<span class="tdo-subcount" title="Subtasks done"><i class="fas fa-list-check" aria-hidden="true"></i> <b>' . $s['done'] . '</b>/' . $s['total'] . '</span>';
+    if ($t['category']) $meta .= '<span class="category-badge">' . h($t['category']) . '</span>';
+    foreach ($tags as $tg) $meta .= '<button type="button" class="tdo-tag" data-tag="' . h($tg) . '">#' . h($tg) . '</button>';
+    if ($t['location']) $meta .= '<span><i class="fas fa-location-dot" aria-hidden="true"></i> ' . h($t['location']) . '</span>';
+    if ($t['description']) $meta .= '<span class="tdo-desc">' . h(mb_strimwidth($t['description'], 0, 90, '…')) . '</span>';
+
+    $canSnooze = !$done && ($t['recurring'] ?? 'none') === 'none' && in_array($group, ['overdue', 'today'], true);
+    return '<li class="td-item tdo-row' . ($done ? ' is-done' : '') . '" id="todo-' . (int)$t['id'] . '"'
+        . ' data-id="' . (int)$t['id'] . '" data-home="' . h($group) . '" data-pri="' . $pri . '"'
+        . ' data-due="' . h((string)$t['due_date']) . '" data-tags="' . h(implode(',', $tags)) . '" data-search="' . h($search) . '"'
+        . ' style="--item-c:var(--ok)">'
+        . '<button type="button" class="td-check" role="checkbox" aria-checked="' . ($done ? 'true' : 'false') . '" aria-label="' . $title . '">'
+        . '<svg viewBox="0 0 26 26" aria-hidden="true"><circle class="td-check-ring" cx="13" cy="13" r="11.5"/><path class="td-check-tick" d="M8 13.4l3.2 3.2L18 9.8"/></svg></button>'
+        . '<div class="td-body">'
+        .   '<button type="button" class="tdo-open" data-act="edit">' . '<span class="td-title">' . $title . '</span></button>'
+        .   '<div class="td-meta">'
+        .     '<button type="button" class="tdo-pri ' . $pri . '" data-act="pri" title="Priority: ' . $pri . ' — tap to change" aria-label="Priority ' . $pri . ', change">'
+        .       '<i class="fas fa-flag" aria-hidden="true"></i> ' . ucfirst($pri) . '</button>'
+        .     $meta
+        .   '</div>'
+        .   '<div class="tdo-subs" id="subtasks-' . (int)$t['id'] . '" hidden></div>'
+        . '</div>'
+        . '<div class="tdo-actions">'
+        .   ($canSnooze ? '<button type="button" class="tdo-act tdo-snooze" data-act="snooze" title="Move to tomorrow" aria-label="Move ' . $title . ' to tomorrow"><i class="fas fa-forward" aria-hidden="true"></i><span>Tomorrow</span></button>' : '')
+        .   '<button type="button" class="tdo-act" data-act="subs" title="Subtasks" aria-label="Subtasks for ' . $title . '" aria-expanded="false"><i class="fas fa-list-ul" aria-hidden="true"></i></button>'
+        .   (!$done ? '<a class="tdo-act" href="' . APP_BASE . '/pages/focus.php?todo=' . (int)$t['id'] . '" title="Focus on this" aria-label="Start a focus session on ' . $title . '"><i class="fas fa-stopwatch" aria-hidden="true"></i></a>' : '')
+        .   '<button type="button" class="tdo-act tdo-del" data-act="delete" title="Delete" aria-label="Delete ' . $title . '"><i class="fas fa-trash" aria-hidden="true"></i></button>'
+        . '</div>'
+        . '</li>';
 }
 
 require_once '../includes/head.php';
@@ -94,241 +134,69 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<?= renderPageHeader('All Todos', [
+<?= renderPageHeader('Todos', [
   'icon'    => 'fa-check-square',
-  'sub'     => 'Capture, prioritise, and finish what matters today.',
-  'actions' => '<button class="btn btn-primary btn-sm" onclick="openModal(\'todoModal\')"><i class="fas fa-plus"></i> New Todo</button>',
+  'sub'     => 'Capture it in a sentence, finish it in a tap.',
+  'actions' => '<button type="button" class="btn btn-secondary btn-sm" onclick="openAddTodo()"><i class="fas fa-sliders" aria-hidden="true"></i> Detailed todo</button>',
 ]) ?>
 
-<!-- Stats -->
-<div class="grid-stats" id="todoStatsWrap">
-  <?php
-  $sc = [
-    ['l'=>'Total',     'v'=>$stats['total']  ?? 0, 'icon'=>'fa-list',             'c'=>'#64748b'],
-    ['l'=>'Completed', 'v'=>$stats['done']   ?? 0, 'icon'=>'fa-check-circle',     'c'=>'#22c55e'],
-    ['l'=>'Pending',   'v'=>$stats['pending']?? 0, 'icon'=>'fa-clock',            'c'=>'#f59e0b'],
-    ['l'=>'Overdue',   'v'=>$stats['overdue']?? 0, 'icon'=>'fa-exclamation-circle','c'=>'#ef4444'],
-  ];
-  foreach ($sc as $s): ?>
-    <div class="stat-card">
-      <div class="u-flex u-items-center u-gap-2h">
-        <i class="fas <?= $s['icon'] ?>" style="font-size:1.25rem;color:<?= $s['c'] ?>"></i>
-        <div>
-          <div class="stat-val u-fs-22"><?= $s['v'] ?></div>
-          <div class="stat-label"><?= $s['l'] ?></div>
-        </div>
-      </div>
-    </div>
-  <?php endforeach; ?>
+<div class="tdo-strip" id="todoStatsWrap">
+  <span><strong><?= count($open) ?></strong> open</span>
+  <?php if ($overdueN): ?><span class="is-late"><strong><?= $overdueN ?></strong> overdue</span><?php endif; ?>
+  <span><strong><?= $weekDone ?></strong> done in the last 7 days</span>
 </div>
 
-<?= renderInsight($todosInsight) ?>
+<form class="td-add" id="tdoAdd" autocomplete="off">
+  <label class="td-add-row">
+    <i class="fas fa-plus" aria-hidden="true"></i>
+    <span class="sr-only">Add a todo</span>
+    <input class="td-add-input" id="tdoAddInput" maxlength="150" enterkeyhint="done"
+           placeholder="Add a todo, e.g. “report friday !high #work”"
+           title="Plain words for dates (tomorrow, next Fri 5pm), !high or !low for priority, #tag for tags">
+    <button type="submit" class="btn btn-primary btn-sm td-add-btn">Add</button>
+  </label>
+  <div class="td-add-hint" id="tdoAddHint" aria-live="polite"></div>
+</form>
 
-<!-- View toggle: List (filtered) vs. Timeline (everything, grouped by date) -->
-<div class="u-flex u-items-center u-justify-between u-gap-3 u-mb-3 u-flex-wrap">
-  <div class="filter-tabs">
-    <a class="filter-tab <?= $view==='list'?'active':'' ?>" href="?filter=<?= h($filter) ?><?= $search ? '&search='.urlencode($search) : '' ?>">
-      <i class="fas fa-list u-fs-12"></i> List
-    </a>
-    <a class="filter-tab <?= $view==='timeline'?'active':'' ?>" href="?view=timeline">
-      <i class="fas fa-timeline u-fs-12"></i> Timeline
-    </a>
-  </div>
-</div>
-
-<?php if ($view === 'list'): ?>
-<!-- Filters + search -->
-<div class="u-flex u-items-center u-gap-3 u-mb-4 u-flex-wrap">
-  <div class="filter-tabs">
-    <?php
-    $tabs = ['all'=>'All','pending'=>'Pending','completed'=>'Done','overdue'=>'Overdue','today'=>'Today'];
-    foreach ($tabs as $k => $lbl):
-      $cnt = '';
-      if ($k === 'overdue' && ($stats['overdue'] ?? 0) > 0) $cnt = " ({$stats['overdue']})";
-    ?>
-      <a class="filter-tab <?= $filter===$k?'active':'' ?>"
-         href="?filter=<?= $k ?><?= $search ? '&search='.urlencode($search) : '' ?>">
-        <?= $lbl ?><?= $cnt ?>
-      </a>
+<div class="tdo-filters" role="toolbar" aria-label="Filter todos">
+  <div class="tdo-chips" id="tdoChips">
+    <button type="button" class="tdo-chip" data-filter="all">All</button>
+    <button type="button" class="tdo-chip" data-filter="today">Today</button>
+    <button type="button" class="tdo-chip" data-filter="overdue">Overdue<?= $overdueN ? ' <b>' . $overdueN . '</b>' : '' ?></button>
+    <button type="button" class="tdo-chip" data-filter="high"><i class="fas fa-flag" aria-hidden="true"></i> High</button>
+    <?php foreach ($topTags as $tg): ?>
+      <button type="button" class="tdo-chip" data-filter="tag:<?= h($tg) ?>">#<?= h($tg) ?></button>
     <?php endforeach; ?>
   </div>
-  <form method="GET" style="display:flex;gap:var(--sp-2);flex:1;max-width:300px">
-    <input type="hidden" name="filter" value="<?= h($filter) ?>">
-    <input name="search" class="form-input u-fs-14"
-           placeholder="Search todos…" value="<?= h($search) ?>">
-    <button type="submit" class="btn btn-secondary btn-sm" aria-label="Search todos">
-            <i class="fas fa-search" aria-hidden="true"></i>
-          </button>
-    <?php if ($search): ?>
-      <a href="?filter=<?= h($filter) ?>" class="btn btn-ghost btn-sm">Clear</a>
-    <?php endif; ?>
-  </form>
+  <label class="tdo-search">
+    <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+    <span class="sr-only">Search todos</span>
+    <input type="search" id="tdoSearch" placeholder="Search" autocomplete="off">
+  </label>
 </div>
-<?php endif; ?>
 
-<?php if ($view === 'list'): ?>
-<!-- List -->
-<div class="card" id="todoList">
-  <?php if (empty($todos)): ?>
-    <div class="empty-state">
-      <div class="empty-state-icon"><i class="fas fa-clipboard-list"></i></div>
-      <div class="empty-state-title"><?= $search ? 'No todos match your search' : 'Ready to get things done?' ?></div>
-      <?php if ($search): ?>
-        <p>Try a different keyword, or clear the search to see everything.</p>
-      <?php else: ?>
-        <p>Add your first task and start building momentum.</p>
-        <button class="btn btn-primary u-mt-3" onclick="openModal('todoModal')">
-          <i class="fas fa-plus"></i> Add your first todo
-        </button>
-      <?php endif; ?>
-    </div>
-  <?php else: ?>
-    <?php foreach ($todos as $t): ?>
-      <?php
-        $overdue = !$t['completed'] && $t['due_date'] && $t['due_date'] < date('Y-m-d');
-        $badgeCls = $t['priority'] === 'high' ? 'badge-red' : ($t['priority'] === 'low' ? 'badge-blue' : 'badge-yellow');
-      ?>
-      <!-- Parent todo row -->
-      <div class="todo-row <?= $t['completed'] ? 'done' : '' ?>" id="todo-<?= $t['id'] ?>">
-        <input type="checkbox" class="todo-check"
-               <?= $t['completed'] ? 'checked' : '' ?>
-               onchange="toggleTodo(<?= $t['id'] ?>, this.checked, this)">
-
-        <div class="u-flex-1 u-min-w-0">
-          <div class="u-flex u-items-center u-gap-2 u-flex-wrap">
-            <span class="todo-title"><?= h($t['title']) ?></span>
-            <?php if ($t['category']): ?>
-              <span class="category-badge"><?= h($t['category']) ?></span>
-            <?php endif; ?>
-            <?php if ($t['tags']): ?>
-              <?php foreach (explode(',', $t['tags']) as $tag): $tag = trim($tag); if (!$tag) continue; ?>
-                <span class="tag-pill">#<?= h($tag) ?></span>
-              <?php endforeach; ?>
-            <?php endif; ?>
-          </div>
-          <?php if ($t['description']): ?>
-            <div class="todo-meta u-mt-0h"><?= h($t['description']) ?></div>
-          <?php endif; ?>
-          <div class="todo-meta u-mt-1">
-            <?php if ($t['due_date']): ?>
-              <span style="<?= $overdue ? 'color:var(--accent)' : '' ?>">
-                <i class="fas fa-calendar u-fs-11-2"></i>
-                <?= formatDate($t['due_date']) ?>
-                <?= $overdue ? '· <strong>Overdue</strong>' : '' ?>
-              </span>
-            <?php endif; ?>
-            <span class="badge <?= $badgeCls ?>"><?= ucfirst($t['priority']) ?></span>
-            <?php if (($t['recurring'] ?? 'none') !== 'none'): ?>
-              <span class="badge badge-gray"><i class="fas fa-rotate u-fs-11-2"></i> <?= ucfirst($t['recurring']) ?></span>
-            <?php endif; ?>
-            <?php if ($t['location']): ?>
-              <span><i class="fas fa-map-marker-alt u-fs-11-2"></i> <?= h($t['location']) ?></span>
-            <?php endif; ?>
-          </div>
-        </div>
-
-        <div class="todo-actions">
-          <!-- Add subtask -->
-          <button class="btn btn-icon btn-ghost btn-sm" title="Add subtask"
-                  onclick="toggleSubtasks(<?= $t['id'] ?>)"
-                  id="sub-toggle-<?= $t['id'] ?>"
-                  aria-label="Show/add subtasks">
-            <i class="fas fa-list-ul"></i>
-          </button>
-          <?php if (!$t['completed']): ?>
-          <a class="btn btn-icon btn-ghost btn-sm" title="Focus on this" aria-label="Start a focus session on this task"
-             href="<?= APP_BASE ?>/pages/focus.php?todo=<?= (int)$t['id'] ?>">
-            <i class="fas fa-stopwatch"></i>
-          </a>
-          <?php endif; ?>
-          <button aria-label="Edit" class="btn btn-icon btn-ghost btn-sm" title="Edit"
-                  onclick="editTodo(<?= $t['id'] ?>)">
-            <i class="fas fa-pen"></i>
-          </button>
-          <button aria-label="Delete" class="btn btn-icon btn-ghost btn-sm u-c-accent" title="Delete"
-                  onclick="deleteTodo(<?= $t['id'] ?>)">
-            <i class="fas fa-trash"></i>
-          </button>
-        </div>
-      </div>
-
-      <!-- Subtasks panel (hidden until toggled) -->
-      <div id="subtasks-<?= $t['id'] ?>" class="subtask-panel hidden"
-           style="padding:.375rem 1rem .5rem 3rem;background:var(--surface2)">
-        <div class="subtask-list" id="subtask-list-<?= $t['id'] ?>">
-          <div class="u-fs-12-8 u-c-muted"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
-        </div>
-        <div class="u-flex u-gap-2 u-mt-2 u-flex-wrap">
-          <input type="text" class="form-input" style="font-size:.8125rem;flex:1;min-width:80px"
-                 id="subtask-input-<?= $t['id'] ?>"
-                 placeholder="Add subtask…"
-                 onkeydown="if(event.key==='Enter'){addSubtask(<?= $t['id'] ?>,this)}"
-                 aria-label="New subtask for <?= h($t['title']) ?>">
-          <button class="btn btn-primary btn-sm" onclick="addSubtask(<?= $t['id'] ?>, document.getElementById('subtask-input-<?= $t['id'] ?>'))">
-            <i class="fas fa-plus"></i>
-          </button>
-        </div>
-      </div>
-    <?php endforeach; ?>
+<div id="todoList" data-today="<?= h($today) ?>" data-tomorrow="<?= h($tomorrow) ?>" data-week-end="<?= h($weekEnd) ?>"
+     data-initial-filter="<?= h($initialFilter) ?>" data-date="<?= h($initialDate) ?>">
+  <?php if (!$open && !$done): ?>
+    <div class="card"><?= renderEmptyState('fa-clipboard-list', 'Nothing to do — yet',
+      'Type a task above in plain words: “call the bank tomorrow 10am”. It lands in the right day automatically.') ?></div>
   <?php endif; ?>
-</div>
-<?php endif; ?>
 
-<?php if ($view === 'timeline'): ?>
-<!-- Timeline: everything, grouped by date, one scannable page -->
-<div id="todoTimelineWrap">
-  <?php
-  $groupMeta = [
-    'Overdue'     => ['icon' => 'fa-triangle-exclamation', 'color' => 'var(--accent)'],
-    'Today'       => ['icon' => 'fa-star',                 'color' => 'var(--warn)'],
-    'Upcoming'    => ['icon' => 'fa-calendar',              'color' => 'var(--info)'],
-    'No due date' => ['icon' => 'fa-inbox',                 'color' => 'var(--muted)'],
-    'Completed'   => ['icon' => 'fa-check-circle',          'color' => 'var(--ok)'],
-  ];
-  $anyShown = false;
-  foreach ($timelineGroups as $label => $items):
-    if (empty($items)) continue;
-    $anyShown = true;
-    $gm = $groupMeta[$label];
-  ?>
-    <div class="u-mb-6">
-      <div style="font-size:.8125rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.625rem;display:flex;align-items:center;gap:var(--sp-2)">
-        <i class="fas <?= $gm['icon'] ?>" style="color:<?= $gm['color'] ?>"></i>
-        <?= h($label) ?>
-        <span class="badge badge-gray"><?= count($items) ?></span>
-      </div>
-      <div class="card">
-        <?php foreach ($items as $t): ?>
-          <div class="todo-row <?= $t['completed'] ? 'done' : '' ?>" id="tl-todo-<?= $t['id'] ?>">
-            <input type="checkbox" class="todo-check" <?= $t['completed'] ? 'checked' : '' ?>
-                   onchange="toggleTodo(<?= $t['id'] ?>, this.checked, this)"
-                   aria-label="Mark <?= h($t['title']) ?> as done">
-            <span class="priority-pip <?= h($t['priority']) ?>" aria-hidden="true"></span>
-            <div class="u-flex-1 u-min-w-0">
-              <div class="todo-title"><?= h($t['title']) ?></div>
-              <?php if ($t['due_date'] && $label !== 'Today'): ?>
-                <div class="todo-meta"><?= formatDate($t['due_date']) ?></div>
-              <?php endif; ?>
-            </div>
-          </div>
-        <?php endforeach; ?>
-      </div>
-    </div>
+  <?php foreach ($groupMeta as $g => [$label, $icon]): ?>
+    <section class="td-section tdo-group<?= $g === 'overdue' ? ' is-overdue' : '' ?>" data-group="<?= $g ?>"<?= $groups[$g] ? '' : ' hidden' ?>>
+      <h2 class="td-section-head"><span><i class="fas <?= $icon ?>" aria-hidden="true"></i> <?= $label ?></span> <span class="td-count"><?= count($groups[$g]) ?></span></h2>
+      <ul class="td-list" data-list="<?= $g ?>"><?php foreach ($groups[$g] as $t) echo renderTodoRow($t, $g, $subs, $today); ?></ul>
+    </section>
   <?php endforeach; ?>
-  <?php if (!$anyShown): ?>
-    <div class="card">
-      <div class="empty-state">
-        <div class="empty-state-icon"><i class="fas fa-timeline"></i></div>
-        <div class="empty-state-title">Nothing on the timeline yet</div>
-        <p>Add a task to see it grouped by when it's due.</p>
-        <button class="btn btn-primary u-mt-3" onclick="openModal('todoModal')">
-          <i class="fas fa-plus"></i> Add your first todo
-        </button>
-      </div>
-    </div>
-  <?php endif; ?>
+
+  <details class="td-section td-done tdo-group" data-group="done"<?= $done ? '' : ' hidden' ?>>
+    <summary><i class="fas fa-chevron-right" aria-hidden="true"></i> Done <span class="td-count"><?= $doneTotal ?></span></summary>
+    <ul class="td-list" data-list="done"><?php foreach ($done as $t) echo renderTodoRow($t, todoGroup($t, $today, $tomorrow, $weekEnd), $subs, $today); ?></ul>
+    <?php if ($doneTotal > count($done)): ?><p class="form-hint u-mt-2">Showing the latest <?= count($done) ?> of <?= $doneTotal ?> completed.</p><?php endif; ?>
+  </details>
+
+  <div class="card tdo-nomatch" hidden><?= renderEmptyState('fa-magnifying-glass', 'No todos match', 'Try another word, or clear the filter.', '<button type="button" class="btn btn-secondary btn-sm" data-filter="all">Show all</button>', true) ?></div>
 </div>
-<?php endif; ?>
 
 <!-- Add / Edit Modal -->
 <div id="todoModal" class="modal-backdrop hidden">
@@ -397,6 +265,10 @@ require_once '../includes/head.php';
       </div>
     </div>
     <div class="modal-footer">
+      <button type="button" class="btn btn-ghost btn-sm u-c-accent u-mr-auto" id="todoDeleteBtn" hidden
+              onclick="Trackie.closeModal('todoModal'); deleteTodo(+document.getElementById('todoId').value)">
+        <i class="fas fa-trash" aria-hidden="true"></i> Delete
+      </button>
       <button class="btn btn-secondary btn-sm" data-close-modal="todoModal">Cancel</button>
       <button class="btn btn-primary btn-sm" onclick="saveTodo()">
         <i class="fas fa-save"></i> Save
@@ -410,94 +282,262 @@ require_once '../includes/head.php';
 
 <script>
 const API_BASE = '<?= APP_BASE ?>/api';
+(() => {
+  const main = document.getElementById('page-main');
+  if (!main || !document.getElementById('todoList')) return;
+  const $ = id => document.getElementById(id);
+  const root = () => $('todoList');
+  const NL = Trackie.NL;
+  const D = () => root().dataset;
+  const post = body => Trackie.API.post(`${API_BASE}/todos.php`, body);
+  const reduce = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const PRI_RANK = { high: 0, medium: 1, low: 2 };
+  const PRI_NEXT = { low: 'medium', medium: 'high', high: 'low' };
+  let filter = D().date ? 'date:' + D().date : (D().initialFilter || 'all');
+  let query = '';
 
-async function toggleTodo(id, checked, el) {
-  el.disabled = true;
-  const row = document.getElementById(`todo-${id}`);
-  // Optimistic: strike through immediately so the interaction feels instant.
-  row?.classList.toggle('done', checked);
-  try {
-    const res = await Trackie.API.post(`${API_BASE}/todos.php`, {
-      action:'toggle', todo_id:id, completed: checked ? 1 : 0
-    });
-    if (res.success) {
-      if (checked) {
-        // Motivating completion feedback: XP + how many are left.
-        const remaining = document.querySelectorAll('.todo-row:not(.done)').length;
-        const xpTxt = res.xp?.ok ? `+${res.xp.gained} XP` : '';
-        if (res.xp?.leveledUp) {
-          Trackie.Toast.success(`⚡ Level up! Level ${res.xp.level} — ${res.xp.title}`, 5000);
-        } else if (remaining === 0) {
-          Trackie.Toast.success(`🎉 All tasks done! ${xpTxt} — you're clear.`, 3500);
-          Trackie.Delight?.burst(el);
-        } else {
-          Trackie.Toast.success(`✅ Nice! ${xpTxt} · ${remaining} task${remaining !== 1 ? 's' : ''} left`, 2800);
-        }
-      }
-      // Keep the stat cards live without a reload.
-      Trackie.refreshFragments(['todoStatsWrap']);
-      if (res.achievements?.length) Trackie.showAchievementToasts(res.achievements);
-    } else {
-      Trackie.Toast.error(res.error || 'Failed.');
-      el.checked = !checked; row?.classList.toggle('done', !checked);
-    }
-  } catch {
-    Trackie.Toast.error('Network error.');
-    el.checked = !checked; row?.classList.toggle('done', !checked);
+  const list = g => root().querySelector(`[data-list="${g}"]`);
+  const rows = () => [...root().querySelectorAll('.tdo-row')];
+  // Open rows keep server order: priority, then due date (no date last), then newest.
+  const order = (a, b) => (PRI_RANK[a.dataset.pri] - PRI_RANK[b.dataset.pri])
+    || ((a.dataset.due || '9999') < (b.dataset.due || '9999') ? -1 : (a.dataset.due || '9999') > (b.dataset.due || '9999') ? 1 : 0)
+    || (+b.dataset.id - +a.dataset.id);
+  function place(li, group) {
+    const ul = list(group);
+    if (group === 'done') { ul.prepend(li); return; }
+    ul.insertBefore(li, [...ul.children].find(x => x !== li && order(li, x) < 0) || null);
   }
-  el.disabled = false;
-}
+  function groupFor(due) {
+    const d = D();
+    if (!due) return 'nodate';
+    if (due < d.today) return 'overdue';
+    if (due === d.today) return 'today';
+    if (due === d.tomorrow) return 'tomorrow';
+    return due <= d.weekEnd ? 'week' : 'later';
+  }
+
+  // ── Filters + search: client-side, instant, no reload ─────────────
+  function matches(li) {
+    const done = li.classList.contains('is-done');
+    if (query && !li.dataset.search.includes(query)) return false;
+    if (filter === 'all') return true;
+    if (filter === 'today') return !done && li.dataset.home === 'today';
+    if (filter === 'overdue') return !done && li.dataset.home === 'overdue';
+    if (filter === 'high') return !done && li.dataset.pri === 'high';
+    if (filter.startsWith('tag:')) return li.dataset.tags.split(',').includes(filter.slice(4));
+    if (filter.startsWith('date:')) return li.dataset.due === filter.slice(5);
+    return true;
+  }
+  function apply() {
+    let shown = 0;
+    rows().forEach(li => { const m = matches(li); li.hidden = !m; if (m) shown++; });
+    root().querySelectorAll('.tdo-group').forEach(sec => {
+      const visible = [...sec.querySelectorAll('.tdo-row')].filter(r => !r.hidden).length;
+      const total = sec.querySelectorAll('.tdo-row').length;
+      sec.hidden = !visible;
+      const c = sec.querySelector('.td-count');
+      if (c && sec.dataset.group !== 'done') c.textContent = (filter !== 'all' || query) ? `${visible} of ${total}` : total;
+      if (sec.dataset.group === 'done' && (filter !== 'all' || query) && visible) sec.open = true;
+    });
+    const nm = root().querySelector('.tdo-nomatch');
+    if (nm) nm.hidden = shown > 0 || !rows().length;
+    document.querySelectorAll('#tdoChips .tdo-chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.filter === filter)));
+    const url = new URL(location.href);
+    url.searchParams.delete('date'); url.searchParams.delete('view');
+    if (filter === 'all' || filter.startsWith('date:') || filter.startsWith('tag:')) url.searchParams.delete('filter'); else url.searchParams.set('filter', filter);
+    history.replaceState(history.state, '', url);
+  }
+  function setFilter(f) { filter = f; apply(); }
+
+  // Counts in the strip and group headings after a move.
+  function recount() {
+    const open = rows().filter(r => !r.classList.contains('is-done'));
+    const strip = $('todoStatsWrap')?.querySelector('strong');
+    if (strip) strip.textContent = open.length;
+    apply();
+  }
+
+  // ── Row actions (delegated: refreshes replace #todoList) ──────────
+  main.addEventListener('click', async e => {
+    const chip = e.target.closest('button[data-filter]');
+    if (chip && main.contains(chip)) { setFilter(chip.dataset.filter === filter && filter !== 'all' ? 'all' : chip.dataset.filter); return; }
+    const tagBtn = e.target.closest('.tdo-tag');
+    if (tagBtn) { setFilter('tag:' + tagBtn.dataset.tag); return; }
+
+    const check = e.target.closest('#todoList button.td-check');
+    if (check) return toggle(check);
+    const actBtn = e.target.closest('#todoList [data-act]');
+    if (!actBtn) return;
+    const li = actBtn.closest('.tdo-row');
+    const id = +li.dataset.id;
+    switch (actBtn.dataset.act) {
+      case 'edit':   return editTodo(id);
+      case 'delete': return deleteTodo(id);
+      case 'subs':   return toggleSubtasks(id, actBtn);
+      case 'pri':    return cyclePriority(li, actBtn);
+      case 'snooze': return snooze(li);
+    }
+  });
+
+  async function toggle(btn) {
+    if (btn.getAttribute('aria-busy') === 'true') return;
+    const li = btn.closest('.tdo-row');
+    const done = btn.getAttribute('aria-checked') !== 'true';
+    btn.setAttribute('aria-checked', String(done)); btn.setAttribute('aria-busy', 'true');
+    li.classList.toggle('is-done', done);
+    if (done) Trackie.Delight?.tap();
+    try {
+      const res = await post({ action: 'toggle', todo_id: li.dataset.id, completed: done ? 1 : 0 });
+      if (!res?.success) throw res;
+      if (res.achievements?.length) Trackie.showAchievementToasts?.(res.achievements);
+      await new Promise(r => setTimeout(r, done && !reduce() ? 300 : 0));
+      await Trackie.UI.transition(() => { place(li, done ? 'done' : li.dataset.home); recount(); }, rows().filter(r => !r.hidden));
+      const left = rows().filter(r => !r.classList.contains('is-done') && !r.hidden).length;
+      if (done && left === 0 && filter === 'all' && !query) {
+        Trackie.Delight?.burst(btn);
+        Trackie.Toast.success(`🎉 All clear${res.xp?.gained ? ` · +${res.xp.gained} XP` : ''}`, 3500);
+      } else if (done && res.xp?.gained) {
+        Trackie.Toast.success(`+${res.xp.gained} XP · ${left} left`, 1800);
+      }
+    } catch (err) {
+      btn.setAttribute('aria-checked', String(!done)); li.classList.toggle('is-done', !done);
+      Trackie.UI.toastError(err, "Couldn't update that todo.");
+    } finally { btn.removeAttribute('aria-busy'); }
+  }
+
+  async function cyclePriority(li, btn) {
+    const from = li.dataset.pri, to = PRI_NEXT[from];
+    const setPri = p => {
+      li.dataset.pri = p;
+      btn.className = `tdo-pri ${p}`;
+      btn.innerHTML = `<i class="fas fa-flag" aria-hidden="true"></i> ${p[0].toUpperCase() + p.slice(1)}`;
+      btn.setAttribute('aria-label', `Priority ${p}, change`); btn.title = `Priority: ${p} — tap to change`;
+    };
+    setPri(to);
+    try {
+      const res = await post({ action: 'patch', todo_id: li.dataset.id, priority: to });
+      if (!res?.success) throw res;
+      if (!li.classList.contains('is-done')) await Trackie.UI.transition(() => place(li, li.dataset.home), [...li.parentElement.children]);
+      apply();
+    } catch (err) { setPri(from); Trackie.UI.toastError(err, "Couldn't change the priority."); }
+  }
+
+  // Same wording as the server (todoDueLabel): "3 days late", "Today", "Tomorrow", weekday, date.
+  function dueLabel(due) {
+    const d = D(), at = x => new Date(x + 'T12:00:00');
+    const diff = Math.round((at(due) - at(d.today)) / 864e5);
+    if (diff < 0) return diff === -1 ? 'Yesterday' : `${-diff} days late`;
+    if (diff < 2) return NL.describe(due, d.today);
+    if (diff < 7) return at(due).toLocaleDateString(undefined, { weekday: 'long' });
+    return at(due).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  }
+
+  async function snooze(li) {
+    const prevDue = li.dataset.due, prevHome = li.dataset.home, d = D();
+    const moveTo = async (due, home) => {
+      li.dataset.due = due; li.dataset.home = home;
+      const label = li.querySelector('.tdo-due');
+      if (label) { label.className = 'tdo-due' + (home === 'overdue' ? ' is-late' : home === 'today' ? ' is-today' : ''); label.lastChild.textContent = ' ' + dueLabel(due); }
+      li.querySelector('.tdo-snooze')?.toggleAttribute('hidden', !['overdue', 'today'].includes(home));
+      await Trackie.UI.transition(() => { place(li, home); recount(); }, rows().filter(r => !r.hidden));
+    };
+    try {
+      const res = await post({ action: 'patch', todo_id: li.dataset.id, due_date: d.tomorrow });
+      if (!res?.success) throw res;
+      await moveTo(d.tomorrow, 'tomorrow');
+      Trackie.Toast.action('Moved to tomorrow.', 'Undo', async () => {
+        const r = await post({ action: 'patch', todo_id: li.dataset.id, due_date: prevDue });
+        if (r?.success) await moveTo(prevDue, prevHome); else Trackie.UI.toastError(r, "Couldn't undo.");
+      });
+    } catch (err) { Trackie.UI.toastError(err, "Couldn't move that todo."); }
+  }
+
+  // ── Quick add ─────────────────────────────────────────────────────
+  main.addEventListener('focusin', e => { if (e.target.id === 'tdoAddInput') NL.load(); });
+  main.addEventListener('input', e => {
+    if (e.target.id === 'tdoAddInput') NL.hint($('tdoAddHint'), e.target.value, D().today, 'No date');
+    if (e.target.id === 'tdoSearch') { query = e.target.value.trim().toLowerCase(); apply(); }
+  });
+  main.addEventListener('submit', async e => {
+    if (e.target.id !== 'tdoAdd') return;
+    e.preventDefault();
+    await NL.load();
+    const { title, priority, due, tags } = NL.parse($('tdoAddInput').value);
+    if (!title) { $('tdoAddInput').focus(); return; }
+    const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
+    try {
+      const res = await post({ action: 'add', title, priority, due_date: due || '', tags: tags.join(',') });
+      if (!res?.success) throw res;
+      $('tdoAddInput').value = ''; NL.hint($('tdoAddHint'), '', D().today, 'No date');
+      await refresh();
+      const li = $('todo-' + res.id);
+      if (li) {
+        li.classList.add('is-new');
+        if (li.hidden) { setFilter('all'); }
+        li.scrollIntoView({ block: 'nearest', behavior: reduce() ? 'auto' : 'smooth' });
+      }
+      Trackie.Toast.success(due ? `Added for ${NL.describe(due, D().today)}` : 'Added', 1800);
+    } catch (err) { Trackie.UI.toastError(err, "Couldn't add that todo."); }
+    finally { btn.disabled = false; $('tdoAddInput').focus(); }
+  });
+
+  async function refresh() { await Trackie.refreshFragments(['todoStatsWrap', 'todoList', 'tdoChips']); apply(); }
+  window.todosRefresh = refresh;
+  apply();
+})();
 
 async function deleteTodo(id) {
-  const ok = await Trackie.confirmDialog('Delete this todo?', {confirmText:'Delete', danger:true});
+  const ok = await Trackie.confirmDialog('Delete this todo?', { confirmText: 'Delete', danger: true });
   if (!ok) return;
   try {
-    const res = await Trackie.API.post(`${API_BASE}/todos.php`, {action:'delete', todo_id:id});
-    if (res.success) {
-      const row = document.getElementById(`todo-${id}`);
-      row?.remove();
-      Trackie.Toast.action('Todo deleted.', 'Undo', async () => {
-        const r = await Trackie.API.post(`${API_BASE}/todos.php`, {action:'restore', todo_id:id});
-        if (r.success) { Trackie.Toast.success('Restored.'); await Trackie.refreshFragments(['todoStatsWrap', 'todoList']); }
-        else Trackie.Toast.error(r.error || 'Could not restore.');
-      });
-      Trackie.refreshFragments(['todoStatsWrap']);
-    } else Trackie.Toast.error(res.error || 'Delete failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
+    const res = await Trackie.API.post(`${API_BASE}/todos.php`, { action: 'delete', todo_id: id });
+    if (!res.success) throw res;
+    const row = document.getElementById(`todo-${id}`);
+    await Trackie.UI.transition(() => row?.remove(), [...document.querySelectorAll('.tdo-row:not([hidden])')]);
+    window.todosRefresh?.();
+    Trackie.Toast.action('Todo deleted.', 'Undo', async () => {
+      const r = await Trackie.API.post(`${API_BASE}/todos.php`, { action: 'restore', todo_id: id });
+      if (r.success) { Trackie.Toast.success('Restored.'); await window.todosRefresh?.(); }
+      else Trackie.UI.toastError(r, 'Could not restore.');
+    });
+  } catch (e) { Trackie.UI.toastError(e, 'Delete failed.'); }
 }
 
-async function toggleSubtasks(id) {
+async function toggleSubtasks(id, btn) {
   const panel = document.getElementById('subtasks-' + id);
   if (!panel) return;
-  const wasHidden = panel.classList.contains('hidden');
-  panel.classList.toggle('hidden');
-  if (wasHidden) { await loadSubtasks(id); }
-}
-
-function escSub(s) {
-  return String(s).replace(/[&<>"']/g, function(c) {
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
-  });
+  const open = panel.hidden;
+  panel.hidden = !open;
+  btn?.setAttribute('aria-expanded', String(open));
+  if (open) await loadSubtasks(id);
 }
 
 async function loadSubtasks(id) {
-  const list = document.getElementById('subtask-list-' + id);
-  if (!list) return;
-  list.innerHTML = '<div class="u-fs-12-8 u-c-muted"><i class="fas fa-spinner fa-spin"></i> Loading\u2026</div>';
-  try {
-    const res = await Trackie.API.post(API_BASE + '/todos.php', {action:'subtasks', parent_id:id});
-    if (!res.success) { list.innerHTML = '<div class="u-fs-12-8 u-c-muted">Could not load subtasks.</div>'; return; }
-    if (!res.subtasks.length) { list.innerHTML = '<div class="u-fs-12-8 u-c-muted">No subtasks yet.</div>'; return; }
-    list.innerHTML = res.subtasks.map(function(s) {
-      return '<div style="display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-1) 0">' +
-        '<input type="checkbox" ' + (s.completed ? 'checked' : '') + ' onchange="toggleSubtask(' + s.id + ', this.checked, ' + id + ')">' +
-        '<span style="flex:1;font-size:.8125rem;' + (s.completed ? 'text-decoration:line-through;color:var(--muted)' : '') + '">' + escSub(s.title) + '</span>' +
-        '<button class="btn btn-icon btn-ghost btn-sm" title="Delete subtask" aria-label="Delete subtask" onclick="deleteSubtask(' + s.id + ', ' + id + ')"><i class="fas fa-trash u-fs-11-2"></i></button>' +
-        '</div>';
-    }).join('');
-  } catch (e) {
-    list.innerHTML = '<div class="u-fs-12-8 u-c-muted">Network error.</div>';
-  }
+  const panel = document.getElementById('subtasks-' + id);
+  if (!panel) return;
+  await Trackie.UI.load(panel, () => Trackie.API.post(API_BASE + '/todos.php', { action: 'subtasks', parent_id: id }), res => {
+    const items = res.subtasks.map(s => `
+      <li class="tdo-sub${s.completed ? ' done' : ''}">
+        <input type="checkbox" class="todo-check" ${s.completed ? 'checked' : ''} aria-label="${escHtml(s.title)}"
+               onchange="toggleSubtask(${+s.id}, this.checked, ${+id})">
+        <span class="todo-title">${escHtml(s.title)}</span>
+        <button type="button" class="tdo-act" aria-label="Delete subtask ${escHtml(s.title)}" onclick="deleteSubtask(${+s.id}, ${+id})"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+      </li>`).join('');
+    panel.innerHTML = `<ul class="tdo-sublist">${items}</ul>
+      <form class="tdo-subadd" onsubmit="event.preventDefault(); addSubtask(${+id}, this.elements.t)">
+        <input name="t" class="form-input" placeholder="Add a step…" aria-label="New subtask" maxlength="150">
+        <button type="submit" class="btn btn-secondary btn-sm" aria-label="Add subtask"><i class="fas fa-plus" aria-hidden="true"></i></button>
+      </form>`;
+    // Keep the "2/5" on the row in step with what's actually in the panel.
+    const total = res.subtasks.length, done = res.subtasks.filter(s => +s.completed).length;
+    const row = document.getElementById('todo-' + id);
+    let pill = row?.querySelector('.tdo-subcount');
+    if (total && !pill && row) {
+      pill = Object.assign(document.createElement('span'), { className: 'tdo-subcount', title: 'Subtasks done' });
+      row.querySelector('.td-meta')?.append(pill);
+    }
+    if (pill) { if (total) pill.innerHTML = `<i class="fas fa-list-check" aria-hidden="true"></i> <b>${done}</b>/${total}`; else pill.remove(); }
+  }, { label: 'Loading steps…', rows: 2, fallback: 'Could not load subtasks.' });
 }
 
 async function addSubtask(parentId, inputEl) {
@@ -505,92 +545,74 @@ async function addSubtask(parentId, inputEl) {
   if (!title) return;
   inputEl.disabled = true;
   try {
-    const res = await Trackie.API.post(API_BASE + '/todos.php', {action:'add_subtask', parent_id: parentId, title: title});
-    if (res.success) { inputEl.value = ''; await loadSubtasks(parentId); }
-    else { Trackie.Toast.error(res.error || 'Could not add subtask.'); }
-  } catch (e) { Trackie.Toast.error('Network error.'); }
-  inputEl.disabled = false;
+    const res = await Trackie.API.post(API_BASE + '/todos.php', { action: 'add_subtask', parent_id: parentId, title });
+    if (!res.success) throw res;
+    await loadSubtasks(parentId);
+    document.querySelector(`#subtasks-${parentId} input[name="t"]`)?.focus();
+  } catch (e) { Trackie.UI.toastError(e, 'Could not add subtask.'); inputEl.disabled = false; }
 }
 
 async function toggleSubtask(id, checked, parentId) {
   try {
-    const res = await Trackie.API.post(API_BASE + '/todos.php', {action:'toggle', todo_id:id, completed: checked?1:0});
-    if (!res.success) { Trackie.Toast.error(res.error || 'Failed.'); }
-  } catch (e) { Trackie.Toast.error('Network error.'); }
+    const res = await Trackie.API.post(API_BASE + '/todos.php', { action: 'toggle', todo_id: id, completed: checked ? 1 : 0 });
+    if (!res.success) throw res;
+  } catch (e) { Trackie.UI.toastError(e, 'Could not update subtask.'); }
   await loadSubtasks(parentId);
 }
 
 async function deleteSubtask(id, parentId) {
-  const ok = await Trackie.confirmDialog('Delete this subtask?', {confirmText:'Delete', danger:true});
-  if (!ok) return;
   try {
-    const res = await Trackie.API.post(API_BASE + '/todos.php', {action:'delete', todo_id:id});
-    if (res.success) { Trackie.Toast.success('Subtask deleted.'); await loadSubtasks(parentId); }
-    else { Trackie.Toast.error(res.error || 'Delete failed.'); }
-  } catch (e) { Trackie.Toast.error('Network error.'); }
+    const res = await Trackie.API.post(API_BASE + '/todos.php', { action: 'delete', todo_id: id });
+    if (!res.success) throw res;
+    await loadSubtasks(parentId);
+  } catch (e) { Trackie.UI.toastError(e, 'Delete failed.'); }
 }
 
 function openAddTodo() {
-  document.getElementById('todoId').value               = '';
-  document.getElementById('todoTitle').value            = '';
-  document.getElementById('todoDesc').value             = '';
-  document.getElementById('todoDue').value              = '';
-  document.getElementById('todoPriority').value         = 'medium';
-  document.getElementById('todoLocation').value         = '';
-  document.getElementById('todoRecurring').value        = 'none';
-  document.getElementById('todoCategory').value         = '';
-  document.getElementById('todoTags').value             = '';
+  for (const [k, v] of Object.entries({ todoId: '', todoTitle: '', todoDesc: '', todoDue: '', todoPriority: 'medium', todoLocation: '', todoRecurring: 'none', todoCategory: '', todoTags: '' })) {
+    document.getElementById(k).value = v;
+  }
   document.getElementById('todoModalTitle').textContent = 'New Todo';
+  document.getElementById('todoDeleteBtn').hidden = true;
   Trackie.openModal('todoModal');
 }
 
 async function editTodo(id) {
   try {
-    const res = await Trackie.API.post(`${API_BASE}/todos.php`, {action:'get', todo_id:id});
-    if (!res.success) { Trackie.Toast.error('Could not load todo.'); return; }
+    const res = await Trackie.API.post(`${API_BASE}/todos.php`, { action: 'get', todo_id: id });
+    if (!res.success) throw res;
     const t = res.todo;
-    document.getElementById('todoId').value               = t.id;
-    document.getElementById('todoTitle').value            = t.title;
-    document.getElementById('todoDesc').value             = t.description || '';
-    document.getElementById('todoDue').value              = t.due_date || '';
-    document.getElementById('todoPriority').value         = t.priority;
-    document.getElementById('todoLocation').value         = t.location || '';
-    document.getElementById('todoRecurring').value        = t.recurring || 'none';
-    document.getElementById('todoCategory').value         = t.category || '';
-    document.getElementById('todoTags').value             = t.tags || '';
+    document.getElementById('todoId').value        = t.id;
+    document.getElementById('todoTitle').value     = t.title;
+    document.getElementById('todoDesc').value      = t.description || '';
+    document.getElementById('todoDue').value       = t.due_date || '';
+    document.getElementById('todoPriority').value  = t.priority;
+    document.getElementById('todoLocation').value  = t.location || '';
+    document.getElementById('todoRecurring').value = t.recurring || 'none';
+    document.getElementById('todoCategory').value  = t.category || '';
+    document.getElementById('todoTags').value      = t.tags || '';
     document.getElementById('todoModalTitle').textContent = 'Edit Todo';
+    document.getElementById('todoDeleteBtn').hidden = false;   // on phones this is the way to delete
     Trackie.openModal('todoModal');
-  } catch { Trackie.Toast.error('Network error.'); }
+  } catch (e) { Trackie.UI.toastError(e, 'Could not load that todo.'); }
 }
 
 async function saveTodo() {
   const id    = document.getElementById('todoId').value;
   const title = document.getElementById('todoTitle').value.trim();
   if (!title) { Trackie.Toast.warning('Title is required.'); return; }
-
-  const payload = {
-    action:      id ? 'edit' : 'add',
-    todo_id:     id || '',
-    title,
-    description: document.getElementById('todoDesc').value,
-    due_date:    document.getElementById('todoDue').value,
-    priority:    document.getElementById('todoPriority').value,
-    location:    document.getElementById('todoLocation').value,
-    recurring:   document.getElementById('todoRecurring').value,
-    category:    document.getElementById('todoCategory').value,
-    tags:        document.getElementById('todoTags').value,
-  };
-
+  const v = k => document.getElementById(k).value;
   try {
-    const res = await Trackie.API.post(`${API_BASE}/todos.php`, payload);
-    if (res.success) {
-      Trackie.Toast.success(id ? 'Todo updated.' : 'Todo added.');
-      Trackie.closeModal('todoModal');
-      await Trackie.refreshFragments(['todoStatsWrap', 'todoList']);
-    } else { Trackie.Toast.error(res.error || 'Save failed.'); }
-  } catch { Trackie.Toast.error('Network error.'); }
+    const res = await Trackie.API.post(`${API_BASE}/todos.php`, {
+      action: id ? 'edit' : 'add', todo_id: id || '', title,
+      description: v('todoDesc'), due_date: v('todoDue'), priority: v('todoPriority'), location: v('todoLocation'),
+      recurring: v('todoRecurring'), category: v('todoCategory'), tags: v('todoTags'),
+    });
+    if (!res.success) throw res;
+    Trackie.Toast.success(id ? 'Todo updated.' : 'Todo added.');
+    Trackie.closeModal('todoModal');
+    await window.todosRefresh?.();
+    if (!id && res.id) document.getElementById('todo-' + res.id)?.classList.add('is-new');
+  } catch (e) { Trackie.UI.toastError(e, 'Save failed.'); }
 }
-
-// Attach new-todo button
-document.querySelector('[onclick="openModal(\'todoModal\')"]')?.addEventListener('click', openAddTodo);
 </script>

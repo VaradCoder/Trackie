@@ -232,11 +232,11 @@
 
 /* View-transition timing for rows moving between sections. Names are set
    on rows by JS only for the duration of a move, then removed. */
-::view-transition-group(*.td-row) { animation-duration: .38s; animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
+::view-transition-group(*.tk-row) { animation-duration: .38s; animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
 @media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*.td-row),
-  ::view-transition-old(*.td-row),
-  ::view-transition-new(*.td-row) { animation: none !important; }
+  ::view-transition-group(*.tk-row),
+  ::view-transition-old(*.tk-row),
+  ::view-transition-new(*.tk-row) { animation: none !important; }
 }
 
 /* ════════════════════════════════════════════════════════════════

@@ -71,7 +71,7 @@ try {
     ok(str_contains($html, 'td-pri high'), 'high priority is labelled');
     ok(str_contains($html, 'aria-label="Start Leg day"') && str_contains($html, '/pages/gym.php'), 'workout row links to the Fitness page');
     ok(preg_match_all('~role="checkbox" aria-checked="(true|false)"~', $html) === count($all) - 1, 'every row except the workout has a real checkbox');
-    ok(str_contains($html, 'data-chrono="') && is_file(__DIR__ . '/../../assets/vendor/chrono.min.js'), 'quick-add parser is self-hosted');
+    ok(str_contains($html, 'id="tdAddInput"') && is_file(__DIR__ . '/../../assets/vendor/chrono.min.js'), 'quick add present; its parser is self-hosted');
 
     // Habit history API (the year heatmap): unscheduled days come back as "off".
     $hist = json_decode($http('/api/habits.php', ['action' => 'history', 'habit_id' => $h2, 'days' => 14, 'csrf_token' => $csrf($html)]), true) ?: [];

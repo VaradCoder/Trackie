@@ -67,6 +67,7 @@
   <link rel="stylesheet" href="<?= assetUrl('assets/css/utilities.css') ?>">
   <link rel="stylesheet" href="<?= assetUrl('assets/css/app.css') ?>">
   <link rel="stylesheet" href="<?= assetUrl('assets/css/today.css') ?>">
+  <link rel="stylesheet" href="<?= assetUrl('assets/css/pages.css') ?>">
 
   <?php if (!empty($extraCss)): ?>
     <?= $extraCss ?>

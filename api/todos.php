@@ -63,6 +63,32 @@ switch ($action) {
         );
         json_out(['success' => true]);
 
+    // Change only what's sent — due_date and/or priority — for one-tap actions
+    // (snooze to tomorrow, bump priority). 'edit' rewrites every column, so
+    // using it for a quick change would wipe the description, tags, location…
+    case 'patch':
+        $id = (int)($_POST['todo_id'] ?? 0);
+        if (!$id) json_out(['success' => false, 'error' => 'Invalid ID.'], 422);
+        $set = []; $vals = [];
+        if (array_key_exists('due_date', $_POST)) {
+            $due = trim((string)$_POST['due_date']);
+            if ($due !== '' && !(preg_match('/^\d{4}-\d{2}-\d{2}$/', $due) && strtotime($due))) {
+                json_out(['success' => false, 'error' => 'That date isn’t valid.'], 422);
+            }
+            $set[] = 'due_date=?'; $vals[] = $due === '' ? null : $due;
+        }
+        if (array_key_exists('priority', $_POST)) {
+            $p = (string)$_POST['priority'];
+            if (!in_array($p, ['low', 'medium', 'high'], true)) json_out(['success' => false, 'error' => 'Unknown priority.'], 422);
+            $set[] = 'priority=?'; $vals[] = $p;
+        }
+        if (!$set) json_out(['success' => false, 'error' => 'Nothing to change.'], 422);
+        if (!fetchOne("SELECT id FROM todos WHERE id=? AND user_id=? AND deleted_at IS NULL", [$id, $uid])) {
+            json_out(['success' => false, 'error' => 'Todo not found.'], 404);
+        }
+        update("UPDATE todos SET " . implode(',', $set) . " WHERE id=? AND user_id=? AND deleted_at IS NULL", array_merge($vals, [$id, $uid]));
+        json_out(['success' => true]);
+
     case 'toggle':
         $id        = (int)($_POST['todo_id']   ?? 0);
         $completed = (int)($_POST['completed'] ?? 0);

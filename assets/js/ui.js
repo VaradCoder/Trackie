@@ -261,4 +261,93 @@
   });
   if (window.Trackie) window.Trackie.Delight = Delight;
   window.TrackieDelight = Delight;
+
+  /**
+   * Move rows with a View Transition: whatever apply() does to the DOM, the
+   * rows glide to their new places and neighbours close the gap. Names exist
+   * only for the transition. The update callback waits for a rendered frame,
+   * which a throttled or background tab may not produce for a while, so it is
+   * applied directly if late — a list must never wait on an animation.
+   */
+  function transition(apply, rows = []) {
+    if (!document.startViewTransition || reduceMotion()) { apply(); return Promise.resolve(); }
+    rows.forEach((r, i) => { r.style.viewTransitionName = 'tk-r' + i; r.style.viewTransitionClass = 'tk-row'; });
+    let applied = false;
+    const run = () => { if (!applied) { applied = true; apply(); } };
+    const vt = document.startViewTransition(run);
+    const late = setTimeout(() => { if (!applied) { vt.skipTransition?.(); run(); } }, 600);
+    return Promise.race([vt.finished.catch(() => {}), new Promise(r => setTimeout(r, 1200))]).then(() => {
+      run(); clearTimeout(late);
+      rows.forEach(r => { r.style.viewTransitionName = ''; r.style.viewTransitionClass = ''; });
+    });
+  }
+  UI.transition = transition;
+
+  /**
+   * Plain-language entry: "call mom tomorrow 6pm !high #family".
+   *   !high / !h / !!!  → high      !low / !l → low
+   *   #word             → tags      dates/times → chrono-node (lazy, 49 KB)
+   * Without the parser (offline, blocked) the text is kept as the title.
+   */
+  const NL = (() => {
+    let loading = null;
+    const base = () => document.querySelector('meta[name="app-base"]')?.content || '';
+    function load() {
+      if (window.chrono) return Promise.resolve(window.chrono);
+      return loading ||= new Promise(resolve => {
+        const s = document.createElement('script');
+        s.src = `${base()}/assets/vendor/chrono.min.js`;
+        s.onload = () => resolve(window.chrono || null);
+        s.onerror = () => { loading = null; resolve(null); };
+        document.head.append(s);
+      });
+    }
+    const PRI = /(?:^|\s)(!high|!h|!!!|!low|!l)(?=\s|$)/i;
+    const TAG = /(?:^|\s)#([\p{L}\p{N}_-]{1,30})(?=\s|$)/gu;
+    const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    function parse(text, now = new Date()) {
+      let title = ` ${text} `, priority = 'medium';
+      const p = title.match(PRI);
+      if (p) { priority = /^!l/i.test(p[1]) ? 'low' : 'high'; title = title.replace(p[0], ' '); }
+      const tags = [];
+      title = title.replace(TAG, (m, t) => { tags.push(t.toLowerCase()); return ' '; });
+      const r = window.chrono?.parse(title, now, { forwardDate: true })?.[0];
+      if (r) title = title.replace(r.text, ' ');
+      return {
+        title: title.replace(/\s+/g, ' ').trim(), priority, tags,
+        when: r ? r.start.date() : null, due: r ? ymd(r.start.date()) : null,
+        hasTime: !!r?.start.isCertain('hour'),
+      };
+    }
+    /** 'Today' · 'Tomorrow' · 'Yesterday' · 'Fri 24 Oct' relative to todayIso. */
+    function describe(iso, todayIso) {
+      const at = s => new Date(s + 'T12:00:00');
+      const diff = Math.round((at(iso) - at(todayIso)) / 864e5);
+      if (diff === 0) return 'Today';
+      if (diff === 1) return 'Tomorrow';
+      if (diff === -1) return 'Yesterday';
+      return at(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+    /** Preview chips for what parse() understood. `fallback` labels "no date typed". */
+    function hint(el, text, todayIso, fallback = 'Today') {
+      if (!el) return;
+      const v = text.trim();
+      if (!v) { el.replaceChildren(); return; }
+      const r = parse(v);
+      const tag = (icon, label, muted) => {
+        const s = document.createElement('span'); s.className = 'td-tag' + (muted ? ' is-muted' : '');
+        s.innerHTML = `<i class="fas ${icon}" aria-hidden="true"></i> `; s.append(label); return s;
+      };
+      const time = r.hasTime ? ' · ' + r.when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+      el.replaceChildren(
+        tag('fa-calendar-day', r.due ? describe(r.due, todayIso) + time : fallback, !r.due),
+        ...(r.priority !== 'medium' ? [tag('fa-flag', r.priority === 'high' ? 'High priority' : 'Low priority')] : []),
+        ...r.tags.map(t => tag('fa-hashtag', t)),
+        ...(r.title ? [] : [tag('fa-pen', 'Add a few words', true)]),
+      );
+    }
+    return { load, parse, describe, hint, ymd };
+  })();
+  if (window.Trackie) window.Trackie.NL = NL;
+  window.TrackieNL = NL;
 })();

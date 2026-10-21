@@ -187,7 +187,7 @@ require_once '../includes/head.php';
 <?php endif; ?>
 
 <div id="todayBoard" class="td-page<?= $total && $doneN === $total ? ' is-clear' : '' ?>"
-     data-today="<?= h($today) ?>" data-chrono="<?= h(assetUrl('assets/vendor/chrono.min.js')) ?>">
+     data-today="<?= h($today) ?>">
 
   <section class="td-hero" aria-labelledby="tdHello">
     <div class="td-hero-text">
@@ -362,28 +362,15 @@ require_once '../includes/head.php';
     list.insertBefore(li, [...list.children].find(x => x.dataset.sort > li.dataset.sort) || null);
   }
 
-  // The row glides to its new home and neighbours close the gap (View Transitions).
-  // Names exist only for this transition, then are removed.
+  // The row glides to its new home and neighbours close the gap (shared helper).
   function move(li, done) {
-    const apply = () => {
+    return Trackie.UI.transition(() => {
       li.classList.toggle('is-done', done);
       place(li, done);
       const L = lists();
       if (done && !L.today.children.length && !L.overdue.children.length) $('tdDoneSec').open = true;
       sync();
-    };
-    if (!document.startViewTransition || reduce()) { apply(); return Promise.resolve(); }
-    const rows = [...board().querySelectorAll('.td-item[data-key]')];
-    rows.forEach((r, i) => { r.style.viewTransitionName = 'td-r' + i; r.style.viewTransitionClass = 'td-row'; });
-    // The update callback waits for a rendered frame, which a throttled or
-    // backgrounded tab may not produce for a while: the list must never wait
-    // on an animation, so apply it ourselves if the frame is late.
-    let applied = false;
-    const run = () => { if (!applied) { applied = true; apply(); } };
-    const vt = document.startViewTransition(run);
-    const late = setTimeout(() => { if (!applied) { vt.skipTransition?.(); run(); } }, 600);
-    const cleanup = () => { clearTimeout(late); rows.forEach(r => { r.style.viewTransitionName = ''; r.style.viewTransitionClass = ''; }); };
-    return Promise.race([vt.finished.catch(() => {}), new Promise(r => setTimeout(r, 1200))]).then(() => { run(); cleanup(); });
+    }, [...board().querySelectorAll('.td-item[data-key]')]);
   }
 
   main.addEventListener('click', async e => {
@@ -412,67 +399,29 @@ require_once '../includes/head.php';
     }
   });
 
-  // ── Quick add in plain language: "call mom tomorrow 6pm !high"
-  let chronoLoading = null;
-  const loadChrono = () => chronoLoading ||= new Promise(res => {
-    if (window.chrono) return res(window.chrono);
-    const s = Object.assign(document.createElement('script'), { src: board().dataset.chrono });
-    s.onload = () => res(window.chrono); s.onerror = () => res(null);   // no parser → plain title, due today
-    document.head.append(s);
-  });
-  const PRI = /(?:^|\s)(!high|!h|!!!|!low|!l)(?=\s|$)/i;
-  function parse(text) {
-    let title = text, priority = 'medium';
-    const p = title.match(PRI);
-    if (p) { priority = /^!l/i.test(p[1]) ? 'low' : 'high'; title = title.replace(p[0], ' '); }
-    const r = window.chrono?.parse(title, new Date(), { forwardDate: true })?.[0];
-    if (r) title = title.replace(r.text, ' ');
-    return { title: title.replace(/\s+/g, ' ').trim(), priority, when: r ? r.start.date() : null, hasTime: !!r?.start.isCertain('hour') };
-  }
-  const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  function describe(d) {
-    const t = ymd(d), tm = new Date(); tm.setDate(tm.getDate() + 1);
-    if (t === today()) return 'Today';
-    if (t === ymd(tm)) return 'Tomorrow';
-    return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-  }
-  function renderHint() {
-    const input = $('tdAddInput'), hint = $('tdAddHint');
-    const v = input.value.trim();
-    if (!v) { hint.replaceChildren(); return; }
-    const { title, priority, when, hasTime } = parse(v);
-    const tag = (icon, text, muted) => {
-      const s = document.createElement('span'); s.className = 'td-tag' + (muted ? ' is-muted' : '');
-      s.innerHTML = `<i class="fas ${icon}" aria-hidden="true"></i> `; s.append(text); return s;
-    };
-    const time = hasTime ? ' · ' + when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
-    hint.replaceChildren(
-      tag('fa-calendar-day', when ? describe(when) + time : 'Today', !when),
-      ...(priority !== 'medium' ? [tag('fa-flag', priority === 'high' ? 'High priority' : 'Low priority')] : []),
-      ...(title ? [] : [tag('fa-pen', 'Add a few words', true)]),
-    );
-  }
-  main.addEventListener('focusin', e => { if (e.target.id === 'tdAddInput') loadChrono(); });
-  main.addEventListener('input', e => { if (e.target.id === 'tdAddInput') renderHint(); });
+  // ── Quick add in plain language: "call mom tomorrow 6pm !high #family" (Trackie.NL)
+  const NL = Trackie.NL;
+  main.addEventListener('focusin', e => { if (e.target.id === 'tdAddInput') NL.load(); });
+  main.addEventListener('input', e => { if (e.target.id === 'tdAddInput') NL.hint($('tdAddHint'), e.target.value, today()); });
   main.addEventListener('submit', async e => {
     if (e.target.id !== 'tdAdd') return;
     e.preventDefault();
-    await loadChrono();
-    const { title, priority, when } = parse($('tdAddInput').value);
+    await NL.load();
+    const { title, priority, due, tags } = NL.parse($('tdAddInput').value);
     if (!title) { $('tdAddInput').focus(); return; }
-    const due = when ? ymd(when) : today();
+    const when = due || today();
     const btn = e.target.querySelector('button[type="submit"]');
     btn.disabled = true;
     try {
-      const res = await Trackie.API.post(`${base}/api/todos.php`, { action: 'add', title, priority, due_date: due });
+      const res = await Trackie.API.post(`${base}/api/todos.php`, { action: 'add', title, priority, due_date: when, tags: tags.join(',') });
       if (!res || !res.success) throw res;
-      $('tdAddInput').value = ''; renderHint();
-      if (due === today()) {
+      $('tdAddInput').value = ''; NL.hint($('tdAddHint'), '', today());
+      if (when === today()) {
         await Trackie.refreshFragments(['todayBoard']);
         board().querySelector(`.td-item[data-key="todo-${res.id}"]`)?.classList.add('is-new');
         Trackie.Toast.success('Added to today', 1800);
       } else {
-        Trackie.Toast.success(`Added for ${describe(when)}`, 2500);
+        Trackie.Toast.success(`Added for ${NL.describe(when, today())}`, 2500);
       }
     } catch (err) {
       Trackie.UI.toastError(err, "Couldn't add that task.");
