@@ -1,0 +1,245 @@
+/* ════════════════════════════════════════════════════════════════
+   Today — one list of everything due, finished with one tap.
+   Built on the app's tokens (--accent, --ok, --surface…), so light and dark
+   themes need no overrides here. Motion rules:
+     - only opacity / transform / stroke-dashoffset animate (compositor-friendly)
+     - interactive feedback is fast (≤ 250 ms), ease-out
+     - every effect has a prefers-reduced-motion version nested beside it
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Hero: greeting + progress ring ─────────────────────────────── */
+.td-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+    var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.td-hello { margin: 0; font-size: clamp(1.375rem, 4vw, 1.75rem); font-weight: 800; letter-spacing: -.02em; color: var(--text); line-height: 1.15; }
+.td-date  { margin: .25rem 0 0; color: var(--muted); font-size: .875rem; }
+.td-summary { margin: .625rem 0 0; color: var(--text); font-size: .9375rem; }
+.td-chips { grid-column: 1; display: flex; flex-wrap: wrap; gap: .5rem; }
+.td-ring  { grid-column: 2; grid-row: 1 / span 2; }
+.td-chip {
+  display: inline-flex; align-items: center; gap: .375rem;
+  min-height: 2.5rem; padding: .25rem .75rem;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface2); color: var(--text);
+  font-size: .8125rem; font-weight: 600; text-decoration: none;
+}
+.td-chip i { font-size: .8125rem; }
+
+.td-ring { position: relative; width: 6.5rem; height: 6.5rem; flex-shrink: 0; }
+.td-ring svg { width: 100%; height: 100%; rotate: -90deg; }
+.td-ring circle { fill: none; stroke-width: 9; }
+.td-ring-track { stroke: var(--surface2); }
+.td-ring-fill {
+  stroke: var(--ok);
+  stroke-linecap: round;
+  /* pathLength=100 → dashoffset is simply 100 - percent */
+  stroke-dasharray: 100;
+  stroke-dashoffset: calc(100 - var(--p, 0));
+  transition: stroke-dashoffset .7s cubic-bezier(.22, 1, .36, 1), stroke .3s ease;
+  @media (prefers-reduced-motion: reduce) { transition: none; }
+}
+.td-ring.is-complete .td-ring-fill { stroke: var(--accent); }
+/* A zero-length arc with round caps still paints a dot; hide it at 0%. */
+.td-ring.is-empty .td-ring-fill { opacity: 0; }
+.td-ring-label {
+  position: absolute; inset: 0;
+  display: grid; place-content: center; text-align: center;
+}
+.td-ring-num { font-size: 1.375rem; font-weight: 800; color: var(--text); line-height: 1; font-variant-numeric: tabular-nums; }
+.td-ring-sub { font-size: .6875rem; color: var(--muted); margin-top: .2rem; text-transform: uppercase; letter-spacing: .06em; }
+.td-ring.is-complete .td-ring-num { animation: td-pop .5s cubic-bezier(.34, 1.56, .64, 1); }
+
+/* Phone: ring on the left, text beside it, chips full width underneath. */
+@media (max-width: 480px) {
+  .td-hero { grid-template-columns: auto minmax(0, 1fr); }
+  .td-ring { grid-column: 1; grid-row: 1; width: 5.25rem; height: 5.25rem; }
+  .td-hero > .td-hero-text { grid-column: 2; grid-row: 1; }
+  .td-hero > .td-chips { grid-column: 1 / -1; margin-top: 0; }
+}
+
+/* ── Quick add ──────────────────────────────────────────────────── */
+.td-add { position: relative; margin-bottom: 1rem; }
+.td-add-row {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .375rem .375rem .375rem .875rem;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.td-add-row:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
+.td-add-row > i { color: var(--muted); }
+.td-add-input {
+  flex: 1; min-width: 0; min-height: 2.75rem;
+  border: 0; outline: 0; background: transparent; color: var(--text);
+  font: inherit; font-size: 1rem;   /* ≥16px: iOS doesn't zoom the page on focus */
+}
+.td-add-input::placeholder { color: var(--subtle, var(--muted)); }
+.td-add-btn { min-height: 2.5rem; min-width: 2.75rem; }
+.td-add-hint { display: flex; flex-wrap: wrap; gap: .375rem; min-height: 1.75rem; margin-top: .5rem; padding-left: .25rem; }
+.td-tag {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .125rem .5rem; border-radius: 999px;
+  background: var(--accent-bg, var(--surface2)); color: var(--accent);
+  font-size: .75rem; font-weight: 600;
+  animation: td-tag-in .18s ease-out;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+.td-tag.is-muted { background: var(--surface2); color: var(--muted); font-weight: 500; }
+
+/* ── Sections + list ───────────────────────────────────────────── */
+.td-section { margin-bottom: 1rem; }
+.td-section-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: .75rem;
+  margin: 0 0 .5rem; padding: 0 .25rem;
+  font-size: .8125rem; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .07em;
+}
+.td-section-head .td-count { font-variant-numeric: tabular-nums; letter-spacing: 0; text-transform: none; font-weight: 600; }
+.td-section.is-overdue .td-section-head { color: var(--accent); }
+
+.td-list {
+  list-style: none; margin: 0; padding: .25rem;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.td-list:empty { display: none; }
+
+.td-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .75rem;
+  min-height: 3.5rem;
+  padding: .5rem .625rem;
+  border-radius: calc(var(--radius-lg) - .25rem);
+  position: relative;
+  transition: background-color .15s ease, opacity .25s ease;
+}
+.td-item + .td-item::before {
+  content: ''; position: absolute; top: 0; left: 3.5rem; right: .625rem;
+  border-top: 1px solid var(--border);
+}
+@media (hover: hover) { .td-item:hover { background: var(--surface2); } }
+
+/* New rows (quick add, undo) slide in; a JS class so a fragment refresh
+   never replays the entrance on every row. */
+.td-item.is-new {
+  animation: td-enter .32s cubic-bezier(.22, 1, .36, 1);
+  @media (prefers-reduced-motion: reduce) { animation: td-fade .2s ease-out; }
+}
+
+.td-title {
+  color: var(--text); font-weight: 600; font-size: .9375rem; line-height: 1.35;
+  overflow-wrap: anywhere;
+  /* Strike-through that draws left → right instead of snapping on. */
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 0 1.5px;
+  transition: background-size .3s cubic-bezier(.22, 1, .36, 1) .08s, color .2s ease;
+  width: fit-content;
+  @media (prefers-reduced-motion: reduce) { transition: none; }
+}
+.td-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem;
+  margin-top: .125rem; color: var(--muted); font-size: .8125rem;
+}
+.td-meta i { width: .875rem; text-align: center; }
+.td-pri { font-weight: 700; }
+.td-pri.high { color: #ef4444; }
+.td-pri.low  { color: var(--info); }
+.td-due-late { color: var(--accent); font-weight: 600; }
+
+.td-item.is-done .td-title { color: var(--muted); background-size: 100% 1.5px; }
+.td-item.is-done .td-meta { opacity: .75; }
+
+.td-go {
+  display: inline-flex; align-items: center; gap: .375rem;
+  min-height: 2.5rem; padding: 0 .875rem;
+  border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text);
+  font-size: .8125rem; font-weight: 700; text-decoration: none;
+  transition: transform .12s ease, background-color .15s ease;
+}
+.td-go:active { transform: scale(.96); }
+@media (hover: hover) { .td-go:hover { background: var(--accent); color: #fff; border-color: transparent; } }
+
+/* ── The check: a 44px target around a 26px circle; the tick draws itself ── */
+.td-check {
+  display: grid; place-items: center;
+  width: 2.75rem; height: 2.75rem; margin: -.25rem;
+  padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--item-c, var(--ok));
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.td-check svg { width: 1.625rem; height: 1.625rem; overflow: visible; }
+.td-check-ring { fill: transparent; stroke: var(--border); stroke-width: 2; transition: fill .2s ease, stroke .2s ease; }
+.td-check-tick {
+  fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 16; stroke-dashoffset: 16;
+  transition: stroke-dashoffset .22s cubic-bezier(.65, 0, .35, 1);
+}
+@media (hover: hover) { .td-check:hover .td-check-ring { stroke: var(--item-c, var(--ok)); } }
+.td-check:active svg { scale: .88; transition: scale .1s ease; }
+.td-check[aria-checked="true"] .td-check-ring { fill: var(--item-c, var(--ok)); stroke: var(--item-c, var(--ok)); }
+.td-check[aria-checked="true"] .td-check-tick { stroke-dashoffset: 0; transition-delay: .06s; }
+.td-check[aria-checked="true"] svg {
+  animation: td-pop .38s cubic-bezier(.34, 1.56, .64, 1);
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+.td-check[aria-busy="true"] { cursor: progress; }
+.td-check:focus-visible { outline: 3px solid var(--accent); outline-offset: 0; }
+.td-check-static { cursor: default; }
+
+/* ── Done section (collapsible, native <details>) ───────────────── */
+.td-done > summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: center; gap: .5rem;
+  min-height: 2.75rem; padding: 0 .25rem; margin-bottom: .25rem;
+  color: var(--muted); font-size: .8125rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+}
+.td-done > summary::-webkit-details-marker { display: none; }
+.td-done > summary .fa-chevron-right { transition: rotate .2s ease; }
+.td-done[open] > summary .fa-chevron-right { rotate: 90deg; }
+
+/* ── All-clear state ───────────────────────────────────────────── */
+.td-clear {
+  display: none;
+  align-items: center; gap: .875rem;
+  padding: 1rem 1.125rem; margin-bottom: 1rem;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--ok) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--ok) 35%, var(--border));
+  color: var(--text);
+}
+.td-clear-emoji { font-size: 1.75rem; line-height: 1; }
+.td-clear strong { display: block; font-size: 1rem; }
+.td-clear span { color: var(--muted); font-size: .875rem; }
+.td-page.is-clear .td-clear {
+  display: flex;
+  animation: td-enter .45s cubic-bezier(.22, 1, .36, 1);
+  @media (prefers-reduced-motion: reduce) { animation: td-fade .2s ease-out; }
+}
+
+/* View-transition timing for rows moving between sections. Names are set
+   on rows by JS only for the duration of a move, then removed. */
+::view-transition-group(*.td-row) { animation-duration: .38s; animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*.td-row),
+  ::view-transition-old(*.td-row),
+  ::view-transition-new(*.td-row) { animation: none !important; }
+}
+
+@keyframes td-pop    { 0% { scale: .7; } 60% { scale: 1.12; } 100% { scale: 1; } }
+@keyframes td-enter  { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
+@keyframes td-fade   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes td-tag-in { from { opacity: 0; scale: .9; } to { opacity: 1; scale: 1; } }

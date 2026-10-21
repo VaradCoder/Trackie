@@ -62,12 +62,11 @@
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-  <!-- Motion (motion.dev) — UI animation engine, loaded early so it's ready before Animate.init() -->
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 
   <!-- App styles (version = file mtime, forces browser to re-fetch after edits) -->
   <link rel="stylesheet" href="<?= assetUrl('assets/css/utilities.css') ?>">
   <link rel="stylesheet" href="<?= assetUrl('assets/css/app.css') ?>">
+  <link rel="stylesheet" href="<?= assetUrl('assets/css/today.css') ?>">
 
   <?php if (!empty($extraCss)): ?>
     <?= $extraCss ?>

@@ -8,7 +8,7 @@
  * Scope is derived from the SW's own location, so it works whether the app
  * is served from "/" (live) or "/Trackie/" (local) without edits.
  */
-const VERSION = 'trackie-v7';   // bumped: utilities.css + ui.js join the precache
+const VERSION = 'trackie-v8';   // bumped: today.css + self-hosted vendor libraries join the precache
 const STATIC  = `static-${VERSION}`;
 const RUNTIME = `runtime-${VERSION}`;
 const PAGES   = `pages-${VERSION}`;   // last-seen HTML pages for offline viewing
@@ -29,11 +29,14 @@ const PRECACHE = [
   `${BASE}assets/css/utilities.min.css`,
   `${BASE}assets/js/ui.min.js`,
   `${BASE}assets/css/dashboard.min.css`,
+  `${BASE}assets/css/today.min.css`,
+  `${BASE}assets/vendor/motion.min.js`,
   `${BASE}assets/css/app.css`,
   `${BASE}assets/js/app.js`,
   `${BASE}assets/css/utilities.css`,
   `${BASE}assets/js/ui.js`,
   `${BASE}assets/css/dashboard.css`,
+  `${BASE}assets/css/today.css`,
   `${BASE}assets/images/icon-192.png`,
   `${BASE}assets/images/logo.png`,
   `${BASE}manifest.json`,

@@ -312,7 +312,6 @@ require_once '../includes/head.php';
 </div><!-- /.main-wrap -->
 </div><!-- /.app-shell -->
 
-<script src="https://cdn.jsdelivr.net/npm/motion@11.15.0/dist/motion.js"></script>
 <script id="dash-chartjs-script" src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" defer></script>
 <script>
 window.TRACKIE_API = '<?= APP_BASE ?>/api';

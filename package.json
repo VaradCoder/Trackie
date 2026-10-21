@@ -24,6 +24,10 @@
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^8.5.2"
+    "@capacitor/cli": "^8.5.2",
+    "canvas-confetti": "1.9.3",
+    "chrono-node": "2.7.7",
+    "esbuild": "0.24.2",
+    "motion": "11.15.0"
   }
 }

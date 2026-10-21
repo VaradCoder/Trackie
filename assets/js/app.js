@@ -1300,7 +1300,7 @@ const QuickAdd = (() => {
       successMsg: 'Todo added!',
       refresh: {
         'todos.php':     ['todoStatsWrap', 'todoList'],
-        'today.php':     ['todayPriorities', 'todayStatsWrap'],
+        'today.php':     ['todayBoard'],
         'dashboard.php': ['dashTodosCard'],
       },
     },
@@ -1314,7 +1314,7 @@ const QuickAdd = (() => {
       successMsg: 'Habit added!',
       refresh: {
         'habits.php':    ['habitStatsWrap', 'habitList'],
-        'today.php':     ['todayHabits'],
+        'today.php':     ['todayBoard'],
         'dashboard.php': ['dashHabitsCard'],
       },
     },
@@ -1338,7 +1338,7 @@ const QuickAdd = (() => {
       successMsg: 'Study task added!',
       refresh: {
         'study_plan.php': ['studyStatsWrap', 'studyList'],
-        'today.php':       ['todayPriorities', 'todayStatsWrap'],
+        'today.php':       ['todayBoard'],
       },
     },
     workout: {

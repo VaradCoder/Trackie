@@ -159,4 +159,42 @@
   const UI = { errorText, isRetryable, loadingHTML, emptyHTML, errorHTML, render, loading, done, empty, error, load, toastError };
   if (window.Trackie) window.Trackie.UI = UI;
   window.TrackieUI = UI;
+
+  /* ── Delight: small physical feedback for real accomplishments ──
+     tap()   a short haptic tick when something is completed (Android / PWA)
+     burst() confetti from an element, for finishing the day or a milestone
+     Both do nothing for prefers-reduced-motion. The confetti library (10 KB)
+     is loaded the first time it's needed, from assets/vendor/. */
+  const reduceMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  let confettiLoad = null;
+  function loadConfetti() {
+    if (window.confetti) return Promise.resolve(window.confetti);
+    return confettiLoad ||= new Promise(resolve => {
+      const base = document.querySelector('meta[name="app-base"]')?.content || '';
+      const s = document.createElement('script');
+      s.src = `${base}/assets/vendor/confetti.min.js`;
+      s.onload = () => resolve(window.confetti || null);
+      s.onerror = () => { confettiLoad = null; resolve(null); };
+      document.head.append(s);
+    });
+  }
+  const Delight = {
+    tap() {
+      if (reduceMotion()) return;
+      try { navigator.vibrate?.(12); } catch { /* not allowed here — fine */ }
+    },
+    async burst(el) {
+      if (reduceMotion() || document.hidden) return;
+      const confetti = await loadConfetti();
+      if (!confetti) return;
+      const r = el?.getBoundingClientRect?.();
+      const origin = r ? { x: (r.left + r.width / 2) / innerWidth, y: (r.top + r.height / 2) / innerHeight } : { x: .5, y: .35 };
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ef4444';
+      const opts = { origin, colors: [accent, '#22c55e', '#f59e0b', '#3b82f6', '#a855f7'], disableForReducedMotion: true, zIndex: 9999 };
+      confetti({ ...opts, particleCount: 70, spread: 70, startVelocity: 38, scalar: .9 });
+      setTimeout(() => confetti({ ...opts, particleCount: 40, spread: 110, startVelocity: 28, scalar: .75, ticks: 160 }), 140);
+    },
+  };
+  if (window.Trackie) window.Trackie.Delight = Delight;
+  window.TrackieDelight = Delight;
 })();

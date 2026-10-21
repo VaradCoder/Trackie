@@ -76,6 +76,7 @@ $targets = [
     'assets/css/app.css'       => 'assets/css/app.min.css',
     'assets/css/utilities.css' => 'assets/css/utilities.min.css',
     'assets/css/dashboard.css' => 'assets/css/dashboard.min.css',
+    'assets/css/today.css'     => 'assets/css/today.min.css',
     'assets/js/app.js'         => 'assets/js/app.min.js',
     'assets/js/ui.js'          => 'assets/js/ui.min.js',
     'assets/js/dashboard.js'   => 'assets/js/dashboard.min.js',
