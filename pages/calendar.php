@@ -26,55 +26,23 @@ $startDate    = date('Y-m-01', $firstDay);
 $endDate      = date('Y-m-t',  $firstDay);
 $todayStr     = date('Y-m-d');
 
-// Load todos and study tasks for this month. `id` + `source` are what let
-// the Planner-style day cards be acted on directly (toggle complete) instead
-// of just displayed — the old calendar only ever showed dots.
+// Every dated thing in Trackie for this month, one event shape (includes/calendar.php).
 require_once '../includes/calendar.php';
-$events   = calendarEvents($uid, $startDate, $endDate);
-// Tasks (todos + study) drive the stats and the Board — they're what you can tick off.
-$allTasks = [];
-foreach ($events as $e) {
-    if (!$e['actionable']) continue;
-    $allTasks[] = ['id' => $e['id'], 'title' => $e['title'], 'due_date' => $e['date'], 'priority' => $e['priority'] ?? 'medium',
-                   'completed' => $e['done'] ? 1 : 0, 'source' => $e['source']];
-}
-$tasksByDate = [];
-foreach ($events as $e) $tasksByDate[$e['date']][] = $e;
-ksort($tasksByDate);
+$events = calendarEvents($uid, $startDate, $endDate);
+$byDate = [];
+foreach ($events as $e) $byDate[$e['date']][] = $e;
+ksort($byDate);
 
-// Month-level progress summary (Planner's "Charts" view, condensed to a
-// stat row — this is a single-user app, no assignee breakdown to show).
-$monthTotal     = count($allTasks);
-$monthCompleted = count(array_filter($allTasks, fn($t) => (bool)$t['completed']));
-$monthOverdue   = count(array_filter($allTasks, fn($t) => !$t['completed'] && $t['due_date'] < $todayStr));
-$monthPct       = $monthTotal > 0 ? (int)round($monthCompleted / $monthTotal * 100) : 0;
+$tasks     = array_filter($events, static fn($e) => $e['actionable']);
+$monthDone = count(array_filter($tasks, static fn($e) => $e['done']));
+$monthLate = count(array_filter($tasks, static fn($e) => !$e['done'] && $e['date'] < $todayStr));
 
-// Board view buckets — Planner-style grouping, read/act rather than drag
-// (there's no meaningful custom bucket order for todos+study tasks to
-// persist, so this groups by real due-date urgency instead).
-// End of the user's week: Saturday when weeks start on Sunday, else Sunday.
-$weekEndStr = date('Y-m-d', strtotime($weekStart === 1 ? 'sunday this week' : (date('w') == 6 ? 'today' : 'next saturday')));
-$buckets = ['overdue' => [], 'today' => [], 'this_week' => [], 'later' => [], 'done' => []];
-foreach ($allTasks as $t) {
-    if ($t['completed'])                                  { $buckets['done'][] = $t; continue; }
-    if ($t['due_date'] < $todayStr)                        { $buckets['overdue'][] = $t; continue; }
-    if ($t['due_date'] === $todayStr)                      { $buckets['today'][] = $t; continue; }
-    if ($t['due_date'] <= $weekEndStr)                     { $buckets['this_week'][] = $t; continue; }
-    $buckets['later'][] = $t;
-}
-$bucketMeta = [
-    'overdue'   => ['label' => 'Overdue',    'icon' => 'fa-triangle-exclamation', 'color' => 'var(--accent)'],
-    'today'     => ['label' => 'Today',      'icon' => 'fa-star',                 'color' => '#f59e0b'],
-    'this_week' => ['label' => 'This Week',  'icon' => 'fa-calendar-week',        'color' => 'var(--info)'],
-    'later'     => ['label' => 'Later',      'icon' => 'fa-clock',                'color' => 'var(--muted)'],
-    'done'      => ['label' => 'Done',       'icon' => 'fa-circle-check',         'color' => 'var(--ok)'],
-];
+// The day the agenda opens on: ?day=, else today if it's in this month, else the 1st.
+$selected = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['day'] ?? '') && substr($_GET['day'], 0, 7) === date('Y-m', $firstDay)
+    ? $_GET['day'] : (date('Y-m', $firstDay) === date('Y-m') ? $todayStr : $startDate);
 
-// Prev / next navigation
-$prevMonth = $month - 1 < 1  ? 12 : $month - 1;
-$prevYear  = $month - 1 < 1  ? $year - 1 : $year;
-$nextMonth = $month + 1 > 12 ? 1  : $month + 1;
-$nextYear  = $month + 1 > 12 ? $year + 1 : $year;
+$prev = strtotime('-1 month', $firstDay);
+$next = strtotime('+1 month', $firstDay);
 
 require_once '../includes/head.php';
 ?>
@@ -88,201 +56,216 @@ require_once '../includes/head.php';
   'icon'    => 'fa-calendar',
   'sub'     => 'Everything dated in Trackie — tasks, reminders, deadlines, workouts and more.',
   'actions' =>
-      '<a href="?month=' . $prevMonth . '&year=' . $prevYear . '" class="btn btn-icon btn-secondary btn-sm" aria-label="Previous month"><i class="fas fa-chevron-left"></i></a>'
+      '<a href="?month=' . date('n', $prev) . '&year=' . date('Y', $prev) . '" class="btn btn-icon btn-secondary btn-sm" aria-label="Previous month"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>'
     . '<a href="?month=' . date('n') . '&year=' . date('Y') . '" class="btn btn-secondary btn-sm">Today</a>'
-    . '<a href="?month=' . $nextMonth . '&year=' . $nextYear . '" class="btn btn-icon btn-secondary btn-sm" aria-label="Next month"><i class="fas fa-chevron-right"></i></a>',
+    . '<a href="?month=' . date('n', $next) . '&year=' . date('Y', $next) . '" class="btn btn-icon btn-secondary btn-sm" aria-label="Next month"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>',
 ]) ?>
 
-<!-- Month progress stat row -->
-<div class="grid-stats u-mb-4">
-  <?= renderStatCard((string)$monthTotal, 'Total tasks', 'fa-list-check', 'var(--info)') ?>
-  <?= renderStatCard((string)$monthCompleted, 'Completed', 'fa-circle-check', 'var(--ok)') ?>
-  <?= renderStatCard((string)$monthOverdue, 'Overdue', 'fa-triangle-exclamation', 'var(--accent)') ?>
-  <?= renderStatCard($monthPct . '%', 'Progress', 'fa-chart-line', 'var(--accent)') ?>
+<div class="pg-strip" id="calStrip">
+  <span><strong><?= count($tasks) ?></strong> task<?= count($tasks) === 1 ? '' : 's' ?> this month</span>
+  <span><strong><?= $monthDone ?></strong> done</span>
+  <?php if ($monthLate): ?><span class="is-late"><strong><?= $monthLate ?></strong> overdue</span><?php endif; ?>
 </div>
 
-<!-- View toggle: Schedule (calendar grid) vs Board (Planner buckets) -->
-<div class="filter-tabs u-mb-4" role="tablist">
-  <button class="filter-tab active" data-view="schedule" onclick="switchCalView('schedule')" role="tab" aria-selected="true">
-    <i class="fas fa-calendar-days"></i> Schedule
-  </button>
-  <button class="filter-tab" data-view="board" onclick="switchCalView('board')" role="tab" aria-selected="false">
-    <i class="fas fa-table-columns"></i> Board
-  </button>
-</div>
-
-<div class="cal-sources" id="calSources">
+<div class="pg-chips u-mb-3" id="calSources" role="toolbar" aria-label="Show on the calendar">
   <?php foreach (CALENDAR_SOURCES as $k => [$label, $icon, $color]): ?>
-    <button type="button" class="cal-src active" data-src="<?= $k ?>" style="--c:<?= $color ?>"><i class="fas <?= $icon ?>"></i> <?= $label ?></button>
+    <button type="button" class="pg-chip cal-src" data-src="<?= $k ?>" aria-pressed="true" style="--c:<?= $color ?>">
+      <span class="cal-src-dot" aria-hidden="true"></span> <?= h($label) ?>
+    </button>
   <?php endforeach; ?>
 </div>
-<!-- Schedule view -->
-<div id="calScheduleView">
-  <div class="card card-body">
-    <div class="cal-grid">
-      <?php foreach ($dayNames as $d): ?>
-        <div class="cal-day-name"><?= $d ?></div>
-      <?php endforeach; ?>
 
-      <!-- Empty cells before month start -->
-      <?php for ($i = 0; $i < $startWeekday; $i++): ?>
-        <div></div>
-      <?php endfor; ?>
-
-      <!-- Day cells -->
+<div class="cal-layout">
+  <div class="card cal-month">
+    <div class="cal-grid2" role="grid" aria-label="<?= h(date('F Y', $firstDay)) ?>" id="calGrid">
+      <?php foreach ($dayNames as $d): ?><div class="cal-dow" role="columnheader"><?= $d ?></div><?php endforeach; ?>
+      <?php for ($i = 0; $i < $startWeekday; $i++): ?><div class="cal-pad" aria-hidden="true"></div><?php endfor; ?>
       <?php for ($day = 1; $day <= $daysInMonth; $day++):
-        $dateStr  = date('Y-m-d', mktime(0,0,0,$month,$day,$year));
-        $isToday  = $dateStr === $todayStr;
-        $dayTasks = $tasksByDate[$dateStr] ?? [];
-        $hasTasks = !empty($dayTasks);
-      ?>
-        <div class="cal-day cal-day-planner <?= $isToday ? 'today' : '' ?> <?= $hasTasks ? 'has-tasks' : '' ?>"
-             onclick='openDayDetail(<?= json_encode($dateStr) ?>)'
-             role="button" tabindex="0">
-          <span class="cal-day-num" style="font-weight:<?= $isToday?'700':'500' ?>"><?= $day ?></span>
-          <?php if ($hasTasks): ?>
-            <div class="cal-day-chips">
-              <?php
-              $shown = 0;
-              foreach ($dayTasks as $t) {
-              if ($shown >= 2) { echo '<div class="cal-day-more">+'.(count($dayTasks)-2).' more</div>'; break; }
-              $col = CALENDAR_SOURCES[$t['source']][2] ?? '#64748b';
-              if ($t['actionable']) $col = $t['priority']==='high' ? '#ef4444' : ($t['priority']==='medium' ? '#f59e0b' : '#3b82f6');
-              $done = $t['done'] ? 'style="opacity:.5;text-decoration:line-through"' : '';
-              echo '<div class="cal-task-chip" data-src="'.h($t['source']).'" style="border-left-color:'.$col.'" '.$done.' title="'.h($t['title']).'">'
-                 .($t['time'] ? '<b>'.h($t['time']).'</b> ' : '').h($t['title']).'</div>';
-              $shown++;
-            }
-            ?>
-            </div>
-          <?php endif; ?>
-        </div>
+        $dateStr = date('Y-m-d', mktime(0, 0, 0, $month, $day, $year)); ?>
+        <button type="button" class="cal-cell<?= $dateStr === $todayStr ? ' is-today' : '' ?><?= $dateStr < $todayStr ? ' is-past' : '' ?>"
+                data-date="<?= $dateStr ?>" role="gridcell" aria-selected="<?= $dateStr === $selected ? 'true' : 'false' ?>"
+                tabindex="<?= $dateStr === $selected ? '0' : '-1' ?>"
+                aria-label="<?= h(date('l j F', strtotime($dateStr))) ?>">
+          <span class="cal-num"><?= $day ?></span>
+          <span class="cal-marks" aria-hidden="true"></span>
+        </button>
       <?php endfor; ?>
     </div>
   </div>
-</div>
 
-<!-- Board view: Planner-style urgency buckets -->
-<div id="calBoardView" style="display:none">
-  <div class="cal-board">
-    <?php foreach ($bucketMeta as $key => $meta): $items = $buckets[$key]; ?>
-      <div class="cal-board-col">
-        <div class="cal-board-col-head">
-          <span style="color:<?= $meta['color'] ?>"><i class="fas <?= $meta['icon'] ?>"></i></span>
-          <span class="cal-board-col-title"><?= h($meta['label']) ?></span>
-          <span class="cal-board-col-count"><?= count($items) ?></span>
-        </div>
-        <div class="cal-board-col-body">
-          <?php if (empty($items)): ?>
-            <div class="cal-board-empty">Nothing here</div>
-          <?php else: foreach ($items as $t): ?>
-            <div class="cal-board-card" data-id="<?= (int)$t['id'] ?>" data-source="<?= h($t['source']) ?>">
-              <label class="cal-board-check">
-                <input type="checkbox" <?= $t['completed'] ? 'checked' : '' ?>
-                       onchange="toggleCalendarTask(<?= (int)$t['id'] ?>, <?= json_encode($t['source']) ?>, this.checked)">
-                <span class="cal-board-card-title" <?= $t['completed'] ? 'style="text-decoration:line-through;opacity:.5"' : '' ?>><?= h($t['title']) ?></span>
-              </label>
-              <div class="cal-board-card-meta">
-                <span class="cal-badge cal-badge-<?= h($t['priority']) ?>"><?= h(ucfirst($t['priority'])) ?></span>
-                <span><?= date('M j', strtotime($t['due_date'])) ?></span>
-              </div>
-            </div>
-          <?php endforeach; endif; ?>
-        </div>
+  <aside class="card cal-agenda" aria-labelledby="calAgendaTitle">
+    <header class="cal-agenda-head">
+      <div>
+        <h2 class="cal-agenda-title" id="calAgendaTitle"></h2>
+        <p class="cal-agenda-sub" id="calAgendaSub"></p>
       </div>
-    <?php endforeach; ?>
-  </div>
+    </header>
+    <ul class="td-list cal-agenda-list" id="calAgendaList" aria-live="polite"></ul>
+    <div class="cal-agenda-empty" id="calAgendaEmpty" hidden>
+      <i class="fas fa-mug-hot" aria-hidden="true"></i> Nothing on this day.
+    </div>
+    <form class="td-add cal-add" id="calAdd" autocomplete="off">
+      <label class="td-add-row">
+        <i class="fas fa-plus" aria-hidden="true"></i>
+        <span class="sr-only">Add a todo for this day</span>
+        <input class="td-add-input" id="calAddInput" maxlength="150" enterkeyhint="done" placeholder="Add a todo for this day…">
+        <button type="submit" class="btn btn-primary btn-sm td-add-btn">Add</button>
+      </label>
+      <div class="td-add-hint" id="calAddHint" aria-live="polite"></div>
+    </form>
+  </aside>
 </div>
 
-<!-- Day detail modal -->
-<div class="modal-backdrop hidden" id="dayDetailModal" onclick="if(event.target===this) closeDayDetail()">
-  <div class="modal-box" style="max-width:420px">
-    <div class="modal-header">
-      <span class="modal-title" id="dayDetailTitle">Tasks</span>
-      <button class="btn-icon btn-secondary btn-sm" onclick="closeDayDetail()" aria-label="Close"><i class="fas fa-xmark"></i></button>
-    </div>
-    <div class="modal-body" id="dayDetailBody"></div>
-  </div>
+
 </div>
+<?php include '../includes/footer.php'; ?>
 
 <script>
-const CAL_TASKS_BY_DATE = <?= json_encode($tasksByDate, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-
-function switchCalView(view) {
-  document.getElementById('calScheduleView').style.display = view === 'schedule' ? '' : 'none';
-  document.getElementById('calBoardView').style.display = view === 'board' ? '' : 'none';
-  document.querySelectorAll('.filter-tab').forEach(btn => {
-    const active = btn.dataset.view === view;
-    btn.classList.toggle('active', active);
-    btn.setAttribute('aria-selected', active ? 'true' : 'false');
-  });
-}
-
-const CAL_SRC = <?= json_encode(array_map(fn($v) => ['label' => $v[0], 'icon' => $v[1], 'color' => $v[2]], CALENDAR_SOURCES)) ?>;
-let calHidden = new Set();
-try { calHidden = new Set(JSON.parse(localStorage.getItem('trackie.calHidden') || '["routine"]')); } catch {}
-function applyCalFilters() {
-  document.querySelectorAll('#calSources .cal-src').forEach(b => b.classList.toggle('active', !calHidden.has(b.dataset.src)));
-  document.querySelectorAll('.cal-task-chip[data-src]').forEach(c => c.classList.toggle('hidden', calHidden.has(c.dataset.src)));
-}
-document.getElementById('calSources').addEventListener('click', e => {
-  const b = e.target.closest('.cal-src'); if (!b) return;
-  calHidden.has(b.dataset.src) ? calHidden.delete(b.dataset.src) : calHidden.add(b.dataset.src);
-  try { localStorage.setItem('trackie.calHidden', JSON.stringify([...calHidden])); } catch {}
-  applyCalFilters();
-});
-applyCalFilters();
-let calDayOpen = null;
-/** Only in-app links, or Google Calendar's own event pages. */
-function calSafeLink(u) {
-  return typeof u === 'string' && (u.startsWith('/') || u.startsWith('https://www.google.com/calendar') || u.startsWith('https://calendar.google.com/')) ? u : null;
-}
-function openDayDetail(dateStr) {
-  calDayOpen = dateStr;
-  const items = (CAL_TASKS_BY_DATE[dateStr] || []).filter(t => !calHidden.has(t.source));
-  const d = new Date(dateStr + 'T00:00:00');
-  document.getElementById('dayDetailTitle').textContent = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  let html = items.length ? '' : '<p style="color:var(--muted);font-size:.875rem;padding:var(--sp-3) 0">Nothing on this day.</p>';
-  html += items.map(t => {
-    const src = CAL_SRC[t.source] || { icon: 'fa-circle', color: '#64748b', label: '' };
-    const done = t.done ? 'text-decoration:line-through;opacity:.5' : '';
-    const title = (t.time ? '<b>' + escHtml(t.time) + '</b> ' : '') + escHtml(t.title);
-    const link = calSafeLink(t.link);
-    const lead = t.actionable
-      ? `<input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleCalendarTask(${+t.id}, '${t.source === 'study' ? 'study' : 'todo'}', this.checked)">`
-      : `<i class="fas ${src.icon}" style="color:${src.color};width:16px;text-align:center"></i>`;
-    return `<div class="cal-board-check" style="padding:var(--sp-2) 0;border-bottom:1px solid var(--border)">${lead}
-      <span style="flex:1;${done}">${title}<small class="u-block u-c-muted u-fs-11-2">${escHtml(src.label)}</small></span>
-      ${link ? `<a href="${escHtml(link)}" class="btn btn-ghost btn-sm" ${link.startsWith('http') ? 'target="_blank" rel="noopener"' : ''} aria-label="Open"><i class="fas fa-arrow-right"></i></a>` : ''}</div>`;
-  }).join('');
-  html += `<div class="u-flex u-gap-2 u-mt-3"><input id="calQuickTitle" class="form-input" placeholder="Add a todo for this day…" maxlength="150"
-    onkeydown="if(event.key==='Enter')calQuickAdd()"><button class="btn btn-primary btn-sm" onclick="calQuickAdd()" aria-label="Add todo"><i class="fas fa-plus"></i></button></div>`;
-  document.getElementById('dayDetailBody').innerHTML = html;
-  document.getElementById('dayDetailModal').classList.remove('hidden');
-}
-async function calQuickAdd() {
-  const title = document.getElementById('calQuickTitle').value.trim();
-  if (!title || !calDayOpen) return;
+(() => {
+  const main = document.getElementById('page-main');
+  const grid = document.getElementById('calGrid');
+  if (!main || !grid) return;
   const base = document.querySelector('meta[name="app-base"]')?.content || '';
-  try {
-    const res = await Trackie.API.post(base + '/api/todos.php', { action: 'add', title, due_date: calDayOpen, priority: 'medium' });
-    if (res.success) { Trackie.Toast.success('Todo added.'); Trackie.SpaNav.refresh(); } else Trackie.Toast.error(res.error || 'Failed.');
-  } catch { Trackie.Toast.error('Network error.'); }
-}
-function closeDayDetail() { document.getElementById('dayDetailModal').classList.add('hidden'); }
+  const TODAY = <?= json_encode($todayStr) ?>;
+  const byDate = <?= json_encode($byDate, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const SRC = <?= json_encode(array_map(fn($v) => ['label' => $v[0], 'icon' => $v[1], 'color' => $v[2]], CALENDAR_SOURCES)) ?>;
+  const $ = id => document.getElementById(id);
+  let selected = <?= json_encode($selected) ?>;
+  let hidden = new Set();
+  try { hidden = new Set(JSON.parse(localStorage.getItem('trackie.calHidden') || '["routine"]')); } catch { /* defaults */ }
 
-async function toggleCalendarTask(id, source, completed) {
-  const base = document.querySelector('meta[name="app-base"]')?.content || '';
-  const endpoint = base + (source === 'study' ? '/api/study_plan.php' : '/api/todos.php');
-  const params = source === 'study' ? { action: 'toggle', task_id: id, completed: completed ? 1 : 0 }
-                                     : { action: 'toggle', todo_id: id, completed: completed ? 1 : 0 };
-  const res = await Trackie.API.post(endpoint, params);
-  if (res && res.success) {
-    Trackie.SpaNav.refresh();
-  } else {
-    Trackie.Toast.error('Could not update task');
+  const visible = d => (byDate[d] || []).filter(e => !hidden.has(e.source));
+  /** Only in-app links, or Google Calendar's own event pages. */
+  const safeLink = u => typeof u === 'string' && (u.startsWith('/') || u.startsWith('https://www.google.com/calendar') || u.startsWith('https://calendar.google.com/')) ? u : null;
+
+  // ── Month cells: a dot per source (up to 4), open tasks counted ─────
+  function paintCell(cell) {
+    const items = visible(cell.dataset.date);
+    const marks = cell.querySelector('.cal-marks');
+    const srcs = [...new Set(items.map(e => e.source))].slice(0, 4);
+    marks.innerHTML = srcs.map(s => `<i style="background:${escHtml(SRC[s]?.color || '#64748b')}"></i>`).join('');
+    const open = items.filter(e => e.actionable && !e.done).length;
+    cell.classList.toggle('has-items', items.length > 0);
+    cell.classList.toggle('has-late', open > 0 && cell.dataset.date < TODAY);
+    const label = new Date(cell.dataset.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+    cell.setAttribute('aria-label', `${label}: ${items.length ? items.length + ' item' + (items.length === 1 ? '' : 's') + (open ? `, ${open} open` : '') : 'nothing'}`);
   }
-}
-</script>
+  const paintAll = () => grid.querySelectorAll('.cal-cell').forEach(paintCell);
 
-<?php include '../includes/footer.php'; ?>
+  // ── Agenda for the selected day ─────────────────────────────────────
+  const tick = '<svg viewBox="0 0 26 26" aria-hidden="true"><circle class="td-check-ring" cx="13" cy="13" r="11.5"/><path class="td-check-tick" d="M8 13.4l3.2 3.2L18 9.8"/></svg>';
+  function paintAgenda() {
+    const d = new Date(selected + 'T12:00:00');
+    $('calAgendaTitle').textContent = selected === TODAY ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'long' });
+    $('calAgendaSub').textContent = d.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+    const items = visible(selected).slice().sort((a, b) => (a.time || '99') < (b.time || '99') ? -1 : (a.time || '99') > (b.time || '99') ? 1 : (a.done - b.done));
+    $('calAgendaList').innerHTML = items.map(e => {
+      const s = SRC[e.source] || { icon: 'fa-circle', color: '#64748b', label: '' };
+      const link = safeLink(e.link);
+      const lead = e.actionable
+        ? `<button type="button" class="td-check" role="checkbox" aria-checked="${e.done}" data-uid="${escHtml(e.uid)}" aria-label="${escHtml(e.title)}">${tick}</button>`
+        : `<span class="td-check td-check-static" aria-hidden="true"><i class="fas ${escHtml(s.icon)}" style="color:${escHtml(s.color)}"></i></span>`;
+      const meta = [e.time ? `<span><i class="fas fa-clock" aria-hidden="true"></i> ${escHtml(e.time)}</span>` : '',
+                    `<span style="color:${escHtml(s.color)};font-weight:700">${escHtml(s.label)}</span>`,
+                    e.actionable && e.priority && e.priority !== 'medium' ? `<span class="tdo-pri ${escHtml(e.priority)}">${escHtml(e.priority[0].toUpperCase() + e.priority.slice(1))}</span>` : '',
+                    e.state === 'skipped' ? '<span>Skipped</span>' : e.state === 'rest' ? '<span>Rest day</span>' : ''].join('');
+      return `<li class="td-item${e.done ? ' is-done' : ''}" style="--item-c:${escHtml(s.color)}">${lead}
+        <div class="td-body"><div class="td-title">${escHtml(e.title)}</div><div class="td-meta">${meta}</div></div>
+        ${link ? `<a class="pg-icon-btn" href="${escHtml(link)}" ${link.startsWith('http') ? 'target="_blank" rel="noopener"' : ''} aria-label="Open ${escHtml(e.title)}"><i class="fas fa-arrow-right" aria-hidden="true"></i></a>` : ''}
+      </li>`;
+    }).join('');
+    $('calAgendaEmpty').hidden = items.length > 0;
+    $('calAddInput').placeholder = selected === TODAY ? 'Add a todo for today…' : `Add a todo for ${d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}…`;
+  }
+
+  function select(date, { focus = false } = {}) {
+    selected = date;
+    grid.querySelectorAll('.cal-cell').forEach(c => {
+      const on = c.dataset.date === date;
+      c.setAttribute('aria-selected', String(on)); c.tabIndex = on ? 0 : -1;
+      if (on && focus) c.focus();
+    });
+    paintAgenda();
+    const u = new URL(location.href); u.searchParams.set('day', date); history.replaceState(history.state, '', u);
+  }
+
+  // ── Interaction ─────────────────────────────────────────────────────
+  grid.addEventListener('click', e => {
+    const cell = e.target.closest('.cal-cell');
+    if (!cell) return;
+    select(cell.dataset.date);
+    if (matchMedia('(max-width: 900px)').matches) $('calAgendaTitle').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  });
+  // Arrow keys move day by day / week by week (roving tabindex, one tab stop).
+  grid.addEventListener('keydown', e => {
+    const cell = e.target.closest('.cal-cell');
+    if (!cell) return;
+    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+    const cells = [...grid.querySelectorAll('.cal-cell')];
+    let i = cells.indexOf(cell);
+    if (step) i += step; else if (e.key === 'Home') i = 0; else if (e.key === 'End') i = cells.length - 1; else return;
+    e.preventDefault();
+    if (cells[i]) select(cells[i].dataset.date, { focus: true });
+  });
+
+  $('calSources').addEventListener('click', e => {
+    const b = e.target.closest('.cal-src'); if (!b) return;
+    hidden.has(b.dataset.src) ? hidden.delete(b.dataset.src) : hidden.add(b.dataset.src);
+    try { localStorage.setItem('trackie.calHidden', JSON.stringify([...hidden])); } catch { /* per-device only */ }
+    paintChips(); paintAll(); paintAgenda();
+  });
+  const paintChips = () => document.querySelectorAll('#calSources .cal-src').forEach(b => b.setAttribute('aria-pressed', String(!hidden.has(b.dataset.src))));
+
+  // Tick a task in the agenda: optimistic, no page reload.
+  $('calAgendaList').addEventListener('click', async e => {
+    const btn = e.target.closest('button.td-check');
+    if (!btn || btn.getAttribute('aria-busy') === 'true') return;
+    const ev = (byDate[selected] || []).find(x => x.uid === btn.dataset.uid);
+    if (!ev) return;
+    const done = !ev.done;
+    btn.setAttribute('aria-checked', String(done)); btn.setAttribute('aria-busy', 'true');
+    btn.closest('.td-item').classList.toggle('is-done', done);
+    if (done) Trackie.Delight?.tap();
+    try {
+      const res = await Trackie.API.post(`${base}/api/${ev.source === 'study' ? 'study_plan' : 'todos'}.php`,
+        ev.source === 'study' ? { action: 'toggle', task_id: ev.id, completed: done ? 1 : 0 } : { action: 'toggle', todo_id: ev.id, completed: done ? 1 : 0 });
+      if (!res?.success) throw res;
+      ev.done = done;
+      if (res.achievements?.length) Trackie.showAchievementToasts?.(res.achievements);
+      if (done && res.xp?.gained) Trackie.Toast.success(`+${res.xp.gained} XP`, 1600);
+      paintCell(grid.querySelector(`.cal-cell[data-date="${selected}"]`));
+      await new Promise(r => setTimeout(r, 250));
+      Trackie.UI.transition(paintAgenda, [...$('calAgendaList').children]);
+    } catch (err) {
+      btn.setAttribute('aria-checked', String(!done)); btn.closest('.td-item').classList.toggle('is-done', !done);
+      Trackie.UI.toastError(err, "Couldn't update that task.");
+    } finally { btn.removeAttribute('aria-busy'); }
+  });
+
+  // Quick add for the selected day — plain words can still name another day.
+  const NL = Trackie.NL;
+  main.addEventListener('focusin', e => { if (e.target.id === 'calAddInput') NL.load(); });
+  main.addEventListener('input', e => { if (e.target.id === 'calAddInput') NL.hint($('calAddHint'), e.target.value, TODAY, NL.describe(selected, TODAY)); });
+  $('calAdd').addEventListener('submit', async e => {
+    e.preventDefault();
+    await NL.load();
+    const p = NL.parse($('calAddInput').value);
+    if (!p.title) return;
+    const due = p.due || selected;
+    const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
+    try {
+      const res = await Trackie.API.post(`${base}/api/todos.php`, { action: 'add', title: p.title, priority: p.priority, due_date: due, tags: p.tags.join(',') });
+      if (!res?.success) throw res;
+      $('calAddInput').value = ''; NL.hint($('calAddHint'), '', TODAY);
+      (byDate[due] ||= []).push({ uid: 'todo-' + res.id, source: 'todo', id: +res.id, title: p.title, date: due, time: null, done: false, actionable: true, priority: p.priority, link: `${base}/pages/todos.php` });
+      hidden.delete('todo'); paintChips();
+      const cell = grid.querySelector(`.cal-cell[data-date="${due}"]`);
+      if (cell) { paintCell(cell); cell.classList.remove('is-bumped'); void cell.offsetWidth; cell.classList.add('is-bumped'); }
+      if (due === selected) paintAgenda(); else Trackie.Toast.success(`Added for ${NL.describe(due, TODAY)}`, 2200);
+    } catch (err) { Trackie.UI.toastError(err, "Couldn't add that todo."); }
+    finally { btn.disabled = false; $('calAddInput').focus(); }
+  });
+
+  paintChips(); paintAll(); select(selected);
+})();
+</script>
