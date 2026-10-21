@@ -4,6 +4,7 @@ require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
 require_once '../includes/activity.php';
+require_once '../includes/gardening.php';
 
 requireAuth();
 
@@ -27,6 +28,8 @@ $due = array_values(array_filter($plants, static fn($p) => $p['due']));
 usort($due, static fn($a, $b) => $b['overdue_days'] <=> $a['overdue_days']);
 $upcoming = array_values(array_filter($plants, static fn($p) => !$p['due'] && $p['status'] !== 'dormant' && $p['next_water'] <= date('Y-m-d', strtotime('+3 day'))));
 $streak = activityReady() ? activityStreak($uid, 'gardening') : ['current' => 0, 'best' => 0];
+// Rain-aware hints for outdoor plants (Open-Meteo); only fetched when one is due.
+$rain = array_filter($due, static fn($p) => plantIsOutdoor($p['location'])) ? rainOutlook() : null;
 $statusMeta = ['healthy' => 'Healthy', 'needs_attention' => 'Needs attention', 'dormant' => 'Dormant'];
 $careMeta = ['water' => ['Water', 'fa-droplet'], 'fertilize' => ['Fertilize', 'fa-flask'], 'repot' => ['Repot', 'fa-box-open'], 'prune' => ['Prune', 'fa-scissors'], 'note' => ['Note', 'fa-note-sticky']];
 
@@ -59,6 +62,7 @@ require_once '../includes/head.php';
       <span><?= h($p['name']) ?><small class="rd-author"> · <?= $p['overdue_days'] > 0 ? $p['overdue_days'] . ' day' . ($p['overdue_days'] === 1 ? '' : 's') . ' overdue' : 'due today' ?><?= $p['location'] ? ' · ' . h($p['location']) : '' ?></small></span>
       <button class="btn btn-primary btn-sm" onclick="care(<?= (int)$p['id'] ?>, 'water')"><i class="fas fa-droplet"></i> Watered</button>
     </div>
+    <?php if ($tip = rainAdvice($p, $rain)): ?><p class="gd-rain"><i class="fas fa-cloud-rain" aria-hidden="true"></i> <?= h($tip) ?></p><?php endif; ?>
   <?php endforeach; ?>
 </div>
 <?php endif; ?>

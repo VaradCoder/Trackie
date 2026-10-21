@@ -56,6 +56,7 @@ require_once '../includes/head.php';
   <button class="filter-tab active" data-tab="recipes" role="tab" aria-selected="true">Recipes</button>
   <button class="filter-tab" data-tab="plan" role="tab" aria-selected="false" tabindex="-1">Meal plan</button>
   <button class="filter-tab" data-tab="log" role="tab" aria-selected="false" tabindex="-1">Cooked</button>
+  <button class="filter-tab" data-tab="discover" role="tab" aria-selected="false" tabindex="-1"><i class="fas fa-compass" aria-hidden="true"></i> Discover</button>
 </div>
 
 <div id="cktab-recipes">
@@ -122,6 +123,23 @@ require_once '../includes/head.php';
 </div>
 
 <!-- Recipe add/edit -->
+<div id="cktab-discover" class="hidden">
+  <form class="ckd-search" id="ckdForm" role="search">
+    <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+    <input id="ckdQ" type="search" maxlength="60" placeholder="Search recipes — “curry”, “pancakes”, “salmon”…" aria-label="Search recipes" autocomplete="off">
+    <button type="button" class="btn btn-secondary btn-sm" id="ckdRandom"><i class="fas fa-dice" aria-hidden="true"></i> Surprise me</button>
+  </form>
+  <div class="pg-chips u-mb-4" id="ckdCats" role="toolbar" aria-label="Browse by category">
+    <?php foreach (['Breakfast', 'Chicken', 'Beef', 'Seafood', 'Vegetarian', 'Vegan', 'Pasta', 'Dessert', 'Side', 'Starter'] as $c): ?>
+      <button type="button" class="pg-chip" data-cat="<?= $c ?>" aria-pressed="false"><?= $c ?></button>
+    <?php endforeach; ?>
+  </div>
+  <div id="ckdResults" class="ckd-grid" aria-live="polite">
+    <p class="ckd-hint">Search or pick a category — save any recipe to your box with its ingredients and steps.</p>
+  </div>
+  <p class="ckd-credit">Recipes from <a href="https://www.themealdb.com" target="_blank" rel="noopener">TheMealDB</a>.</p>
+</div>
+
 <div id="recipeModal" class="modal-backdrop hidden">
   <div class="modal-box">
     <div class="modal-header"><span class="modal-title" id="recipeModalTitle">Add recipe</span><button class="btn btn-icon btn-ghost btn-sm" data-close-modal="recipeModal" aria-label="Close dialog">&times;</button></div>
@@ -192,13 +210,58 @@ const RC_FIELDS = { rcTitle: 'title', rcCategory: 'category', rcTime: 'cook_time
 document.getElementById('ckTabs').addEventListener('click', e => {
   const b = e.target.closest('[data-tab]'); if (!b) return;
   document.querySelectorAll('#ckTabs [data-tab]').forEach(x => { const on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-selected', on); });
-  ['recipes', 'plan', 'log'].forEach(t => document.getElementById(`cktab-${t}`).classList.toggle('hidden', t !== b.dataset.tab));
+  ['recipes', 'plan', 'log', 'discover'].forEach(t => document.getElementById(`cktab-${t}`).classList.toggle('hidden', t !== b.dataset.tab));
 });
 document.getElementById('ckShelf')?.addEventListener('click', e => {
   const b = e.target.closest('[data-shelf]'); if (!b) return;
   document.querySelectorAll('#ckShelf [data-shelf]').forEach(x => x.classList.toggle('active', x === b));
   document.querySelectorAll('.ck-recipe').forEach(c => c.classList.toggle('hidden', b.dataset.shelf !== 'all' && c.dataset.status !== b.dataset.shelf));
 });
+// ── Discover (TheMealDB via api/cooking.php) ──
+(() => {
+  const box = document.getElementById('ckdResults');
+  const q = document.getElementById('ckdQ');
+  let seq = 0, timer;
+  const skeleton = () => { box.innerHTML = Array.from({ length: 6 }, () => '<div class="ckd-card is-loading"><span class="ckd-img"></span><span class="ckd-line"></span><span class="ckd-line short"></span></div>').join(''); };
+  const card = (m, i) => `<article class="ckd-card" style="--i:${i}">
+      ${m.thumb ? `<img class="ckd-img" src="${escHtml(m.thumb)}" alt="" loading="lazy" width="250" height="250">` : '<span class="ckd-img"></span>'}
+      <div class="ckd-body"><h3>${escHtml(m.title)}</h3>${m.meta ? `<span class="ckd-meta">${escHtml(m.meta)}</span>` : ''}</div>
+      <button type="button" class="btn btn-sm ${m.saved ? 'btn-secondary' : 'btn-primary'} ckd-save" data-id="${escHtml(m.id)}" ${m.saved ? `data-saved="${+m.saved}"` : ''}>
+        ${m.saved ? '<i class="fas fa-check"></i> In your box' : '<i class="fas fa-plus"></i> Save recipe'}</button>
+    </article>`;
+  async function run(params) {
+    const my = ++seq; skeleton();
+    try {
+      const r = await ckPost({ action: 'discover', ...params });
+      if (my !== seq) return;
+      if (!r.success) throw new Error(r.error);
+      box.innerHTML = r.meals.length ? r.meals.map(card).join('') : '<p class="ckd-hint">No recipes found — try a simpler word, like “chicken”.</p>';
+    } catch (e) { if (my === seq) box.innerHTML = '<p class="ckd-hint">Could not reach the recipe service. Check your connection and try again.</p>'; }
+  }
+  const cats = document.getElementById('ckdCats');
+  const clearCats = () => cats.querySelectorAll('[data-cat]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  document.getElementById('ckdForm').addEventListener('submit', e => { e.preventDefault(); clearTimeout(timer); if (q.value.trim()) { clearCats(); run({ q: q.value.trim() }); } });
+  q.addEventListener('input', () => { clearTimeout(timer); const v = q.value.trim(); if (v.length >= 3) timer = setTimeout(() => { clearCats(); run({ q: v }); }, 450); });
+  document.getElementById('ckdRandom').addEventListener('click', () => { clearCats(); q.value = ''; run({ random: '1' }); });
+  cats.addEventListener('click', e => {
+    const b = e.target.closest('[data-cat]'); if (!b) return;
+    clearCats(); b.setAttribute('aria-pressed', 'true'); q.value = ''; run({ category: b.dataset.cat });
+  });
+  box.addEventListener('click', async e => {
+    const b = e.target.closest('.ckd-save'); if (!b) return;
+    if (b.dataset.saved) { viewRecipe(+b.dataset.saved); return; }
+    b.disabled = true; b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+    try {
+      const r = await ckPost({ action: 'import', mealdb_id: b.dataset.id });
+      if (!r.success) throw new Error(r.error);
+      b.dataset.saved = r.id; b.className = 'btn btn-sm btn-secondary ckd-save'; b.innerHTML = '<i class="fas fa-check"></i> In your box';
+      Trackie.Delight?.burst?.(b);
+      Trackie.Toast.success(r.existing ? 'Already in your box.' : 'Saved to “Want to try”.');
+    } catch (err) { b.innerHTML = '<i class="fas fa-plus"></i> Save recipe'; Trackie.Toast.error(err.message || 'Could not save.'); }
+    finally { b.disabled = false; }
+  });
+})();
+
 function openRecipe() {
   document.getElementById('rcId').value = '';
   Object.keys(RC_FIELDS).forEach(i => document.getElementById(i).value = '');

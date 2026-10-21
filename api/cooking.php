@@ -13,6 +13,23 @@ $action = sanitizeInput($_POST['action'] ?? '');
 const RECIPE_STATUS = ['want_to_try', 'tried', 'favorite'];
 const MEALS = ['breakfast', 'lunch', 'dinner'];
 
+const MEALDB = 'https://www.themealdb.com/api/json/v1/1/';
+
+/** TheMealDB meal → [title, category, ingredient lines, step lines], sized to the recipes columns. */
+function mealDbRecipe(array $m): array {
+    $ing = [];
+    for ($i = 1; $i <= 20; $i++) {
+        $name = trim((string)($m["strIngredient$i"] ?? ''));
+        if ($name === '') continue;
+        $ing[] = trim(trim((string)($m["strMeasure$i"] ?? '')) . ' ' . $name);
+    }
+    $steps = array_values(array_filter(array_map('trim', preg_split('/\R+/', (string)($m['strInstructions'] ?? ''))),
+        static fn($l) => $l !== '' && !preg_match('/^(step\s*)?\d+\.?$/i', $l)));
+    $cat = implode(' · ', array_filter([trim((string)($m['strCategory'] ?? '')), trim((string)($m['strArea'] ?? ''))]));
+    return [mb_substr(trim((string)$m['strMeal']), 0, 150), mb_substr($cat, 0, 60) ?: null,
+            mb_substr(implode("\n", $ing), 0, 8000) ?: null, mb_substr(implode("\n", $steps), 0, 8000) ?: null];
+}
+
 function ownRecipe(int $uid, int $id): array {
     $r = fetchOne("SELECT * FROM recipes WHERE id=? AND user_id=?", [$id, $uid]);
     if (!$r) json_out(['success' => false, 'error' => 'Recipe not found.'], 404);
@@ -106,6 +123,53 @@ switch ($action) {
                     ON DUPLICATE KEY UPDATE recipe_id=VALUES(recipe_id), note=VALUES(note)", [$uid, $date, $meal, $rid, $note]);
         }
         json_out(['success' => true]);
+
+    // ── Discover: TheMealDB (free, no key), fetched server-side and cached ──
+    case 'discover':
+        require_once '../includes/http.php';
+        $q = mb_substr(trim((string)($_POST['q'] ?? '')), 0, 60);
+        $cat = mb_substr(trim((string)($_POST['category'] ?? '')), 0, 40);
+        if (($_POST['random'] ?? '') === '1') {
+            $meals = [];   // three distinct random picks; random.php isn't cached
+            for ($i = 0; $i < 6 && count($meals) < 3; $i++) {
+                $m = httpJson(MEALDB . 'random.php', 0)['meals'][0] ?? null;
+                if ($m) $meals[$m['idMeal']] = $m;
+            }
+            $meals = array_values($meals);
+        } elseif ($cat !== '') {
+            $meals = httpJson(MEALDB . 'filter.php?' . http_build_query(['c' => $cat]), 86400)['meals'] ?? [];
+            $meals = array_slice($meals ?: [], 0, 24);
+        } else {
+            $meals = $q === '' ? [] : (httpJson(MEALDB . 'search.php?' . http_build_query(['s' => $q]), 86400)['meals'] ?? []);
+            $meals = array_slice($meals ?: [], 0, 24);
+        }
+        $saved = [];
+        foreach (fetchAll("SELECT id, notes FROM recipes WHERE user_id=? AND notes LIKE 'From TheMealDB #%'", [$uid]) as $r) {
+            if (preg_match('/^From TheMealDB #(\d+)/', (string)$r['notes'], $m)) $saved[$m[1]] = (int)$r['id'];
+        }
+        $out = array_map(static fn($m) => [
+            'id'    => (string)$m['idMeal'],
+            'title' => (string)$m['strMeal'],
+            'meta'  => implode(' · ', array_filter([$m['strCategory'] ?? ($cat ?: null), $m['strArea'] ?? null])),
+            'thumb' => str_starts_with((string)($m['strMealThumb'] ?? ''), 'https://') ? $m['strMealThumb'] . '/preview' : null,
+            'saved' => $saved[(string)$m['idMeal']] ?? null,
+        ], array_filter($meals, static fn($m) => isset($m['idMeal'], $m['strMeal']) && ctype_digit((string)$m['idMeal'])));
+        json_out(['success' => true, 'meals' => array_values($out)]);
+
+    case 'import':
+        require_once '../includes/http.php';
+        $mid = (string)($_POST['mealdb_id'] ?? '');
+        if (!ctype_digit($mid) || strlen($mid) > 10) json_out(['success' => false, 'error' => 'Invalid recipe.'], 422);
+        $dupe = fetchOne("SELECT id FROM recipes WHERE user_id=? AND notes LIKE ?", [$uid, "From TheMealDB #$mid %"]);
+        if ($dupe) json_out(['success' => true, 'id' => (int)$dupe['id'], 'existing' => true]);
+        $m = httpJson(MEALDB . 'lookup.php?i=' . $mid, 7 * 86400)['meals'][0] ?? null;
+        if (!$m) json_out(['success' => false, 'error' => 'TheMealDB is unreachable right now — try again in a moment.'], 502);
+        [$title, $cat, $ing, $steps] = mealDbRecipe($m);
+        $src = trim((string)($m['strSource'] ?: $m['strYoutube'] ?: ''));
+        $notes = mb_substr("From TheMealDB #$mid · " . ($src && preg_match('~^https?://~', $src) ? $src : 'themealdb.com'), 0, 500);
+        $id = (int)insert("INSERT INTO recipes (user_id,title,category,cook_time_min,servings,ingredients,steps,status,notes) VALUES (?,?,?,?,?,?,?,?,?)",
+                          [$uid, $title, $cat, null, null, $ing, $steps, 'want_to_try', $notes]);
+        json_out(['success' => true, 'id' => $id]);
 
     default:
         json_out(['success' => false, 'error' => 'Unknown action.'], 400);

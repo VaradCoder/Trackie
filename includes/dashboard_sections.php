@@ -166,6 +166,7 @@ function dashboardSections(int $uid, array $items, string $today): array {
                 'color' => $meta['color'] ?? DASH_PAGE_COLOR[$it['page']] ?? '#6366f1',
                 'value' => $value, 'unit' => $unit, 'sub' => $sub,
                 'streak' => $mod ? (int)($streaks[$mod]['current'] ?? 0) : 0,
+                'best' => $mod ? (int)($streaks[$mod]['best'] ?? 0) : 0, 'module' => $mod,
                 'last' => $mod && !empty($streaks[$mod]['last']) ? $ago($streaks[$mod]['last']) : '',
                 'spark' => $mod ? array_map(static fn($d) => (int)($spark[$mod][$d] ?? 0), $days) : null,
             ];

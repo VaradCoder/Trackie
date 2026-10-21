@@ -108,6 +108,17 @@ try {
        'picked Reading → Hobbies tile, picked Sports → Life tile, unpicked modules absent');
     ok(preg_match('~data-page="sports".*?<strong>1</strong> <small>sessions</small>.*?45m this week~s', $dash2), 'Sports tile shows the logged session (1, 45m)');
 
+    // Hobbies hub: a live card per picked hobby, picker reflects the picks, chart data present.
+    $hub = $http('/pages/hobbies.php');
+    preg_match_all('~class="hh-card" href="[^"]+" data-hobby="(\w+)"~', $hub, $hc);
+    preg_match_all('~class="hh-opt" data-hobby="(\w+)" aria-pressed="true"~', $hub, $hp);
+    ok($hc[1] === ['Reading', 'Sports'] && $hp[1] === ['Sports', 'Reading'], 'hub: cards for picked hobbies; picker pressed for exactly those');
+    ok(preg_match('~data-hobby="Sports".*?<strong>1</strong> <small>sessions</small>~s', $hub) && str_contains($hub, 'id="hhChartData"') && !preg_match('/fatal error|warning:|notice:/i', $hub),
+       'hub: Sports card shows the session; chart data embedded; no PHP errors');
+    // Recipe import validates its id before any network call.
+    $imp = json_decode($http('/api/cooking.php', ['action' => 'import', 'mealdb_id' => '12ab', 'csrf_token' => $csrf($hub)]), true) ?: [];
+    ok(($imp['success'] ?? true) === false && !fetchOne("SELECT id FROM recipes WHERE user_id=?", [$uid]), 'recipe import rejects a non-numeric id, stores nothing');
+
     // Habit history API (the year heatmap): unscheduled days come back as "off".
     $hist = json_decode($http('/api/habits.php', ['action' => 'history', 'habit_id' => $h2, 'days' => 14, 'csrf_token' => $csrf($html)]), true) ?: [];
     $offWd = array_unique(array_map(static fn($d) => (int)date('w', strtotime($d)), $hist['off'] ?? []));
