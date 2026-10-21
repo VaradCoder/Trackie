@@ -89,7 +89,7 @@ try {
 
     // Your space: sections follow the user's picks and focus.
     $space = static function (string $html) {
-        preg_match_all('~<section class="ys-sec" data-sec="(\w+)".*?</section>~s', $html, $m, PREG_SET_ORDER);
+        preg_match_all('~<section class="bd-card ys-sec[^"]*" data-sec="(\w+)".*?</section>~s', $html, $m, PREG_SET_ORDER);
         $out = [];
         foreach ($m as $s) { preg_match_all('~data-page="([\w]+)"~', $s[0], $p); $out[$s[1]] = $p[1]; }
         return $out;

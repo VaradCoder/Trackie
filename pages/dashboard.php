@@ -322,22 +322,16 @@ require_once '../includes/head.php';
       </div>
     </section>
   </div>
-</div>
 
-<!-- ═══ Your space: one tile per module the user has ═══ -->
-<section class="ys" aria-labelledby="ysTitle">
-  <header class="ys-head">
-    <div>
-      <h2 id="ysTitle">Your space</h2>
-      <p class="bd-muted"><?= $focusName ? 'Ordered for your focus on ' . h($focusName) . '.' : 'Everything you track, grouped like your sidebar.' ?>
-        <a class="bd-link" href="<?= APP_BASE ?>/pages/profile.php">Change focus</a></p>
-    </div>
-  </header>
-  <?php $n = 0; foreach ($space['order'] as $key): $sec = $space['sections'][$key]; ?>
-  <section class="ys-sec" data-sec="<?= $key ?>" aria-labelledby="ys-<?= $key ?>">
-    <header class="ys-sec-head">
-      <h3 id="ys-<?= $key ?>"><?= h($sec['title']) ?></h3>
-      <span class="bd-muted"><?= h($sec['sub']) ?></span>
+  <!-- ═══ Your space: Plan · Life · Hobbies as bento cards; the focus section leads ═══ -->
+  <div class="bd-space ys" style="--o:9">
+  <?php $n = 0; foreach ($space['order'] as $si => $key): $sec = $space['sections'][$key]; ?>
+  <section class="bd-card ys-sec<?= $si === 0 ? ' is-lead' : '' ?>" data-sec="<?= $key ?>" aria-labelledby="ys-<?= $key ?>">
+    <header class="bd-card-head ys-sec-head">
+      <div>
+        <h2 id="ys-<?= $key ?>"><?= h($sec['title']) ?></h2>
+        <span class="bd-muted"><?= $si === 0 && $focusName ? 'First for your focus on ' . h($focusName) . ' · <a class="bd-link" href="' . APP_BASE . '/pages/profile.php">Change</a>' : h($sec['sub']) ?></span>
+      </div>
       <?php if ($sec['manage']): ?><a class="bd-link" href="<?= APP_BASE ?>/pages/<?= h($sec['manage'][1]) ?>"><?= h($sec['manage'][0]) ?> <i class="fas fa-arrow-right" aria-hidden="true"></i></a><?php endif; ?>
     </header>
     <div class="ys-grid">
@@ -366,7 +360,8 @@ require_once '../includes/head.php';
     </div>
   </section>
   <?php endforeach; ?>
-</section>
+  </div>
+</div>
 </div><!-- /.bd-wrap -->
 
 </div>
