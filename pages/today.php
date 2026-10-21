@@ -300,6 +300,10 @@ require_once '../includes/head.php';
 </section>
 <?php endif; ?>
 
+
+</div>
+<?php include '../includes/footer.php'; ?>
+
 <script>
 (() => {
   // Elements are looked up on use and events are delegated from #page-main:
@@ -432,6 +436,3 @@ require_once '../includes/head.php';
   });
 })();
 </script>
-
-</div>
-<?php include '../includes/footer.php'; ?>

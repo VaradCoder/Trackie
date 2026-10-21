@@ -235,8 +235,11 @@
     },
     async burst(el) {
       if (reduceMotion() || document.hidden) return;
-      const confetti = await loadConfetti();
-      if (!confetti) return;
+      const lib = await loadConfetti();
+      if (!lib) return;
+      // Own instance with workers off: the default one spins up a Worker from
+      // a blob: URL, which the CSP (worker-src 'self') rightly blocks.
+      const confetti = Delight._fx ||= lib.create(null, { resize: true, useWorker: false });
       const r = el?.getBoundingClientRect?.();
       const origin = r ? { x: (r.left + r.width / 2) / innerWidth, y: (r.top + r.height / 2) / innerHeight } : { x: .5, y: .35 };
       const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ef4444';
@@ -275,6 +278,8 @@
     let applied = false;
     const run = () => { if (!applied) { applied = true; apply(); } };
     const vt = document.startViewTransition(run);
+    // A skipped transition rejects these; the DOM change still happens via run().
+    vt.ready?.catch(() => {}); vt.updateCallbackDone?.catch(() => {});
     const late = setTimeout(() => { if (!applied) { vt.skipTransition?.(); run(); } }, 600);
     return Promise.race([vt.finished.catch(() => {}), new Promise(r => setTimeout(r, 1200))]).then(() => {
       run(); clearTimeout(late);
