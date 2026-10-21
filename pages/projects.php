@@ -3,6 +3,7 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/hobby_ui.php';
 
 requireAuth();
 
@@ -92,13 +93,11 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div class="rd-head">
-  <h1><i class="fas fa-code u-c-accent"></i> Coding</h1>
-  <div class="rd-head-actions">
+<?php ob_start(); ?>
     <button class="btn btn-secondary btn-sm" onclick="openCodeSession()"><i class="fas fa-stopwatch"></i> Log session</button>
     <button class="btn btn-primary btn-sm" onclick="openAddProject()"><i class="fas fa-plus"></i> New project</button>
-  </div>
-</div>
+  
+<?= hobbyHero('Coding', ob_get_clean()) ?>
 <div class="grid-stats u-mb-5">
   <div class="stat-card"><div class="stat-val">🔥 <?= (int)$codeStreak['current'] ?></div><div class="stat-label">Coding streak<?= $codeStreak['best'] > $codeStreak['current'] ? ' · best ' . (int)$codeStreak['best'] : '' ?></div></div>
   <div class="stat-card"><div class="stat-val"><?= $fmtMin($weekMin) ?></div><div class="stat-label">Coded this week</div></div>

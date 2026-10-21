@@ -3,6 +3,7 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/hobby_ui.php';
 
 requireAuth();
 
@@ -67,13 +68,11 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div class="rd-head">
-  <h1><i class="fas fa-book u-c-accent"></i> Reading</h1>
-  <div class="rd-head-actions">
+<?php ob_start(); ?>
     <button class="btn btn-secondary btn-sm" onclick="openSession()" <?= $books ? '' : 'disabled' ?>><i class="fas fa-stopwatch"></i> Log session</button>
     <button class="btn btn-primary btn-sm" onclick="openAddBook()"><i class="fas fa-plus"></i> Add book</button>
-  </div>
-</div>
+  
+<?= hobbyHero('Reading', ob_get_clean()) ?>
 
 <div id="rdTimerBanner" class="rd-timer-banner hidden" role="status">
   <i class="fas fa-stopwatch"></i> <span>Reading session running · <b id="rdBannerTime">0:00</b> · <span id="rdBannerBook"></span></span>

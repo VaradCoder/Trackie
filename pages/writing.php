@@ -3,6 +3,7 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/hobby_ui.php';
 require_once '../includes/activity.php';
 
 requireAuth();
@@ -33,10 +34,9 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div class="rd-head">
-  <h1><i class="fas fa-pen-nib u-c-accent"></i> Writing</h1>
-  <div class="rd-head-actions"><button class="btn btn-primary btn-sm" onclick="openNewPiece()"><i class="fas fa-plus"></i> New piece</button></div>
-</div>
+<?php ob_start(); ?>
+<button class="btn btn-primary btn-sm" onclick="openNewPiece()"><i class="fas fa-plus"></i> New piece</button>
+<?= hobbyHero('Writing', ob_get_clean()) ?>
 
 <div class="grid-stats u-mb-5">
   <div class="stat-card"><div class="stat-val"><?= number_format($todayWords) ?><?= $goal ? '<small> / ' . number_format($goal) . '</small>' : '' ?></div><div class="stat-label">Words added today</div></div>

@@ -3,6 +3,7 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/hobby_ui.php';
 require_once '../includes/activity.php';
 
 requireAuth();
@@ -29,6 +30,11 @@ $techniques = ['breath' => 'Breath focus', 'body_scan' => 'Body scan', 'loving_k
                'visualization' => 'Visualization', 'mantra' => 'Mantra', 'walking' => 'Walking', 'unguided' => 'Unguided / open'];
 $fmtMin = static fn(int $m) => $m >= 60 ? intdiv($m, 60) . 'h' . ($m % 60 ? ' ' . ($m % 60) . 'm' : '') : $m . 'm';
 
+// Quote of the day (ZenQuotes, free; cached 6h server-side) as the hero line.
+require_once '../includes/http.php';
+$zq = httpJson('https://zenquotes.io/api/today', 6 * 3600, 3)[0] ?? null;
+$medQuote = !empty($zq['q']) && mb_strlen($zq['q']) <= 220 ? '“' . trim($zq['q']) . '” — ' . trim((string)($zq['a'] ?? '')) : null;
+
 require_once '../includes/head.php';
 ?>
 <div class="app-shell">
@@ -37,10 +43,9 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div class="rd-head">
-  <h1><i class="fas fa-spa u-c-accent"></i> Meditation</h1>
-  <div class="rd-head-actions"><button class="btn btn-secondary btn-sm" onclick="openLogSession()"><i class="fas fa-plus"></i> Log past session</button></div>
-</div>
+<?php ob_start(); ?>
+<button class="btn btn-secondary btn-sm" onclick="openLogSession()"><i class="fas fa-plus"></i> Log past session</button>
+<?= hobbyHero('Meditation', ob_get_clean(), $medQuote) ?>
 
 <div id="medStatsWrap">
   <div class="grid-stats u-mb-5">

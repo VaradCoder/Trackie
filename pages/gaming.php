@@ -3,6 +3,7 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/hobby_ui.php';
 
 requireAuth();
 
@@ -53,10 +54,9 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div class="page-header page-header-center">
-  <h1 class="page-header-title"><i class="fas fa-gamepad u-c-accent" aria-hidden="true"></i> Gaming</h1>
-  <div class="page-header-actions"><button class="btn btn-primary btn-sm" onclick="openAddGame()"><i class="fas fa-plus"></i> Add Game</button></div>
-</div>
+<?php ob_start(); ?>
+<button class="btn btn-primary btn-sm" onclick="openAddGame()"><i class="fas fa-plus"></i> Add Game</button>
+<?= hobbyHero('Gaming', ob_get_clean()) ?>
 
 <div id="steamCardWrap" class="u-mb-6">
 <?php if (!$steamConfigured): ?>

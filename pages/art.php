@@ -3,6 +3,7 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/hobby_ui.php';
 require_once '../includes/activity.php';
 
 requireAuth();
@@ -33,13 +34,11 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div class="rd-head">
-  <h1><i class="fas fa-palette u-c-accent"></i> Art</h1>
-  <div class="rd-head-actions">
+<?php ob_start(); ?>
     <button class="btn btn-secondary btn-sm" onclick="openPractice()"><i class="fas fa-stopwatch"></i> Log practice</button>
     <button class="btn btn-primary btn-sm" onclick="openArt()"><i class="fas fa-plus"></i> Add piece</button>
-  </div>
-</div>
+  
+<?= hobbyHero('Art', ob_get_clean()) ?>
 
 <div class="grid-stats u-mb-5">
   <div class="stat-card"><div class="stat-val">🔥 <?= (int)$streak['current'] ?></div><div class="stat-label">Practice streak<?= $streak['best'] > $streak['current'] ? ' · best ' . (int)$streak['best'] : '' ?></div></div>

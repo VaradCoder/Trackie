@@ -101,7 +101,8 @@ try {
     ok(preg_match('~data-page="todos".*?<strong>(\d+)</strong> <small>open</small>.*?<span class="ys-sub">(\d+) overdue~s', $dash, $tm) && $tm[1] === '4' && $tm[2] === '1',
        "Todos tile counts real rows ({$tm[1]} open, {$tm[2]} overdue)");
     update("UPDATE users SET hobbies='Reading,Sports', primary_focus='creativity' WHERE id=?", [$uid]);
-    $sid = (int)insert("INSERT INTO sports_sessions (user_id,sport,duration_min,session_date) VALUES (?,?,?,?)", [$uid, 'Tennis', 45, $today]);
+    $logged = json_decode($http('/api/sports.php', ['action' => 'log', 'sport' => 'Tennis', 'duration_min' => 45, 'session_date' => $today, 'csrf_token' => $csrf($html)]), true) ?: [];
+    ok(($logged['success'] ?? false) === true, 'Sports session logged through the API (writes the activity log too)');
     $dash2 = $http('/pages/dashboard.php'); $ys = $space($dash2);
     ok(array_keys($ys) === ['hobbies', 'plan', 'life'], 'creativity focus → Hobbies section first');
     ok($ys['hobbies'] === ['library', 'music'] && $ys['life'] === ['finance', 'sports'] && !str_contains($dash2, 'Pick your hobbies'),
@@ -115,6 +116,15 @@ try {
     ok($hc[1] === ['Reading', 'Sports'] && $hp[1] === ['Sports', 'Reading'], 'hub: cards for picked hobbies; picker pressed for exactly those');
     ok(preg_match('~data-hobby="Sports".*?<strong>1</strong> <small>sessions</small>~s', $hub) && str_contains($hub, 'id="hhChartData"') && !preg_match('/fatal error|warning:|notice:/i', $hub),
        'hub: Sports card shows the session; chart data embedded; no PHP errors');
+    // Every hobby page opens with the shared hero; Sports' shows today's session.
+    $noHero = [];
+    foreach (['library', 'projects', 'writing', 'art', 'photography', 'sports', 'meditation', 'gardening', 'cooking', 'gaming'] as $pg) {
+        $hp = $http("/pages/$pg.php");
+        if (!str_contains($hp, 'class="hx-hero"') || preg_match('/fatal error|warning:|notice:/i', $hp)) $noHero[] = $pg;
+        if ($pg === 'sports') $sportsHero = $hp;
+    }
+    ok($noHero === [], 'all 10 hobby pages render the hero without PHP errors' . ($noHero ? ' (missing: ' . implode(', ', $noHero) . ')' : ''));
+    ok(preg_match('~class="hx-week">\s*<strong>1</strong> this week~', $sportsHero ?? '') && str_contains($sportsHero ?? '', 'Logged today'), 'Sports hero: 1 this week, "logged today" nudge');
     // Recipe import validates its id before any network call.
     $imp = json_decode($http('/api/cooking.php', ['action' => 'import', 'mealdb_id' => '12ab', 'csrf_token' => $csrf($hub)]), true) ?: [];
     ok(($imp['success'] ?? true) === false && !fetchOne("SELECT id FROM recipes WHERE user_id=?", [$uid]), 'recipe import rejects a non-numeric id, stores nothing');

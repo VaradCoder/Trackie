@@ -3,6 +3,7 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/hobby_ui.php';
 
 requireAuth();
 
@@ -49,13 +50,11 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div class="rd-head">
-  <h1><i class="fas fa-camera u-c-accent"></i> Photography</h1>
-  <div class="rd-head-actions">
+<?php ob_start(); ?>
     <button class="btn btn-secondary btn-sm" onclick="openShoot()"><i class="fas fa-calendar-plus"></i> Log shoot</button>
     <button class="btn btn-primary btn-sm" onclick="openUpload()"><i class="fas fa-upload"></i> Add photos</button>
-  </div>
-</div>
+  
+<?= hobbyHero('Photography', ob_get_clean()) ?>
 
 <div class="filter-tabs u-mb-5" id="phTabs" role="tablist" aria-label="Photography sections">
   <?php foreach ($tabs as $k => $label): ?>

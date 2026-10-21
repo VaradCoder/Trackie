@@ -3,6 +3,7 @@ require_once '../config/app.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/hobby_ui.php';
 require_once '../includes/activity.php';
 require_once '../includes/gardening.php';
 
@@ -41,10 +42,9 @@ require_once '../includes/head.php';
 <?php include '../includes/header.php'; ?>
 <div class="page-content" id="page-main">
 
-<div class="rd-head">
-  <h1><i class="fas fa-seedling u-c-accent"></i> Gardening</h1>
-  <div class="rd-head-actions"><button class="btn btn-primary btn-sm" onclick="openPlant()"><i class="fas fa-plus"></i> Add plant</button></div>
-</div>
+<?php ob_start(); ?>
+<button class="btn btn-primary btn-sm" onclick="openPlant()"><i class="fas fa-plus"></i> Add plant</button>
+<?= hobbyHero('Gardening', ob_get_clean()) ?>
 
 <div class="grid-stats u-mb-5">
   <div class="stat-card"><div class="stat-val"><?= count($plants) ?></div><div class="stat-label">Plants</div></div>
