@@ -435,3 +435,122 @@
 .fc-bar { margin-bottom: .75rem; }
 .fc-bar:last-child { margin-bottom: 0; }
 .fc-bar-top { display: flex; justify-content: space-between; gap: .75rem; font-size: .8125rem; margin-bottom: .25rem; }
+
+/* ════════════════ Overview (dashboard) ════════════════ */
+.ov-grid { display: grid; gap: 1rem; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.ov-grid > * { grid-column: span 12; min-width: 0; }
+@media (min-width: 1100px) {
+  .ov-activity { grid-column: span 7; }
+  .ov-vs       { grid-column: span 5; }
+  .ov-goals    { grid-column: span 6; }
+  .ov-insights { grid-column: span 6; }
+  .ov-weather, .ov-spotify { grid-column: span 6; }
+}
+.ov-kicker { display: inline-flex; align-items: center; gap: .375rem; font-size: .75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.ov-muted { color: var(--muted); font-size: .8125rem; }
+.ov-link { font-size: .8125rem; font-weight: 600; color: var(--accent); text-decoration: none; }
+@media (hover: hover) { .ov-link:hover { text-decoration: underline; } }
+.ov-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-bottom: .875rem; }
+.ov-card-head h2 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text); }
+.ov-activity, .ov-vs, .ov-goals, .ov-insights { padding: 1.125rem; }
+
+/* Today strip */
+.ov-today {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem;
+  padding: 1rem 1.25rem; text-decoration: none; color: inherit;
+  background: radial-gradient(120% 160% at 100% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%), var(--surface);
+  transition: transform .15s ease, box-shadow .2s ease;
+}
+@media (hover: hover) { .ov-today:hover { transform: translateY(-2px); box-shadow: var(--shadow-md, var(--shadow-sm)); } }
+.ov-today:active { transform: scale(.99); }
+.ov-today-ring { width: 4.5rem; height: 4.5rem; grid-column: auto; grid-row: auto; }
+.ov-today-ring .td-ring-num { font-size: 1.0625rem; }
+.ov-today-text { display: flex; flex-direction: column; gap: .125rem; min-width: 0; }
+.ov-today-text strong { font-size: 1.125rem; color: var(--text); }
+.ov-today-text span:last-child { color: var(--muted); font-size: .875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-go { font-weight: 700; font-size: .875rem; color: var(--accent); white-space: nowrap; }
+.ov-go i { transition: translate .15s ease; }
+@media (hover: hover) { .ov-today:hover .ov-go i { translate: 3px 0; } }
+@media (max-width: 520px) { .ov-today { grid-template-columns: auto minmax(0, 1fr); } .ov-go { grid-column: 1 / -1; } }
+
+/* KPI tiles */
+.ov-kpis { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); }
+.ov-kpi { padding: 1rem 1.125rem; display: flex; flex-direction: column; gap: .5rem; }
+.ov-big { display: flex; align-items: baseline; gap: .375rem; flex-wrap: wrap; font-size: 2.25rem; font-weight: 800; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+.ov-big small { font-size: .875rem; font-weight: 600; color: var(--muted); }
+.ov-big-muted { color: var(--muted); }
+.ov-big.is-lit { color: #f59e0b; }
+.ov-foot { font-size: .8125rem; color: var(--muted); margin-top: auto; }
+.ov-delta { font-weight: 600; white-space: nowrap; }
+.ov-delta.is-up { color: var(--ok); }
+.ov-delta.is-down { color: #d97706; }
+.ov-delta.is-flat { color: var(--muted); font-weight: 500; }
+.ov-xp { height: .5rem; border-radius: 999px; background: var(--surface2); overflow: hidden; }
+.ov-xp span {
+  display: block; height: 100%; width: 100%; border-radius: inherit; background: var(--accent);
+  transform-origin: left; transform: scaleX(var(--w, 0));
+  animation: ov-fill 1s cubic-bezier(.22, 1, .36, 1) .15s both;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+@keyframes ov-fill { from { transform: scaleX(0); } }
+.ov-week { display: flex; gap: .25rem; }
+.ov-week span {
+  display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%;
+  font-size: .625rem; font-weight: 700; color: var(--muted); background: var(--surface2);
+}
+.ov-week span.is-on { background: var(--ok); color: #fff; animation: td-pop .4s cubic-bezier(.34, 1.56, .64, 1) both; @media (prefers-reduced-motion: reduce) { animation: none; } }
+.ov-week span.is-today { box-shadow: 0 0 0 2px var(--accent); }
+.ov-week span.is-future { opacity: .45; }
+
+/* 14-day bars: grow up from the axis, one after another */
+.ov-bars { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); align-items: end; gap: .375rem; height: 9rem; }
+.ov-bar { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: .375rem; }
+.ov-bar-fill {
+  width: 100%; max-width: 1.75rem; height: var(--h); min-height: 3px; border-radius: 6px 6px 3px 3px;
+  background: color-mix(in srgb, var(--accent) 55%, var(--surface2));
+  transform-origin: bottom;
+  animation: ov-grow .6s cubic-bezier(.22, 1, .36, 1) both;
+  animation-delay: calc(var(--i) * 35ms);
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+.ov-bar.is-today .ov-bar-fill { background: var(--accent); }
+@media (hover: hover) { .ov-bar:hover .ov-bar-fill { background: var(--accent); } }
+@keyframes ov-grow { from { transform: scaleY(0); } }
+.ov-bar-lbl { font-size: .625rem; font-weight: 700; color: var(--muted); }
+.ov-bar.is-today .ov-bar-lbl { color: var(--accent); }
+.ov-mods { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin-top: .875rem; font-size: .8125rem; color: var(--muted); }
+.ov-mods b { color: var(--text); }
+
+/* Week vs last */
+.ov-metrics { list-style: none; margin: 0; padding: 0; }
+.ov-metrics li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 .75rem; padding: .5rem 0; border-bottom: 1px solid var(--border); }
+.ov-metrics li:last-child { border-bottom: 0; }
+.ov-metric-label { grid-column: 1; grid-row: 1 / span 2; color: var(--text); font-size: .875rem; }
+.ov-metric-now { grid-column: 2; grid-row: 1; text-align: right; font-size: 1.0625rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.ov-metrics .ov-delta { grid-column: 2; grid-row: 2; text-align: right; font-size: .75rem; }
+
+/* Goals */
+.ov-goal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .75rem; }
+.ov-goal-list li { display: flex; align-items: center; gap: .875rem; }
+.ov-mini-ring { width: 3rem; height: 3rem; flex-shrink: 0; }
+.ov-mini-ring .gl-pct { font-size: .75rem; }
+.ov-goal-text { display: flex; flex-direction: column; min-width: 0; font-size: .8125rem; color: var(--muted); }
+.ov-goal-text strong { color: var(--text); font-size: .9375rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Insights */
+.ov-insights ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .625rem; }
+.ov-insights li { display: flex; gap: .625rem; align-items: baseline; font-size: .875rem; color: var(--text); }
+.ov-insights li i { color: var(--accent); width: 1rem; text-align: center; }
+
+/* Weather / Spotify */
+.ov-weather, .ov-spotify { padding: 1rem 1.125rem; display: flex; flex-direction: column; gap: .5rem; }
+.ov-sp-body { display: flex; align-items: center; gap: .75rem; min-height: 3rem; }
+.ov-sp-body img { border-radius: 6px; object-fit: cover; }
+.ov-sp-text { display: flex; flex-direction: column; min-width: 0; font-size: .8125rem; color: var(--muted); }
+.ov-sp-text strong { color: var(--text); font-size: .9375rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-sp-eq { margin-left: auto; display: flex; gap: 2px; align-items: flex-end; height: 1rem; }
+.ov-sp-eq i { width: 3px; background: #1db954; border-radius: 2px; animation: ov-eq 1s ease-in-out infinite; }
+.ov-sp-eq i:nth-child(2) { animation-delay: -.3s; }
+.ov-sp-eq i:nth-child(3) { animation-delay: -.6s; }
+@keyframes ov-eq { 0%, 100% { height: 30%; } 50% { height: 100%; } }
+@media (prefers-reduced-motion: reduce) { .ov-sp-eq i { animation: none; height: 60%; } }
