@@ -160,7 +160,7 @@ function updateTaskSummary(completed) {
 /* ── Habit log (dashboard) ───────────────────────────────────────── */
 async function dashHabitLog(id, btn) {
   btn.disabled = true;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = Trackie.localDate();   // the device's calendar day, not UTC's
 
   try {
     const res = await Trackie.API.post(

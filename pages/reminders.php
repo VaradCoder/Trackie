@@ -244,7 +244,7 @@ function openAddReminder() {
   document.getElementById('remId').value        = '';
   document.getElementById('remTitle').value     = '';
   document.getElementById('remNotes').value     = '';
-  document.getElementById('remDate').value      = new Date().toISOString().slice(0, 10);
+  document.getElementById('remDate').value      = Trackie.localDate();
   document.getElementById('remTimeOnce').value  = '';
   document.getElementById('remEvery').value     = '1';
   document.getElementById('remUnit').value      = 'day';

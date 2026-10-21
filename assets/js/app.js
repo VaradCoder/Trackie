@@ -1345,7 +1345,7 @@ const QuickAdd = (() => {
       label: 'Log Workout', endpoint: 'gym.php', action: 'log',
       buildPayload: title => ({
         exercise_name: title,
-        log_date: new Date().toISOString().slice(0, 10),
+        log_date: localDate(),
         sets:   document.getElementById('quickAddWoSets')?.value   || '',
         reps:   document.getElementById('quickAddWoReps')?.value   || '',
         weight: document.getElementById('quickAddWoWeight')?.value || '',
@@ -1379,7 +1379,7 @@ const QuickAdd = (() => {
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
     const due = document.getElementById('quickAddDue');
-    if (due && !due.value) due.value = new Date().toISOString().slice(0, 10);
+    if (due && !due.value) due.value = localDate();
     setTimeout(() => document.getElementById('quickAddTitle')?.focus(), 50);
   }
 
@@ -2415,12 +2415,22 @@ const Platform = (() => {
   return { copy, share, keepAwake, speak, listen, supports };
 })();
 
+/**
+ * Today's date as 'YYYY-MM-DD' on the device's own calendar.
+ * NOT toISOString().slice(0, 10): that is the UTC date, so east of UTC
+ * anything done between midnight and the UTC offset (00:00–05:30 in India)
+ * was filed under yesterday — workouts from Quick add, dashboard habit logs.
+ */
+function localDate(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /* Export globals */
 window.Trackie = {
   NProgress, Toast, Theme, Sidebar, API,
   confirmDialog, openModal, closeModal,
   showSkeleton, clearSkeleton, toggleItem, refreshFragments,
   Notifications, Search, Shortcuts, QuickAdd, Reminders, PageSkeleton, Animate, PWA, Net, SyncQueue, SpaNav, Platform, Ripple, Viewport,
-  createCrudModal, showAchievementToasts, Live, Push
+  createCrudModal, showAchievementToasts, Live, Push, localDate
 };
 window.trackieFetch = trackieFetch;
