@@ -16,6 +16,7 @@ $uid = currentUserId();
 require_once __DIR__ . '/../includes/insights.php';
 require_once __DIR__ . '/../includes/today_board.php';
 require_once __DIR__ . '/../includes/goal_sources.php';
+require_once __DIR__ . '/../includes/dashboard_sections.php';
 try { maybeNotifyWeeklyReview($uid); } catch (Throwable $e) { error_log('weekly review notify: ' . $e->getMessage()); }
 resetRecurringTodos($uid);
 $pageTitle   = 'Dashboard';
@@ -38,6 +39,10 @@ $items = todayBoard($uid, $today)['items'];
 $shouldDo = array_values(array_filter($items, static fn($i) => $i['kind'] === 'habit'));
 usort($shouldDo, static fn($a, $b) => [$a['done'], $a['sort']] <=> [$b['done'], $b['sort']]);
 $todos = array_values(array_filter($items, static fn($i) => $i['kind'] !== 'habit'));
+
+// ── Your space: Plan / Life / Hobbies, from what the user picked ──
+$space = dashboardSections($uid, $items, $today);
+$focusName = ['discipline' => 'discipline', 'fitness' => 'fitness', 'wellbeing' => 'wellbeing', 'study' => 'study', 'money' => 'money', 'creativity' => 'creativity'][$space['focus'] ?? ''] ?? null;
 usort($todos, static fn($a, $b) => [$a['done'], $a['section'] !== 'overdue', $a['sort']] <=> [$b['done'], $b['section'] !== 'overdue', $b['sort']]);
 $todosOpen = count(array_filter($todos, static fn($i) => !$i['done']));
 
@@ -318,6 +323,50 @@ require_once '../includes/head.php';
     </section>
   </div>
 </div>
+
+<!-- ═══ Your space: one tile per module the user has ═══ -->
+<section class="ys" aria-labelledby="ysTitle">
+  <header class="ys-head">
+    <div>
+      <h2 id="ysTitle">Your space</h2>
+      <p class="bd-muted"><?= $focusName ? 'Ordered for your focus on ' . h($focusName) . '.' : 'Everything you track, grouped like your sidebar.' ?>
+        <a class="bd-link" href="<?= APP_BASE ?>/pages/profile.php">Change focus</a></p>
+    </div>
+  </header>
+  <?php $n = 0; foreach ($space['order'] as $key): $sec = $space['sections'][$key]; ?>
+  <section class="ys-sec" data-sec="<?= $key ?>" aria-labelledby="ys-<?= $key ?>">
+    <header class="ys-sec-head">
+      <h3 id="ys-<?= $key ?>"><?= h($sec['title']) ?></h3>
+      <span class="bd-muted"><?= h($sec['sub']) ?></span>
+      <?php if ($sec['manage']): ?><a class="bd-link" href="<?= APP_BASE ?>/pages/<?= h($sec['manage'][1]) ?>"><?= h($sec['manage'][0]) ?> <i class="fas fa-arrow-right" aria-hidden="true"></i></a><?php endif; ?>
+    </header>
+    <div class="ys-grid">
+      <?php foreach ($sec['tiles'] as $tl): $n++; $max = $tl['spark'] ? max(1, max($tl['spark'])) : 1; ?>
+      <a class="ys-tile" data-page="<?= h($tl['page']) ?>" href="<?= APP_BASE ?>/pages/<?= h($tl['href']) ?>" style="--c:<?= h($tl['color']) ?>;--i:<?= min($n, 24) ?>">
+        <span class="ys-top">
+          <span class="ys-ic" aria-hidden="true"><i class="fas <?= h($tl['icon']) ?>"></i></span>
+          <span class="ys-label"><?= h($tl['label']) ?></span>
+          <?php if ($tl['streak'] > 1): ?><span class="ys-streak" title="<?= $tl['streak'] ?>-day streak"><i class="fas fa-fire" aria-hidden="true"></i><?= $tl['streak'] ?></span><?php endif; ?>
+        </span>
+        <span class="ys-value"><strong><?= h((string)$tl['value']) ?></strong> <small><?= h($tl['unit']) ?></small></span>
+        <span class="ys-sub"><?= h($tl['sub'] ?: ($tl['last'] ? 'Last active ' . $tl['last'] : 'Nothing logged yet')) ?></span>
+        <?php if ($tl['spark'] !== null): ?>
+        <span class="ys-spark" role="img" aria-label="<?= array_sum($tl['spark']) ?> entries in the last 7 days">
+          <?php foreach ($tl['spark'] as $v): ?><i style="--h:<?= $v ? max(14, (int)round($v / $max * 100)) : 0 ?>%"></i><?php endforeach; ?>
+        </span>
+        <?php endif; ?>
+      </a>
+      <?php endforeach; ?>
+      <?php if ($key === 'hobbies' && !$space['picked']): ?>
+      <a class="ys-tile ys-pick" href="<?= APP_BASE ?>/pages/hobbies.php" style="--c:var(--accent)">
+        <span class="ys-top"><span class="ys-ic" aria-hidden="true"><i class="fas fa-star"></i></span><span class="ys-label">Pick your hobbies</span></span>
+        <span class="ys-sub">Reading, coding, gaming, cooking… each one you pick gets its own tile here.</span>
+      </a>
+      <?php endif; ?>
+    </div>
+  </section>
+  <?php endforeach; ?>
+</section>
 </div><!-- /.bd-wrap -->
 
 </div>

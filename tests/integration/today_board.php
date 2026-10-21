@@ -87,6 +87,27 @@ try {
     ok(array_map('intval', $hm[1]) === [$h1], 'dashboard Should Do = habits due today (not the unscheduled one)');
     ok(str_contains($dash, 'Habits Wrapped') && str_contains($dash, 'id="bdFavBars"') && !preg_match('/fatal error|parse error|undefined (variable|array key|index)/i', $dash), 'dashboard analytics render without PHP errors');
 
+    // Your space: sections follow the user's picks and focus.
+    $space = static function (string $html) {
+        preg_match_all('~<section class="ys-sec" data-sec="(\w+)".*?</section>~s', $html, $m, PREG_SET_ORDER);
+        $out = [];
+        foreach ($m as $s) { preg_match_all('~data-page="([\w]+)"~', $s[0], $p); $out[$s[1]] = $p[1]; }
+        return $out;
+    };
+    $ys = $space($dash);
+    ok(array_keys($ys) === ['plan', 'life', 'hobbies'] && !in_array('today', $ys['plan'], true) && in_array('todos', $ys['plan'], true),
+       'Your space: no focus → Plan, Life, Hobbies; Today stays in the bento');
+    ok($ys['life'] === ['finance'] && $ys['hobbies'] === ['music'] && str_contains($dash, 'Pick your hobbies'), 'no hobbies picked → Finance + Music only, with a "pick" card');
+    ok(preg_match('~data-page="todos".*?<strong>(\d+)</strong> <small>open</small>.*?<span class="ys-sub">(\d+) overdue~s', $dash, $tm) && $tm[1] === '4' && $tm[2] === '1',
+       "Todos tile counts real rows ({$tm[1]} open, {$tm[2]} overdue)");
+    update("UPDATE users SET hobbies='Reading,Sports', primary_focus='creativity' WHERE id=?", [$uid]);
+    $sid = (int)insert("INSERT INTO sports_sessions (user_id,sport,duration_min,session_date) VALUES (?,?,?,?)", [$uid, 'Tennis', 45, $today]);
+    $dash2 = $http('/pages/dashboard.php'); $ys = $space($dash2);
+    ok(array_keys($ys) === ['hobbies', 'plan', 'life'], 'creativity focus → Hobbies section first');
+    ok($ys['hobbies'] === ['library', 'music'] && $ys['life'] === ['finance', 'sports'] && !str_contains($dash2, 'Pick your hobbies'),
+       'picked Reading → Hobbies tile, picked Sports → Life tile, unpicked modules absent');
+    ok(preg_match('~data-page="sports".*?<strong>1</strong> <small>sessions</small>.*?45m this week~s', $dash2), 'Sports tile shows the logged session (1, 45m)');
+
     // Habit history API (the year heatmap): unscheduled days come back as "off".
     $hist = json_decode($http('/api/habits.php', ['action' => 'history', 'habit_id' => $h2, 'days' => 14, 'csrf_token' => $csrf($html)]), true) ?: [];
     $offWd = array_unique(array_map(static fn($d) => (int)date('w', strtotime($d)), $hist['off'] ?? []));
