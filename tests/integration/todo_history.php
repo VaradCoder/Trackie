@@ -125,7 +125,8 @@ try {
     ok((bool)fetchOne("SELECT id FROM achievements WHERE user_id=? AND key_name='first_todo'", [$uid]), 'first_todo achievement unlocked once');
     ok(fetchOne("SELECT COUNT(*) c FROM achievements WHERE user_id=? AND key_name='first_todo'", [$uid])['c'] == 1, '…and not duplicated');
     $html = $http('/pages/todos.php');
-    ok(str_contains($html, 'id="page-main"') && !preg_match('/fatal error|undefined/i', $html), 'Todos page renders for this user');
+    // PHP's own error text only — page JS may legitimately say `undefined`.
+    ok(str_contains($html, 'id="page-main"') && !preg_match('/fatal error|parse error|undefined (variable|array key|index|offset|constant|function|method)|call to undefined/i', $html), 'Todos page renders for this user');
 } finally {
     update("DELETE FROM users WHERE id=?", [$uid]);
     @unlink($jar);
