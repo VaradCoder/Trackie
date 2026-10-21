@@ -350,6 +350,11 @@ async function toggleRoutine(id, btn) {
     }
     const row = btn.closest('.routine-row');
     if (row && (row.classList.contains('is-skipped') || row.classList.contains('is-rest'))) Trackie.refreshFragments(['routinesListWrap']);
+    // Every routine expected today is done → celebrate.
+    if (nowDone && !document.querySelector('#routinesListWrap .routine-row:not(.is-done):not(.is-skipped):not(.is-rest)')) {
+      Trackie.Delight?.burst(btn);
+      Trackie.Toast.success('Routine complete for today 🎉', 3500);
+    }
     if (nowDone && res.xp?.gained) {
       res.xp.leveledUp
         ? Trackie.Toast.success(`⚡ Level up! Level ${res.xp.level}`, 5000)

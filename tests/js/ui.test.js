@@ -25,9 +25,16 @@ function fakeEl() {
 }
 
 const toasts = [];
+const docListeners = {};
+let reduced = false;
+const vibrations = [];
 const ctx = {
-  window: { Trackie: { Toast: { error: m => toasts.push(m) } } },
-  document: { getElementById: id => (id === 'byId' ? byId : null) },
+  window: { Trackie: { Toast: { error: m => toasts.push(m) } }, matchMedia: () => ({ matches: reduced }) },
+  document: {
+    getElementById: id => (id === 'byId' ? byId : null),
+    addEventListener: (t, fn) => (docListeners[t] ||= []).push(fn),
+  },
+  navigator: { vibrate: ms => vibrations.push(ms) },
   escHtml: s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'),
   console, Promise, Object, Array, String, Math, setTimeout,
 };
@@ -36,6 +43,14 @@ const byId = fakeEl();
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../../assets/js/ui.js'), 'utf8'), ctx);
 const UI = ctx.window.Trackie.UI;
+const Delight = ctx.window.Trackie.Delight;
+// A control with classes, for the delegated completion listeners.
+const ctl = (sel, classes, extra = {}) => {
+  const node = { classList: { contains: c => classes.includes(c) }, matches: q => q.split(',').some(x => x.trim() === sel), ...extra };
+  node.closest = q => (q.split(',').some(x => x.trim() === sel) ? node : null);
+  return node;
+};
+const fire = (type, target) => (docListeners[type] || []).forEach(fn => fn({ target }));
 
 let pass = 0, fail = 0;
 const ok = (c, m, x) => { if (c) { pass++; console.log('PASS  ' + m); } else { fail++; console.log('FAIL  ' + m + (x !== undefined ? ' ' + JSON.stringify(x) : '')); } };
@@ -111,6 +126,29 @@ class ApiError extends Error { constructor(m, s) { super(m); this.name = 'ApiErr
   ok(UI.empty('missing', { title: 'x' }) === null, 'missing element → null, no throw');
 
   // toast
+  // Delight: a haptic tick on real completions only, never with reduced motion
+  vibrations.length = 0;
+  Delight.tap();
+  ok(vibrations.length === 1, 'Delight.tap vibrates once');
+  reduced = true; Delight.tap(); reduced = false;
+  ok(vibrations.length === 1, 'Delight.tap is silent with prefers-reduced-motion');
+  vibrations.length = 0;
+  fire('change', ctl('input.todo-check', [], { checked: true }));
+  fire('change', ctl('input.todo-check', [], { checked: false }));
+  ok(vibrations.length === 1, 'todo checkbox: tick on complete, not on un-complete');
+  vibrations.length = 0;
+  fire('click', ctl('.routine-check', ['checked']));
+  fire('click', ctl('.routine-check', []));
+  ok(vibrations.length === 1, 'routine check: tick when it turns on, not off');
+  vibrations.length = 0;
+  fire('click', ctl('.habit-status-done', []));
+  fire('click', ctl('.habit-status-done', ['is-active']));
+  ok(vibrations.length === 1, 'habit Done: tick when logging, not when clearing');
+  reduced = true;
+  await Delight.burst(null);
+  reduced = false;
+  ok(!('confetti' in ctx.window), 'burst with reduced motion never loads confetti');
+
   UI.toastError(new ApiError('Steam is down.', 503), 'Failed.');
   UI.toastError(new Error('boom'), 'Could not save.');
   UI.toastError(new ApiError('Your session has expired.', 401), 'Failed.');

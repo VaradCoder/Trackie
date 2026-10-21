@@ -429,6 +429,7 @@ async function toggleTodo(id, checked, el) {
           Trackie.Toast.success(`⚡ Level up! Level ${res.xp.level} — ${res.xp.title}`, 5000);
         } else if (remaining === 0) {
           Trackie.Toast.success(`🎉 All tasks done! ${xpTxt} — you're clear.`, 3500);
+          Trackie.Delight?.burst(el);
         } else {
           Trackie.Toast.success(`✅ Nice! ${xpTxt} · ${remaining} task${remaining !== 1 ? 's' : ''} left`, 2800);
         }

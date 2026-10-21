@@ -193,7 +193,7 @@ if ($totalHabits > 0) {
         <?php if (!$dueToday && !$curStatus): ?>
           <p class="form-hint" style="margin:0 0 .5rem"><i class="fas fa-moon"></i> Not scheduled today — rest day for this habit.</p>
         <?php endif; ?>
-        <div id="habit-btn-<?= $h['id'] ?>">
+        <div id="habit-btn-<?= $h['id'] ?>"<?= $dueToday ? ' data-due="1"' : '' ?>>
           <?= renderHabitStatusControl($h['id'], $curStatus) ?>
         </div>
 
@@ -354,7 +354,13 @@ async function setHabitStatus(id, status, btn) {
         btn.classList.add('is-active', 'pop');
         setTimeout(() => btn.classList.remove('pop'), 350);
         const m = HABIT_MSG[status];
-        Trackie.Toast[m.toast](m.text);
+        const due = [...document.querySelectorAll('[data-due="1"]')];
+        if (status === 'done' && due.length && due.every(d => d.querySelector('.habit-status-done.is-active'))) {
+          Trackie.Delight?.burst(btn);
+          Trackie.Toast.success('Every habit done for today 🎉', 3500);
+        } else {
+          Trackie.Toast[m.toast](m.text);
+        }
       } else {
         Trackie.Toast.info('Cleared for today.');
       }

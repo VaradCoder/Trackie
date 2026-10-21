@@ -195,6 +195,20 @@
       setTimeout(() => confetti({ ...opts, particleCount: 40, spread: 110, startVelocity: 28, scalar: .75, ticks: 160 }), 140);
     },
   };
+  // One delegated listener gives every completion control the same tick:
+  // todo / study checkboxes, routine checks and the habit "Done" button.
+  document.addEventListener('change', e => {
+    if (e.target.matches?.('input.todo-check, input.task-check') && e.target.checked) Delight.tap();
+  });
+  document.addEventListener('click', e => {
+    // Bubbles after the control's own onclick. The routine check flips to
+    // .checked synchronously; the habit button turns .is-active only after its
+    // request returns, so "not yet active" means it is being logged now.
+    const r = e.target.closest?.('.routine-check');
+    if (r && r.classList.contains('checked')) Delight.tap();
+    const h = e.target.closest?.('.habit-status-done');
+    if (h && !h.classList.contains('is-active')) Delight.tap();
+  });
   if (window.Trackie) window.Trackie.Delight = Delight;
   window.TrackieDelight = Delight;
 })();

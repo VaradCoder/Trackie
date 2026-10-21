@@ -143,10 +143,10 @@
 .td-title {
   color: var(--text); font-weight: 600; font-size: .9375rem; line-height: 1.35;
   overflow-wrap: anywhere;
-  /* Strike-through that draws left → right instead of snapping on. */
-  background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 0 1.5px;
-  transition: background-size .3s cubic-bezier(.22, 1, .36, 1) .08s, color .2s ease;
-  width: fit-content;
+  /* The strike-through fades in rather than snapping on. text-decoration
+     (not a background line) so a title that wraps is struck on every line. */
+  text-decoration: line-through 1.5px transparent;
+  transition: text-decoration-color .3s ease .08s, color .2s ease;
   @media (prefers-reduced-motion: reduce) { transition: none; }
 }
 .td-meta {
@@ -159,7 +159,7 @@
 .td-pri.low  { color: var(--info); }
 .td-due-late { color: var(--accent); font-weight: 600; }
 
-.td-item.is-done .td-title { color: var(--muted); background-size: 100% 1.5px; }
+.td-item.is-done .td-title { color: var(--muted); text-decoration-color: currentColor; }
 .td-item.is-done .td-meta { opacity: .75; }
 
 .td-go {
@@ -238,6 +238,40 @@
   ::view-transition-old(*.td-row),
   ::view-transition-new(*.td-row) { animation: none !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   The same completion feel on the list pages (Todos, Routines, Habits).
+   Lives here, not in app.css, so it ships with the Today styles it mirrors.
+   ════════════════════════════════════════════════════════════════ */
+/* Todos: the native checkbox becomes the round tick used on Today. */
+input.todo-check {
+  appearance: none; -webkit-appearance: none;
+  flex-shrink: 0; margin: 0;
+  width: 1.375rem; height: 1.375rem;
+  border: 2px solid var(--border); border-radius: 50%;
+  background: var(--surface) no-repeat center / 0 0
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  cursor: pointer;
+  transition: background-color .18s ease, border-color .18s ease, background-size .22s cubic-bezier(.34, 1.56, .64, 1);
+  @media (prefers-reduced-motion: reduce) { transition: none; }
+}
+@media (hover: hover) { input.todo-check:hover { border-color: var(--ok); } }
+input.todo-check:checked {
+  background-color: var(--ok); border-color: var(--ok); background-size: 70% 70%;
+  animation: td-pop .38s cubic-bezier(.34, 1.56, .64, 1);
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+input.todo-check:disabled { cursor: progress; }
+.todo-row .todo-title { text-decoration: line-through 1.5px transparent; transition: text-decoration-color .3s ease .08s, color .2s ease; }
+.todo-row.done .todo-title { text-decoration-color: currentColor; }
+
+/* Routines: the tick pops and the title strike fades in. */
+.routine-check.checked {
+  animation: td-pop .38s cubic-bezier(.34, 1.56, .64, 1);
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+.routine-row .routine-title { text-decoration: line-through transparent; transition: text-decoration-color .3s ease .08s; }
+.routine-row.is-done .routine-title { text-decoration-color: var(--muted); }
 
 @keyframes td-pop    { 0% { scale: .7; } 60% { scale: 1.12; } 100% { scale: 1; } }
 @keyframes td-enter  { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
