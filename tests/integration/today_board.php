@@ -72,6 +72,14 @@ try {
     ok(str_contains($html, 'aria-label="Start Leg day"') && str_contains($html, '/pages/gym.php'), 'workout row links to the Fitness page');
     ok(preg_match_all('~role="checkbox" aria-checked="(true|false)"~', $html) === count($all) - 1, 'every row except the workout has a real checkbox');
     ok(str_contains($html, 'data-chrono="') && is_file(__DIR__ . '/../../assets/vendor/chrono.min.js'), 'quick-add parser is self-hosted');
+
+    // Habit history API (the year heatmap): unscheduled days come back as "off".
+    $hist = json_decode($http('/api/habits.php', ['action' => 'history', 'habit_id' => $h2, 'days' => 14, 'csrf_token' => $csrf($html)]), true) ?: [];
+    $offWd = array_unique(array_map(static fn($d) => (int)date('w', strtotime($d)), $hist['off'] ?? []));
+    ok(($hist['today'] ?? '') === $today && count($hist['off'] ?? []) === 12 && !in_array((int)$offDay, $offWd, true),
+       'history: 12 of 14 days are "off" for a one-weekday habit, never its own weekday');
+    $hist1 = json_decode($http('/api/habits.php', ['action' => 'history', 'habit_id' => $h1, 'days' => 7, 'csrf_token' => $csrf($html)]), true) ?: [];
+    ok(($hist1['dates'] ?? null) === [$today] && ($hist1['off'] ?? null) === [] && ($hist1['skipped'] ?? null) === [], 'history: every-day habit → no off days, today logged');
 } finally {
     update("DELETE FROM users WHERE id=?", [$uid]);
     @unlink($jar);

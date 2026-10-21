@@ -21,6 +21,7 @@ function fakeEl() {
     },
   });
   el.querySelectorAll = sel => (sel === '[data-ui-act]' ? el.buttons : []);
+  el.querySelector = () => null;
   return el;
 }
 
@@ -36,7 +37,7 @@ const ctx = {
   },
   navigator: { vibrate: ms => vibrations.push(ms) },
   escHtml: s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'),
-  console, Promise, Object, Array, String, Math, setTimeout,
+  console, Promise, Object, Array, String, Math, setTimeout, Date, Intl, Set,
 };
 ctx.Trackie = ctx.window.Trackie;
 const byId = fakeEl();
@@ -148,6 +149,25 @@ class ApiError extends Error { constructor(m, s) { super(m); this.name = 'ApiErr
   await Delight.burst(null);
   reduced = false;
   ok(!('confetti' in ctx.window), 'burst with reduced motion never loads confetti');
+
+  // heatmap: week-aligned, local dates, honest summary
+  {
+    const h = fakeEl();
+    // 2026-10-21 is a Wednesday. 14 days back → starts Thu 2026-10-08.
+    const done = new Set(['2026-10-08', '2026-10-21']);
+    const counts = UI.heatmap(h, { today: '2026-10-21', days: 14, weekStart: 0, color: '#123456',
+      state: d => done.has(d) ? 'done' : d === '2026-10-10' ? 'off' : d === '2026-10-11' ? 'skip' : 'empty' });
+    const grid = h.innerHTML.match(/class="hm-grid"[^>]*>(.*?)<\/div>/)[1];   // the grid only, not the legend
+    const cellsAll = [...grid.matchAll(/class="hm-cell is-([a-z]+)"/g)].map(m => m[1]);
+    ok(cellsAll.filter(c => c !== 'pad').length === 14, 'heatmap: one cell per day', cellsAll.length);
+    ok(cellsAll.slice(0, 4).join() === 'pad,pad,pad,pad' && cellsAll[4] === 'done', 'heatmap: first day sits on its weekday row (Thu after 4 blanks, Sunday start)');
+    ok(/title="[^"]*21[^"]*2026 — done"/.test(h.innerHTML) && cellsAll[cellsAll.length - 1] === 'done', 'heatmap: today is the last cell, from the given date (not the clock)');
+    ok(counts.done === 2 && counts.off === 1 && counts.skip === 1 && /2 of 12 scheduled days done/.test(h.innerHTML), 'heatmap: summary excludes skipped and unscheduled days');
+    const h2 = fakeEl();
+    UI.heatmap(h2, { today: '2026-10-21', days: 7, weekStart: 1, label: '<x>', color: '"red', state: () => 'empty' });
+    ok(!h2.innerHTML.includes('<x>') && !h2.innerHTML.includes('"red'), 'heatmap: label and colour are escaped');
+    ok([...h2.innerHTML.matchAll(/is-pad/g)].length === 3, 'heatmap: Monday-start week shifts the padding (Thu → 3 blanks)');
+  }
 
   UI.toastError(new ApiError('Steam is down.', 503), 'Failed.');
   UI.toastError(new Error('boom'), 'Could not save.');

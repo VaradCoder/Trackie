@@ -391,30 +391,23 @@ async function toggleHabitHistory(id) {
 async function loadHabitHistory(id) {
   const panel = document.getElementById('habit-history-' + id);
   if (!panel) return;
-  panel.innerHTML = '<div class="u-fs-12 u-c-muted"><i class="fas fa-spinner fa-spin"></i> Loading\u2026</div>';
-  try {
-    const days = 84;
-    const res = await Trackie.API.post(API_BASE + '/habits.php', {action:'history', habit_id:id, days:days});
-    if (!res.success) { panel.innerHTML = '<div class="u-fs-12 u-c-muted">Could not load history.</div>'; return; }
-    const loggedSet = {};
-    res.dates.forEach(function(d){ loggedSet[d] = true; });
-    const card = document.getElementById('habit-' + id);
-    const dot = card ? card.querySelector('.habit-dot') : null;
-    const color = dot ? dot.style.background : '#ef4444';
-    const today = new Date();
-    let cells = '';
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const iso = d.toISOString().slice(0,10);
-      const on = !!loggedSet[iso];
-      cells += '<div title="' + iso + (on ? ' \u2014 done' : '') + '" style="width:.6rem;height:.6rem;border-radius:2px;background:' + (on ? color : 'var(--surface2)') + '"></div>';
-    }
-    panel.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:2px;max-width:100%">' + cells + '</div>' +
-      '<div class="u-fs-11 u-c-muted u-mt-1h">Last ' + days + ' days</div>';
-  } catch (e) {
-    panel.innerHTML = '<div class="u-fs-12 u-c-muted">Network error.</div>';
-  }
+  const color = document.querySelector('#habit-' + id + ' .habit-dot')?.style.background || 'var(--ok)';
+  // A year, week by week. The server sends its own "today" and which days the
+  // schedule doesn't cover, so a rest day never looks like a miss and the
+  // grid can't drift by a day across time zones.
+  await Trackie.UI.load(panel,
+    () => Trackie.API.post(API_BASE + '/habits.php', { action: 'history', habit_id: id, days: 365 }),
+    res => {
+      const done = new Set(res.dates), skip = new Set(res.skipped || []), fail = new Set(res.failed || []), off = new Set(res.off || []);
+      Trackie.UI.heatmap(panel, {
+        today: res.today, days: 365, color, weekStart: <?= (int)$weekStart ?>, label: 'Last 12 months',
+        state: d => d < (res.created_on || '') ? 'before'
+                  : done.has(d) ? 'done' : skip.has(d) ? 'skip' : fail.has(d) ? 'fail'
+                  : off.has(d) || res.weekly ? 'off'   // a weekly habit isn't owed on any one day
+                  : d > res.today ? 'before' : 'empty',
+      });
+    },
+    { label: 'Loading history…', rows: 2, fallback: 'Could not load history.' });
 }
 
 </script>

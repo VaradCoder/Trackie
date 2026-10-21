@@ -156,7 +156,57 @@
     return msg;
   }
 
-  const UI = { errorText, isRetryable, loadingHTML, emptyHTML, errorHTML, render, loading, done, empty, error, load, toastError };
+  /**
+   * Year-style heatmap: one column per week, one row per weekday, newest on
+   * the right. Dates are plain 'YYYY-MM-DD' strings walked at local noon, so
+   * neither the browser's zone nor DST can shift a day into the wrong cell
+   * (pass the server's `today`, never new Date()).
+   *
+   *   heatmap(el, { today, days, state: d => 'done'|'skip'|'fail'|'off'|'empty'|'before',
+   *                 color, weekStart: 0|1, label, legend: true })
+   */
+  const HM_TITLE = { done: 'done', skip: 'skipped', fail: 'missed (marked)', off: 'not scheduled', empty: 'not done', before: 'before this started' };
+  function heatmap(el, opts) {
+    el = typeof el === 'string' ? document.getElementById(el) : el;
+    if (!el) return null;
+    const { today, days = 365, state, color = 'var(--ok)', weekStart = 0, label = 'History', legend = true } = opts;
+    const at = s => new Date(s + 'T12:00:00');
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const end = at(today);
+    const start = new Date(end); start.setDate(start.getDate() - (days - 1));
+    const lead = (start.getDay() - weekStart + 7) % 7;          // blank cells before the first day
+    const month = new Intl.DateTimeFormat(undefined, { month: 'short' });
+    const long = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+    let cells = '', months = '', lastMonth = -1, counts = {};
+    for (let i = 0; i < lead; i++) cells += '<span class="hm-cell is-pad" aria-hidden="true"></span>';
+    for (let i = 0, d = new Date(start); i < days; i++, d.setDate(d.getDate() + 1)) {
+      const col = Math.floor((i + lead) / 7);
+      const s = state(iso(d)) || 'empty';
+      counts[s] = (counts[s] || 0) + 1;
+      cells += `<span class="hm-cell is-${s}" style="--c:${col}" title="${escHtml(long.format(d))} — ${HM_TITLE[s] || s}"></span>`;
+      if (d.getMonth() !== lastMonth && d.getDate() <= 7) {
+        months += `<span style="grid-column:${col + 1}">${escHtml(month.format(d))}</span>`;
+        lastMonth = d.getMonth();
+      }
+    }
+    const cols = Math.ceil((days + lead) / 7);
+    const owed = (counts.done || 0) + (counts.empty || 0) + (counts.fail || 0);
+    const summary = `${counts.done || 0} of ${owed} scheduled days done`;
+    const key = (cls, txt) => `<span><i class="hm-cell is-${cls}" aria-hidden="true"></i> ${txt}</span>`;
+    el.innerHTML =
+      `<div class="hm" style="--hm-c:${escHtml(color)};--hm-cols:${cols}">` +
+        `<div class="hm-scroll"><div class="hm-months" aria-hidden="true">${months}</div>` +
+        `<div class="hm-grid" role="img" aria-label="${escHtml(label)}: ${summary}">${cells}</div></div>` +
+        `<div class="hm-foot"><span class="hm-summary">${summary}</span>` +
+        (legend ? `<span class="hm-legend">${key('done', 'Done')}${key('empty', 'Not done')}${counts.skip ? key('skip', 'Skipped') : ''}${counts.fail ? key('fail', 'Missed') : ''}${counts.off ? key('off', 'Not scheduled') : ''}</span>` : '') +
+        `</div></div>`;
+    const sc = el.querySelector('.hm-scroll');
+    if (sc) sc.scrollLeft = sc.scrollWidth;                     // show the most recent weeks first
+    return counts;
+  }
+
+  const UI = { errorText, isRetryable, loadingHTML, emptyHTML, errorHTML, render, loading, done, empty, error, load, toastError, heatmap };
   if (window.Trackie) window.Trackie.UI = UI;
   window.TrackieUI = UI;
 

@@ -115,7 +115,7 @@ switch ($action) {
         if (!$id) json_out(['success' => false, 'error' => 'Invalid habit.'], 422);
 
         // Verify habit belongs to user
-        $habit = fetchOne("SELECT id FROM habits WHERE id=? AND user_id=?", [$id, $uid]);
+        $habit = fetchOne("SELECT id, frequency, schedule_days, DATE(created_at) created_on FROM habits WHERE id=? AND user_id=?", [$id, $uid]);
         if (!$habit) json_out(['success' => false, 'error' => 'Not found.'], 404);
 
         $logs = fetchAll(
@@ -124,7 +124,31 @@ switch ($action) {
              ORDER BY date_completed ASC",
             [$id, $uid, $days]
         );
-        json_out(['success' => true, 'dates' => array_column($logs, 'date_completed')]);
+        // Everything a history grid needs to tell "missed" from "not owed":
+        // skip / fail marks, and the days the CURRENT schedule doesn't cover.
+        // `today` is the user's local date (applyUserTimezone), so the client
+        // never builds the grid from its own clock or from UTC.
+        $marks = tableExists('habit_status_log') ? fetchAll(
+            "SELECT log_date d, status FROM habit_status_log WHERE habit_id=? AND user_id=?
+              AND log_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)", [$id, $uid, $days]) : [];
+        require_once '../includes/habit_schedule.php';
+        $sched = habitDays($habit);
+        $off = [];
+        if ($sched) {
+            for ($t = strtotime(date('Y-m-d') . ' 12:00') - ($days - 1) * 86400, $i = 0; $i < $days; $i++, $t += 86400) {
+                if (!in_array((int)date('w', $t), $sched, true)) $off[] = date('Y-m-d', $t);
+            }
+        }
+        json_out([
+            'success'    => true,
+            'dates'      => array_column($logs, 'date_completed'),
+            'skipped'    => array_column(array_filter($marks, static fn($m) => $m['status'] === 'skip'), 'd'),
+            'failed'     => array_column(array_filter($marks, static fn($m) => $m['status'] === 'fail'), 'd'),
+            'off'        => $off,
+            'created_on' => $habit['created_on'],
+            'today'      => date('Y-m-d'),
+            'weekly'     => $habit['frequency'] === 'weekly',
+        ]);
 
     default:
         json_out(['success' => false, 'error' => 'Unknown action.'], 400);
