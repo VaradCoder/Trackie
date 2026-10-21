@@ -554,3 +554,88 @@
 .ov-sp-eq i:nth-child(3) { animation-delay: -.6s; }
 @keyframes ov-eq { 0%, 100% { height: 30%; } 50% { height: 100%; } }
 @media (prefers-reduced-motion: reduce) { .ov-sp-eq i { animation: none; height: 60%; } }
+
+/* ════════════════ Dashboard (home) ════════════════ */
+.db-hero { margin-bottom: 1rem; }
+.db-kpis { margin-bottom: 1rem; }
+.db-layout { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr) minmax(18rem, 23rem); align-items: start; }
+.db-col { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+/* One column: the two column wrappers dissolve and cards take a priority
+   order (Today → Up next → Habits → Goals → Insights → Activity → Areas). */
+@media (max-width: 1100px) {
+  .db-layout { display: flex; flex-direction: column; align-items: stretch; }
+  .db-col { display: contents; }
+  .db-layout > .db-col > * { order: var(--o, 9); }
+}
+.db-card { padding: 1.125rem; }
+.ov-card-head h2 i { color: var(--accent); margin-right: .25rem; }
+.db-subhead { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; margin: 1rem 0 .5rem; font-size: .75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.db-empty { margin: .25rem 0 0; color: var(--muted); font-size: .875rem; }
+.db-empty.is-clear { color: var(--text); font-weight: 600; margin-top: .75rem; }
+.db-empty a { color: var(--accent); }
+
+/* Today list */
+.db-add { margin-bottom: .5rem; }
+.db-list { border: 0; box-shadow: none; padding: 0; background: transparent; }
+.db-today-foot { display: flex; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-top: .5rem; font-size: .8125rem; color: var(--muted); }
+.db-today-foot a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.db-today-foot i { color: var(--ok); }
+
+/* Habits grid: name · 7 days · flame */
+.db-habit-days, .db-habit { display: grid; grid-template-columns: minmax(0, 1fr) repeat(7, 2.25rem) 3.25rem; align-items: center; gap: .125rem; }
+.db-habit-days { font-size: .6875rem; font-weight: 700; color: var(--muted); text-align: center; margin-bottom: .25rem; }
+.db-habit-days .is-today { color: var(--text); }
+.db-habits { list-style: none; margin: 0; padding: 0; }
+.db-habit { padding: .25rem 0; border-top: 1px solid var(--border); }
+.db-habit-name { display: flex; align-items: center; gap: .5rem; min-width: 0; font-weight: 600; font-size: .875rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-habit-name .habit-dot { flex-shrink: 0; }
+.db-dot { min-height: 2.5rem; padding: 0; }
+.db-dot .hb-day-dot { width: 1.625rem; height: 1.625rem; }
+.db-habit .hb-flame { justify-self: end; padding: .125rem .5rem; font-size: .75rem; }
+@media (max-width: 480px) {
+  .db-habit-days, .db-habit { grid-template-columns: minmax(0, 1fr) repeat(7, 1.75rem) 2.75rem; }
+  .db-dot .hb-day-dot { width: 1.375rem; height: 1.375rem; }
+}
+
+/* Up next */
+.db-next, .db-agenda { list-style: none; margin: 0; padding: 0; }
+.db-next li { display: grid; grid-template-columns: 4.25rem 1rem minmax(0, 1fr); gap: .5rem; align-items: baseline; padding: .375rem 0; font-size: .875rem; color: var(--text); }
+.db-next time { font-weight: 700; color: var(--muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
+.db-next i { color: var(--accent); font-size: .75rem; }
+.db-agenda li { display: grid; grid-template-columns: 2.75rem minmax(0, 1fr); gap: .75rem; padding: .5rem 0; border-top: 1px solid var(--border); }
+.db-agenda li:first-child { border-top: 0; }
+.db-agenda-day { display: flex; flex-direction: column; align-items: center; line-height: 1.1; font-size: .6875rem; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.db-agenda-day b { font-size: 1.125rem; color: var(--text); }
+.db-agenda-items { display: flex; flex-direction: column; gap: .125rem; min-width: 0; font-size: .8125rem; color: var(--text); }
+.db-agenda-items > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-agenda-items i { width: 1rem; text-align: center; }
+
+/* Activity extras */
+.db-metrics { margin-top: .25rem; }
+
+/* Areas */
+.db-areas { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); }
+.db-area { display: flex; flex-direction: column; gap: .625rem; padding: 1rem 1.125rem; text-decoration: none; color: inherit; border-top: 3px solid var(--ac, var(--accent)); transition: transform .15s ease, box-shadow .2s ease; }
+a.db-area:active { transform: scale(.99); }
+@media (hover: hover) { a.db-area:hover { transform: translateY(-2px); box-shadow: var(--shadow-md, var(--shadow-sm)); } a.db-area:hover .db-area-go { translate: 3px 0; opacity: 1; } }
+.db-area-head { display: flex; align-items: center; gap: .5rem; font-weight: 700; color: var(--text); }
+.db-area-ic { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--ac, var(--accent)) 14%, transparent); color: var(--ac, var(--accent)); }
+.db-area-go { margin-left: auto; font-size: .75rem; color: var(--muted); opacity: .5; transition: translate .15s ease, opacity .15s ease; }
+.db-area-rows { margin: 0; display: flex; flex-direction: column; gap: .375rem; }
+.db-area-rows div { display: flex; justify-content: space-between; gap: .75rem; font-size: .8125rem; }
+.db-area-rows dt { color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-area-rows dd { margin: 0; color: var(--text); font-weight: 600; text-align: right; white-space: nowrap; }
+.db-area-bar { display: block; height: .375rem; border-radius: 999px; background: var(--surface2); overflow: hidden; }
+.db-area-bar span { display: block; height: 100%; background: var(--ac); transform-origin: left; transform: scaleX(var(--w, 0)); animation: ov-fill 1s cubic-bezier(.22, 1, .36, 1) .2s both; @media (prefers-reduced-motion: reduce) { animation: none; } }
+.db-area-bar.is-over span { background: var(--accent); }
+.db-hobbies ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .375rem; }
+.db-hobbies li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .625rem; font-size: .8125rem; color: var(--text); }
+.db-hobbies .hb-flame { padding: .0625rem .5rem; font-size: .75rem; }
+
+/* Cards rise in, one after another (CSS only; none for reduced motion) */
+.db-hero, .db-kpis > *, .db-layout .db-card, .db-areas > * {
+  animation: td-enter .45s cubic-bezier(.22, 1, .36, 1) both;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+.db-kpis > :nth-child(2) { animation-delay: .04s; } .db-kpis > :nth-child(3) { animation-delay: .08s; } .db-kpis > :nth-child(4) { animation-delay: .12s; }
+.db-layout .db-card { animation-delay: calc(.1s + var(--o, 1) * .04s); }

@@ -31,9 +31,9 @@ $_script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
 $_base   = preg_replace('#/(pages|api)/[^/]*$#', '', $_script); // strip /pages/x.php or /api/x.php
 $_base   = preg_replace('#/index\.php$#', '', $_base);          // strip /index.php
 define('APP_BASE', rtrim($_base, '/'));
-// Where a signed-in user lands (after sign-in, the logo, the app's start URL).
-// Today is the "what do I do now" page; the old dashboard is "Overview".
-define('HOME_PATH', '/pages/today.php');                         // e.g. /Trackie  (or '' at root)
+// Where a signed-in user lands (after sign-in, the logo, the app's start URL):
+// the dashboard — everything in one place. Today stays as the focused list.
+define('HOME_PATH', '/pages/dashboard.php');                         // e.g. /Trackie  (or '' at root)
 unset($_script, $_base);
 
 // ── Security headers ──────────────────────────────────────────

@@ -73,6 +73,15 @@ try {
     ok(preg_match_all('~role="checkbox" aria-checked="(true|false)"~', $html) === count($all) - 1, 'every row except the workout has a real checkbox');
     ok(str_contains($html, 'id="tdAddInput"') && is_file(__DIR__ . '/../../assets/vendor/chrono.min.js'), 'quick add present; its parser is self-hosted');
 
+    // The dashboard (home) lists the same open items as Today, from the same builder.
+    $dash = $http('/pages/dashboard.php');
+    preg_match('~id="dbTodayList">(.*?)</ul>~s', $dash, $dm);
+    preg_match_all('~data-key="([^"]+)"~', $dm[1] ?? '', $dk);
+    $openKeys = array_merge($over ?? [], $open ?? []);
+    sort($openKeys); $dashKeys = $dk[1]; sort($dashKeys);
+    ok($dashKeys === $openKeys, 'dashboard Today list = Today page open items (' . count($dashKeys) . ')');
+    ok(str_contains($dash, 'aria-label="2 of ' . count($all) . ' done today"') && str_contains($dash, 'id="dbHabits"'), 'dashboard ring matches Today; habits section present');
+
     // Habit history API (the year heatmap): unscheduled days come back as "off".
     $hist = json_decode($http('/api/habits.php', ['action' => 'history', 'habit_id' => $h2, 'days' => 14, 'csrf_token' => $csrf($html)]), true) ?: [];
     $offWd = array_unique(array_map(static fn($d) => (int)date('w', strtotime($d)), $hist['off'] ?? []));

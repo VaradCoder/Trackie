@@ -107,3 +107,34 @@ function todayBoard(int $uid, string $today): array {
     usort($items, static fn($a, $b) => strcmp($a['sort'], $b['sort']));
     return compact('items', 'notDue', 'routinesSkipped', 'routineRestToday');
 }
+
+/** One row of the list. Everything user-supplied is escaped here. */
+function renderTodayItem(array $it, bool $new = false): string {
+    $meta = '<span><i class="fas ' . h($it['icon']) . '" aria-hidden="true"></i> ' . h($it['label']) . '</span>';
+    foreach ($it['meta'] as $m) {
+        $meta .= isset($m['html']) ? $m['html']
+               : '<span>' . (isset($m['icon']) ? '<i class="fas ' . h($m['icon']) . '" aria-hidden="true"></i> ' : '') . h($m['text']) . '</span>';
+    }
+    $title = h($it['title']);
+    if ($it['kind'] === 'workout') {
+        $control = $it['done']
+            ? '<span class="td-check td-check-static" aria-hidden="true">' . todayTickSvg() . '</span>'
+            : '<a class="td-check td-check-static" href="' . h($it['link']) . '" aria-label="Start ' . $title . '">' . todayTickSvg() . '</a>';
+        $after = $it['done'] ? '' : '<a class="td-go" href="' . h($it['link']) . '"><i class="fas fa-play" aria-hidden="true"></i> Start</a>';
+    } else {
+        $control = '<button type="button" class="td-check" role="checkbox" aria-checked="' . ($it['done'] ? 'true' : 'false') . '"'
+                 . ' aria-label="' . $title . '">' . todayTickSvg() . '</button>';
+        $after = '';
+    }
+    return '<li class="td-item' . ($it['done'] ? ' is-done' : '') . ($new ? ' is-new' : '') . '"'
+         . ' data-key="' . h($it['key']) . '" data-kind="' . h($it['kind']) . '" data-id="' . (int)$it['id'] . '"'
+         . ' data-section="' . h($it['section']) . '" data-sort="' . h($it['sort']) . '"'
+         . ' style="--item-c:' . h($it['color']) . '">'
+         . $control
+         . '<div class="td-body"><div class="td-title">' . $title . '</div><div class="td-meta">' . $meta . '</div></div>'
+         . $after . '</li>';
+}
+function todayTickSvg(): string {
+    return '<svg viewBox="0 0 26 26" aria-hidden="true"><circle class="td-check-ring" cx="13" cy="13" r="11.5"/>'
+         . '<path class="td-check-tick" d="M8 13.4l3.2 3.2L18 9.8"/></svg>';
+}
