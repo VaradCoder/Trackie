@@ -386,3 +386,52 @@
 @media (hover: hover) { .sp-res:hover { text-decoration: underline; } }
 .sp-nomatch[hidden] { display: none; }
 .sp-row.is-new { animation: td-enter .32s cubic-bezier(.22, 1, .36, 1); @media (prefers-reduced-motion: reduce) { animation: none; } }
+
+/* ════════════════ Focus ════════════════ */
+/* Two columns only when both fit — the sidebar takes width the viewport media query can't see. */
+.fc-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 1.25rem; align-items: start; }
+.fc-card { padding: 1.25rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; text-align: center; }
+.fc-chips { justify-content: center; flex-wrap: wrap; overflow: visible; }
+.fc-chips .pg-chip[aria-checked="true"], .fc-settings .pg-chip[aria-checked="true"] { background: var(--text); border-color: var(--text); color: var(--bg); }
+.fc-custom { max-width: 18rem; text-align: center; }
+.fc-custom[hidden] { display: none; }
+
+.fc-ring { position: relative; width: min(17rem, 72vw); aspect-ratio: 1; --c: var(--accent); }
+.fc-ring[data-phase="break"] { --c: var(--ok); }
+.fc-ring svg { width: 100%; height: 100%; rotate: -90deg; overflow: visible; }
+.fc-ring circle { fill: none; stroke-width: 7; }
+.fc-track { stroke: var(--surface2); }
+.fc-fill {
+  stroke: var(--c); stroke-linecap: round;
+  stroke-dasharray: 100; stroke-dashoffset: calc(100 - var(--p, 100));
+  transition: stroke-dashoffset .3s linear, stroke .4s ease;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--c) 35%, transparent));
+  @media (prefers-reduced-motion: reduce) { transition: none; filter: none; }
+}
+.fc-ring.is-running svg { animation: fc-breathe 4s ease-in-out infinite; @media (prefers-reduced-motion: reduce) { animation: none; } }
+@keyframes fc-breathe { 50% { scale: 1.015; } }
+.fc-center { position: absolute; inset: 0; display: grid; place-content: center; gap: .375rem; }
+.fc-time { font-size: clamp(2.75rem, 12vw, 3.75rem); font-weight: 800; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.fc-phase { font-size: .75rem; font-weight: 700; color: var(--c); text-transform: uppercase; letter-spacing: .1em; }
+.fc-cycle { display: flex; gap: .375rem; justify-content: center; }
+.fc-cycle i { width: .5rem; height: .5rem; border-radius: 50%; background: var(--surface2); box-shadow: inset 0 0 0 1.5px var(--border); transition: background-color .3s ease; }
+.fc-cycle i.is-done { background: var(--accent); box-shadow: none; }
+.fc-cycle i.is-now { box-shadow: inset 0 0 0 1.5px var(--accent); animation: fc-dot 1.6s ease-in-out infinite; @media (prefers-reduced-motion: reduce) { animation: none; } }
+@keyframes fc-dot { 50% { scale: 1.35; } }
+
+.fc-controls { display: flex; gap: .5rem; justify-content: center; align-items: center; flex-wrap: wrap; }
+.fc-main { min-width: 8.5rem; min-height: 3rem; font-size: 1rem; border-radius: 999px; }
+.fc-controls .btn-ghost { min-height: 3rem; min-width: 3rem; border-radius: 999px; }
+.fc-keys { margin: -.25rem 0 0; font-size: .75rem; color: var(--muted); }
+@media (hover: none) { .fc-keys { display: none; } }
+.fc-settings { width: 100%; display: flex; flex-direction: column; gap: .75rem; padding-top: .75rem; border-top: 1px solid var(--border); text-align: left; }
+.fc-row { display: grid; grid-template-columns: 6rem minmax(0, 1fr); align-items: center; gap: .75rem; }
+.fc-label { font-size: .8125rem; font-weight: 600; color: var(--muted); }
+@media (max-width: 420px) { .fc-row { grid-template-columns: 1fr; gap: .375rem; } }
+
+.fc-side { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+.fc-hist-ic { color: var(--accent); background: var(--accent-bg, var(--surface2)); border-radius: 50%; width: 2.25rem; height: 2.25rem; margin: 0; }
+.fc-hist-ic.is-break { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.fc-bar { margin-bottom: .75rem; }
+.fc-bar:last-child { margin-bottom: 0; }
+.fc-bar-top { display: flex; justify-content: space-between; gap: .75rem; font-size: .8125rem; margin-bottom: .25rem; }
