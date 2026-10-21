@@ -16,144 +16,91 @@ $uid = currentUserId();
 require_once __DIR__ . '/../includes/insights.php';
 require_once __DIR__ . '/../includes/today_board.php';
 require_once __DIR__ . '/../includes/goal_sources.php';
-require_once __DIR__ . '/../includes/calendar.php';
 try { maybeNotifyWeeklyReview($uid); } catch (Throwable $e) { error_log('weekly review notify: ' . $e->getMessage()); }
 resetRecurringTodos($uid);
 $pageTitle   = 'Dashboard';
 $currentPage = 'dashboard';
 $today       = date('Y-m-d');
-$hour        = (int)date('G');
-$greeting    = $hour < 5 ? 'Good night' : ($hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening'));
-$firstName   = trim(explode(' ', (string)($_SESSION['user_name'] ?? ''))[0]) ?: 'there';
 $tbl         = static fn(string $t) => tableExists($t);
 
 /* ════════════════════════════════════════════════════════════════
-   The dashboard — the first page after sign-in. Everything in one place:
-   act on today, see what's next, and every area of Trackie in detail.
-   Every number is recorded data; nothing is estimated or invented, and a
-   section with nothing to say says so (or isn't shown) instead of a zero.
+   Dashboard — the first page after sign-in. Bento layout:
+     1  greeting · new habit · month calendar · get the app
+     2  weather · "Should do!" (habits still due) · goal in focus
+     3  today's todos           4  Spotify · more integrations
+     3–4  analytics: positive habits · year wrapped · favourite habits
+   Everything is the user's recorded data. A card with nothing to show
+   explains what fills it instead of showing invented numbers.
    ════════════════════════════════════════════════════════════════ */
 
-// ── Today (the same builder the Today page renders) ───────────────
-$board      = todayBoard($uid, $today);
-$items      = $board['items'];
-$boardDone  = count(array_filter($items, static fn($i) => $i['done']));
-$boardOpen  = array_values(array_filter($items, static fn($i) => !$i['done']));
-usort($boardOpen, static fn($a, $b) => [$a['section'] !== 'overdue', $a['sort']] <=> [$b['section'] !== 'overdue', $b['sort']]);
-$boardTotal = count($items);
-$boardPct   = $boardTotal ? (int)round($boardDone / $boardTotal * 100) : 0;
-$SHOW_OPEN  = 8;
+// ── Today (same builder as the Today page) ────────────────────────
+$items = todayBoard($uid, $today)['items'];
+$shouldDo = array_values(array_filter($items, static fn($i) => $i['kind'] === 'habit'));
+usort($shouldDo, static fn($a, $b) => [$a['done'], $a['sort']] <=> [$b['done'], $b['sort']]);
+$todos = array_values(array_filter($items, static fn($i) => $i['kind'] !== 'habit'));
+usort($todos, static fn($a, $b) => [$a['done'], $a['section'] !== 'overdue', $a['sort']] <=> [$b['done'], $b['section'] !== 'overdue', $b['sort']]);
+$todosOpen = count(array_filter($todos, static fn($i) => !$i['done']));
 
-// ── Headline numbers ──────────────────────────────────────────────
-$xp     = function_exists('xpSummary') ? xpSummary($uid) : ['total' => 0, 'level' => 1, 'title' => 'Beginner', 'pct' => 0, 'to_next' => 100];
-$score  = function_exists('trackieScore') ? trackieScore($uid) : ['score' => 0, 'band' => '', 'has_data' => false];
-$trend  = function_exists('scoreTrend') ? scoreTrend($uid) : ['delta' => null];
-$streak = activityReady() ? activityStreak($uid) : habitStreaks($uid);
+$habitTotals = $tbl('logs') ? array_column(fetchAll(
+    "SELECT l.habit_id, COUNT(*) n FROM logs l JOIN habits h ON h.id=l.habit_id WHERE h.user_id=? GROUP BY l.habit_id", [$uid]), 'n', 'habit_id') : [];
+
+// ── Month calendar: days you were active circled, today filled ────
+$calYm = preg_match('/^\d{4}-\d{2}$/', $_GET['cal'] ?? '') ? $_GET['cal'] : date('Y-m');
+$calFirst = strtotime($calYm . '-01 12:00');
+$calFrom  = date('Y-m-01', $calFirst); $calTo = date('Y-m-t', $calFirst);
 $weekStartDay = (int)userSetting($uid, 'week_start');
-$weekFrom = weekStartOf($today, $weekStartDay);
-$week     = weeklyReview($uid, $weekFrom);
-$activeSet = activityReady() ? array_flip(array_column(fetchAll(
-    "SELECT DISTINCT occurred_on d FROM activity_log WHERE user_id=? AND occurred_on BETWEEN ? AND ?", [$uid, $weekFrom, $today]), 'd')) : [];
+$calLead  = ((int)date('w', $calFirst) - $weekStartDay + 7) % 7;
+$calDow   = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+if ($weekStartDay === 1) $calDow = array_merge(array_slice($calDow, 1), ['S']);
+$activeDays = activityReady() ? array_flip(array_column(fetchAll(
+    "SELECT DISTINCT occurred_on d FROM activity_log WHERE user_id=? AND occurred_on BETWEEN ? AND ?", [$uid, $calFrom, $calTo]), 'd')) : [];
+$dueDays = $tbl('todos') ? array_flip(array_column(fetchAll(
+    "SELECT DISTINCT due_date d FROM todos WHERE user_id=? AND deleted_at IS NULL AND completed=0 AND due_date BETWEEN ? AND ?", [$uid, $calFrom, $calTo]), 'd')) : [];
+// "+3.2% from last month": active days so far this month vs the same span last month.
+$dayN = (int)date('j');
+$thisSpan = activityReady() ? (int)(fetchOne("SELECT COUNT(DISTINCT occurred_on) n FROM activity_log WHERE user_id=? AND occurred_on BETWEEN ? AND ?",
+    [$uid, date('Y-m-01'), $today])['n'] ?? 0) : 0;
+$lastFrom = date('Y-m-01', strtotime('first day of last month'));
+$lastTo   = date('Y-m-d', strtotime($lastFrom . ' +' . min($dayN, (int)date('t', strtotime($lastFrom))) - 1 . ' day'));
+$lastSpan = activityReady() ? (int)(fetchOne("SELECT COUNT(DISTINCT occurred_on) n FROM activity_log WHERE user_id=? AND occurred_on BETWEEN ? AND ?",
+    [$uid, $lastFrom, $lastTo])['n'] ?? 0) : 0;
+$monthDelta = $lastSpan > 0 ? round(($thisSpan - $lastSpan) / $lastSpan * 100, 1) : null;
 
-// ── Up next: routines still to come, reminders later today, the next 7 days ──
-$nowHm = date('H:i');
-$routinesNext = array_values(array_filter(routinesOnDay($uid, $today), static fn($r) => $r['state'] === 'due'));
-$remindersToday = $tbl('reminders') ? fetchAll(
-    "SELECT title, next_fire_at FROM reminders WHERE user_id=? AND active=1
-       AND next_fire_at BETWEEN NOW() AND CONCAT(CURDATE(), ' 23:59:59') ORDER BY next_fire_at LIMIT 5", [$uid]) : [];
-$weekAhead = [];
-foreach (calendarEvents($uid, date('Y-m-d', strtotime('+1 day')), date('Y-m-d', strtotime('+7 day'))) as $e) {
-    if ($e['source'] === 'routine' || $e['done']) continue;      // routines repeat daily; done needs no attention
-    $weekAhead[$e['date']][] = $e;
-}
-ksort($weekAhead);
+// ── Weather ───────────────────────────────────────────────────────
+$weather = fetchWeatherData();
 
-// ── Habits with their last 7 days ─────────────────────────────────
-$habitDays = [];
-for ($i = 6; $i >= 0; $i--) $habitDays[] = date('Y-m-d', strtotime("-$i day"));
-$habits = $tbl('habits') ? fetchAll("SELECT id, name, color, frequency, schedule_days, created_at FROM habits WHERE user_id=? ORDER BY name", [$uid]) : [];
-$habitLogs = []; $habitMarks = [];
-if ($habits) {
-    foreach (fetchAll("SELECT l.habit_id, l.date_completed d FROM logs l JOIN habits h ON h.id=l.habit_id WHERE h.user_id=?", [$uid]) as $r) $habitLogs[$r['habit_id']][] = $r['d'];
-    if ($tbl('habit_status_log')) foreach (fetchAll("SELECT habit_id, log_date d, status FROM habit_status_log WHERE user_id=? AND log_date >= ?", [$uid, $habitDays[0]]) as $r) $habitMarks[$r['habit_id']][$r['d']] = $r['status'];
-}
+// ── Goal in focus: nearest deadline, not reached ──────────────────
+$goal = $tbl('goals') ? fetchOne("SELECT * FROM goals WHERE user_id=? AND progress < target_value ORDER BY deadline IS NULL, deadline, created_at DESC LIMIT 1", [$uid]) : null;
+$goalPace = $goal ? goalPace($goal) : null;
 
-// ── Goals ─────────────────────────────────────────────────────────
-$goals = $tbl('goals') ? fetchAll("SELECT * FROM goals WHERE user_id=? AND progress < target_value ORDER BY deadline IS NULL, deadline, created_at DESC LIMIT 4", [$uid]) : [];
-
-// ── Activity ──────────────────────────────────────────────────────
-$range  = progressOverview($uid, 14);
-$maxDay = max(1, ...array_column($range['per_day'], 'count'));
-
-// ── Areas ─────────────────────────────────────────────────────────
-$areas = [];
-// Fitness
-if ($tbl('workout_logs')) {
-    $ws = workoutStreak($uid);
-    $sessionsWeek = $tbl('workout_sessions') ? (int)(fetchOne("SELECT COUNT(*) n FROM workout_sessions WHERE user_id=? AND ended_at IS NOT NULL AND session_date >= ?", [$uid, $weekFrom])['n'] ?? 0) : 0;
-    $trainedDays  = (int)(fetchOne("SELECT COUNT(DISTINCT log_date) n FROM workout_logs WHERE user_id=? AND log_date >= ?", [$uid, $weekFrom])['n'] ?? 0);
-    $plan = $tbl('workout_plans') ? fetchOne("SELECT name FROM workout_plans WHERE user_id=? AND day_of_week=? LIMIT 1", [$uid, date('l')]) : null;
-    $last = fetchOne("SELECT MAX(log_date) d FROM workout_logs WHERE user_id=?", [$uid])['d'] ?? null;
-    if ($last || $plan) $areas['fitness'] = ['Fitness', 'fa-dumbbell', '#0ea5e9', 'gym.php', [
-        ['Streak', $ws['current'] . ' ' . $ws['unit'] . ($ws['current'] === 1 ? '' : 's')],
-        ['Trained this week', $trainedDays . ' day' . ($trainedDays === 1 ? '' : 's')],
-        ['Today', $plan ? $plan['name'] : 'Rest day'],
-        ['Last workout', $last ? timeAgo($last . ' 12:00:00') : '—'],
-    ]];
-}
-// Focus
-if ($tbl('focus_sessions') && function_exists('focusStats')) {
-    $fs = focusStats($uid);
-    $fm = static fn(int $m) => $m >= 60 ? floor($m / 60) . 'h ' . ($m % 60) . 'm' : $m . 'm';
-    if ($fs['month'] > 0) $areas['focus'] = ['Focus', 'fa-stopwatch', '#ef4444', 'focus.php', [
-        ['Today', $fm((int)$fs['today'])], ['This week', $fm((int)$fs['week'])], ['This month', $fm((int)$fs['month'])], ['Streak', (int)$fs['streak'] . ' days'],
-    ]];
-}
-// Finance
-if ($tbl('transactions')) {
-    $mFrom = date('Y-m-01');
-    $mx = fetchOne("SELECT COALESCE(SUM(CASE WHEN type='expense' THEN amount END),0) spent, COALESCE(SUM(CASE WHEN type='income' THEN amount END),0) earned, COUNT(*) n
-                      FROM transactions WHERE user_id=? AND tx_date >= ?", [$uid, $mFrom]);
-    if ((int)$mx['n'] > 0) {
-        $topCat = fetchOne("SELECT category, SUM(amount) s FROM transactions WHERE user_id=? AND type='expense' AND tx_date >= ? GROUP BY category ORDER BY s DESC LIMIT 1", [$uid, $mFrom]);
-        $budget = $tbl('budgets') ? (float)(fetchOne("SELECT COALESCE(SUM(monthly_limit),0) b FROM budgets WHERE user_id=?", [$uid])['b'] ?? 0) : 0;
-        $areas['finance'] = ['Finance', 'fa-wallet', '#22c55e', 'finance.php', array_values(array_filter([
-            ['Spent this month', money((float)$mx['spent'], $uid) . ($budget > 0 ? ' of ' . money($budget, $uid) : '')],
-            ['Earned this month', money((float)$mx['earned'], $uid)],
-            $topCat ? ['Biggest category', $topCat['category'] . ' · ' . money((float)$topCat['s'], $uid)] : null,
-            ['Balance this month', money((float)$mx['earned'] - (float)$mx['spent'], $uid)],
-        ])), $budget > 0 ? min(100, (int)round((float)$mx['spent'] / $budget * 100)) : null];
+// ── Analytics ─────────────────────────────────────────────────────
+// Positive habits: check-ins this month so far vs the same span last month.
+$hThis = $tbl('logs') ? (int)(fetchOne("SELECT COUNT(*) n FROM logs l JOIN habits h ON h.id=l.habit_id WHERE h.user_id=? AND l.date_completed BETWEEN ? AND ?", [$uid, date('Y-m-01'), $today])['n'] ?? 0) : 0;
+$hLast = $tbl('logs') ? (int)(fetchOne("SELECT COUNT(*) n FROM logs l JOIN habits h ON h.id=l.habit_id WHERE h.user_id=? AND l.date_completed BETWEEN ? AND ?", [$uid, $lastFrom, $lastTo])['n'] ?? 0) : 0;
+$habitDelta = $hLast > 0 ? round(($hThis - $hLast) / $hLast * 100, 1) : null;
+// Year wrapped.
+$year = (int)date('Y');
+$yearActs = activityReady() ? fetchOne("SELECT COUNT(*) n, COUNT(DISTINCT occurred_on) d FROM activity_log WHERE user_id=? AND YEAR(occurred_on)=?", [$uid, $year]) : ['n' => 0, 'd' => 0];
+// Favourite habits: check-ins per habit per month, last 6 months.
+$months = [];
+for ($i = 5; $i >= 0; $i--) $months[] = date('Y-m', strtotime(date('Y-m-01') . " -$i month"));
+$favHabits = $tbl('habits') ? fetchAll("SELECT id, name, color FROM habits WHERE user_id=? ORDER BY name", [$uid]) : [];
+$favCounts = array_fill_keys($months, []);
+if ($favHabits) {
+    foreach (fetchAll("SELECT l.habit_id, DATE_FORMAT(l.date_completed, '%Y-%m') ym, COUNT(*) n FROM logs l JOIN habits h ON h.id=l.habit_id
+                        WHERE h.user_id=? AND l.date_completed >= ? GROUP BY l.habit_id, ym", [$uid, $months[0] . '-01']) as $r) {
+        if (isset($favCounts[$r['ym']])) $favCounts[$r['ym']][(int)$r['habit_id']] = (int)$r['n'];
     }
 }
-// Reading
-if ($tbl('books')) {
-    $reading = fetchAll("SELECT title, current_page, pages_total FROM books WHERE user_id=? AND status='reading' ORDER BY id DESC LIMIT 2", [$uid]);
-    $rWeek = $tbl('reading_sessions') ? fetchOne("SELECT COALESCE(SUM(minutes),0) m, COALESCE(SUM(pages),0) p FROM reading_sessions WHERE user_id=? AND session_date >= ?", [$uid, $weekFrom]) : ['m' => 0, 'p' => 0];
-    $finishedYear = (int)(fetchOne("SELECT COUNT(*) n FROM books WHERE user_id=? AND status='finished' AND YEAR(COALESCE(finished_at, created_at)) = YEAR(CURDATE())", [$uid])['n'] ?? 0);
-    if ($reading || (int)$rWeek['m'] > 0 || $finishedYear) {
-        $rows = [];
-        foreach ($reading as $b) $rows[] = [$b['title'], $b['pages_total'] ? (int)$b['current_page'] . ' / ' . (int)$b['pages_total'] . ' pages' : 'page ' . (int)$b['current_page']];
-        $rows[] = ['This week', (int)$rWeek['p'] . ' pages · ' . (int)$rWeek['m'] . ' min'];
-        $rows[] = ['Finished this year', $finishedYear . ' book' . ($finishedYear === 1 ? '' : 's')];
-        $areas['reading'] = ['Reading', 'fa-book-open', '#8b5cf6', 'library.php', $rows];
-    }
-}
-// Every other module with a streak (hobbies, meditation, writing…)
-$moduleStreaks = activityReady() ? array_values(array_filter(moduleStreaks($uid), static fn($m) => !in_array($m['module'], ['todos', 'habits', 'routines', 'goals', 'fitness', 'focus', 'finance', 'reading'], true))) : [];
 
-$insights     = array_slice(crossInsights($uid), 0, 3);
-$crossInsight = crossModuleInsights($uid);
-$weatherData  = fetchWeatherData();
+// ── Spotify ───────────────────────────────────────────────────────
 require_once '../includes/providers.php';
-$spotifyOn = env('SPOTIFY_CLIENT_ID') && (provider('spotify')?->isConnected($uid) ?? false);
+$spConfigured = (bool)env('SPOTIFY_CLIENT_ID');
+$spConnected  = $spConfigured && (provider('spotify')?->isConnected($uid) ?? false);
 
-$fmtMin = static fn(int $m) => $m >= 60 ? floor($m / 60) . 'h ' . ($m % 60) . 'm' : $m . 'm';
-$delta  = static function (int $now, int $prev): string {
-    if ($now === $prev) return '<span class="ov-delta is-flat">same as last week</span>';
-    $up = $now > $prev;
-    return '<span class="ov-delta ' . ($up ? 'is-up' : 'is-down') . '"><i class="fas fa-arrow-' . ($up ? 'up' : 'down') . '" aria-hidden="true"></i> '
-         . abs($now - $prev) . ' vs last week</span>';
-};
+$hour = (int)date('G');
+$wave = $hour < 12 ? '👋' : ($hour < 18 ? '☀️' : '🌙');
+$kindTile = ['todo' => ['fa-check', 'var(--accent)'], 'study' => ['fa-graduation-cap', '#8b5cf6'], 'routine' => ['fa-clock', 'var(--info)'], 'workout' => ['fa-dumbbell', '#f97316']];
 
 require_once '../includes/head.php';
 ?>
@@ -164,374 +111,316 @@ require_once '../includes/head.php';
 <div class="page-content" id="page-main">
 
 <?php if (($_GET['onboarded'] ?? '') === '1'): ?>
-  <?= renderInsight("You're set up! Tick off your first thing below — or type one: “gym tomorrow 7am”.", 'fa-champagne-glasses') ?>
-<?php elseif ($crossInsight): ?>
-  <?= renderInsight($crossInsight['text'], $crossInsight['icon']) ?>
+  <?= renderInsight("You're set up! Log a habit under “Should do!” or tick a todo to earn your first XP.", 'fa-champagne-glasses') ?>
 <?php endif; ?>
 
-<!-- ═══ Hero ═══ -->
-<section class="td-hero db-hero" id="dbHero" aria-labelledby="dbHello">
-  <div class="td-hero-text">
-    <h1 class="td-hello" id="dbHello"><?= h($greeting) ?>, <?= h($firstName) ?></h1>
-    <p class="td-date"><?= date('l, j F') ?></p>
-    <p class="td-summary">
-      <?php if (!$boardTotal): ?>Nothing planned yet — add the first thing below.
-      <?php elseif (!$boardOpen): ?>Everything for today is done. 🎉
-      <?php else: ?><strong><?= count($boardOpen) ?></strong> left today · next up: <?= h($boardOpen[0]['title']) ?><?php endif; ?>
-    </p>
-  </div>
-  <div class="td-ring<?= $boardTotal && !$boardOpen ? ' is-complete' : '' ?><?= $boardDone ? '' : ' is-empty' ?>" style="--p:<?= $boardPct ?>" role="img" aria-label="<?= $boardDone ?> of <?= $boardTotal ?> done today">
-    <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="td-ring-track" cx="50" cy="50" r="42" pathLength="100"/><circle class="td-ring-fill" cx="50" cy="50" r="42" pathLength="100"/></svg>
-    <div class="td-ring-label" aria-hidden="true"><span class="td-ring-num"><?= $boardDone ?>/<?= $boardTotal ?></span><span class="td-ring-sub">today</span></div>
-  </div>
-  <div class="td-chips">
-    <a class="td-chip" href="<?= APP_BASE ?>/pages/progress.php"><i class="fas fa-fire" style="color:#f59e0b" aria-hidden="true"></i> <?= (int)$streak['current'] > 0 ? (int)$streak['current'] . '-day streak' : 'Start a streak today' ?></a>
-    <a class="td-chip" href="<?= APP_BASE ?>/pages/progress.php"><i class="fas fa-bolt" style="color:var(--accent)" aria-hidden="true"></i> Level <?= (int)$xp['level'] ?></a>
-    <?php if ($weatherData): ?><span class="td-chip"><i class="fas fa-temperature-half" aria-hidden="true"></i> <?= isset($weatherData['temp']) ? (int)round($weatherData['temp']) . '°' : '' ?> <?= h(ucfirst((string)($weatherData['desc'] ?? ''))) ?></span><?php endif; ?>
-  </div>
-</section>
+<div class="bd-wrap">
+<div class="bd" id="bdRoot" data-today="<?= h($today) ?>">
 
-<!-- ═══ KPIs ═══ -->
-<section class="ov-kpis db-kpis" aria-label="Key numbers">
-  <article class="card ov-kpi">
-    <span class="ov-kicker"><i class="fas fa-gauge-high" aria-hidden="true"></i> Trackie Score</span>
-    <?php if (!empty($score['has_data'])): ?>
-      <div class="ov-big"><span class="stat-val"><?= (int)$score['score'] ?></span><small>/100</small></div>
-      <div class="ov-foot">
-        <?php if ($trend['delta'] !== null): ?>
-          <span class="ov-delta <?= $trend['delta'] > 0 ? 'is-up' : ($trend['delta'] < 0 ? 'is-down' : 'is-flat') ?>"><?php if ($trend['delta']): ?><i class="fas fa-arrow-<?= $trend['delta'] > 0 ? 'up' : 'down' ?>" aria-hidden="true"></i> <?= abs((int)$trend['delta']) ?> this week<?php else: ?>steady this week<?php endif; ?></span>
-        <?php else: ?><?= h($score['band'] ?? '') ?><?php endif; ?>
-      </div>
-    <?php else: ?>
-      <div class="ov-big ov-big-muted">—</div><div class="ov-foot">Log a few days to get a score.</div>
-    <?php endif; ?>
-  </article>
-  <article class="card ov-kpi">
-    <span class="ov-kicker"><i class="fas fa-bolt" aria-hidden="true"></i> Level</span>
-    <div class="ov-big"><span class="stat-val"><?= (int)$xp['level'] ?></span><small><?= h($xp['title'] ?? '') ?></small></div>
-    <div class="ov-xp" role="progressbar" aria-valuenow="<?= (int)($xp['pct'] ?? 0) ?>" aria-valuemin="0" aria-valuemax="100" aria-label="Progress to the next level"><span style="--w:<?= max(0, min(100, (int)($xp['pct'] ?? 0))) / 100 ?>"></span></div>
-    <div class="ov-foot"><?= (int)($xp['to_next'] ?? 0) ?> XP to level <?= (int)$xp['level'] + 1 ?> · <?= number_format((int)($xp['total'] ?? 0)) ?> XP total</div>
-  </article>
-  <article class="card ov-kpi">
-    <span class="ov-kicker"><i class="fas fa-fire" aria-hidden="true"></i> Streak</span>
-    <div class="ov-big<?= (int)$streak['current'] > 0 ? ' is-lit' : '' ?>"><span class="stat-val"><?= (int)$streak['current'] ?></span><small>day<?= (int)$streak['current'] === 1 ? '' : 's' ?></small></div>
-    <div class="ov-foot">Best: <?= (int)$streak['best'] ?> day<?= (int)$streak['best'] === 1 ? '' : 's' ?></div>
-  </article>
-  <article class="card ov-kpi">
-    <span class="ov-kicker"><i class="fas fa-calendar-check" aria-hidden="true"></i> This week</span>
-    <div class="ov-big"><span class="stat-val"><?= (int)$week['active_days'] ?></span><small>active day<?= (int)$week['active_days'] === 1 ? '' : 's' ?></small></div>
-    <div class="ov-week" aria-hidden="true">
-      <?php for ($i = 0; $i < 7; $i++): $d = date('Y-m-d', strtotime("$weekFrom 12:00 +$i day")); ?>
-        <span class="<?= isset($activeSet[$d]) ? 'is-on' : '' ?><?= $d === $today ? ' is-today' : '' ?><?= $d > $today ? ' is-future' : '' ?>" title="<?= h(date('D j M', strtotime($d))) ?>"><?= h(mb_substr(date('D', strtotime($d)), 0, 1)) ?></span>
-      <?php endfor; ?>
-    </div>
-    <div class="ov-foot"><?= $delta((int)$week['active_days'], (int)$week['prev_active_days']) ?></div>
-  </article>
-</section>
+  <!-- ═══ Column 1 ═══ -->
+  <div class="bd-col bd-c1">
+    <section class="bd-hello" style="--o:1">
+      <h1>Happy <br><?= h(date('l')) ?> <span aria-hidden="true"><?= $wave ?></span></h1>
+      <p class="bd-when"><?= h(date('j M Y')) ?>, <span id="bdClock"><?= h(date('g:i a')) ?></span></p>
+      <button type="button" class="bd-btn bd-btn-primary" onclick="Trackie.QuickAdd.open('habit')"><i class="fas fa-plus" aria-hidden="true"></i> New Habit</button>
+      <a class="bd-btn bd-btn-ghost" href="<?= APP_BASE ?>/pages/habits.php">Browse Popular Habits</a>
+    </section>
 
-<div class="db-layout">
-  <div class="db-col db-main">
-
-    <!-- ═══ Today, actionable ═══ -->
-    <section class="card db-card db-today" id="dbToday" aria-labelledby="dbTodayTitle" style="--o:1">
-      <header class="ov-card-head">
-        <h2 id="dbTodayTitle"><i class="fas fa-sun" aria-hidden="true"></i> Today</h2>
-        <a class="ov-link" href="<?= APP_BASE ?>/pages/today.php">Full list →</a>
-      </header>
-      <form class="td-add db-add" id="dbAdd" autocomplete="off">
-        <label class="td-add-row">
-          <i class="fas fa-plus" aria-hidden="true"></i><span class="sr-only">Add a task</span>
-          <input class="td-add-input" id="dbAddInput" maxlength="150" enterkeyhint="done" placeholder="Add a task, e.g. “call mom 6pm”"
-                 title="Plain words for the date and time, !high or !low for priority, #tag for tags">
-          <button type="submit" class="btn btn-primary btn-sm td-add-btn">Add</button>
-        </label>
-        <div class="td-add-hint" id="dbAddHint" aria-live="polite"></div>
-      </form>
-      <?php if (!$boardTotal): ?>
-        <p class="db-empty"><i class="fas fa-mug-hot" aria-hidden="true"></i> A clean slate. Type the first thing above, or set up a <a href="<?= APP_BASE ?>/pages/habits.php">habit</a> or <a href="<?= APP_BASE ?>/pages/routines.php">routine</a>.</p>
-      <?php else: ?>
-        <ul class="td-list db-list" id="dbTodayList">
-          <?php foreach (array_slice($boardOpen, 0, $SHOW_OPEN) as $it) echo renderTodayItem($it); ?>
-        </ul>
-        <div class="db-today-foot">
-          <?php if (count($boardOpen) > $SHOW_OPEN): ?><a href="<?= APP_BASE ?>/pages/today.php">+<?= count($boardOpen) - $SHOW_OPEN ?> more on Today</a><?php endif; ?>
-          <span><i class="fas fa-circle-check" aria-hidden="true"></i> <b id="dbDoneN"><?= $boardDone ?></b> done today</span>
+    <section class="bd-card bd-cal" aria-labelledby="bdCalTitle" style="--o:7">
+      <header class="bd-cal-head">
+        <h2 id="bdCalTitle"><?= h(date('F, Y', $calFirst)) ?></h2>
+        <div class="bd-cal-nav">
+          <a class="bd-round" href="?cal=<?= date('Y-m', strtotime('-1 month', $calFirst)) ?>" aria-label="Previous month"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
+          <a class="bd-round is-accent" href="?cal=<?= date('Y-m', strtotime('+1 month', $calFirst)) ?>" aria-label="Next month"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>
         </div>
-        <?php if (!$boardOpen): ?><p class="db-empty is-clear">🎉 All clear for today. Every habit, task and routine is done.</p><?php endif; ?>
+      </header>
+      <div class="bd-cal-grid" role="grid" aria-label="<?= h(date('F Y', $calFirst)) ?>: circled days you were active">
+        <?php foreach ($calDow as $d): ?><span class="bd-dow" role="columnheader"><?= $d ?></span><?php endforeach; ?>
+        <?php for ($i = 0; $i < $calLead; $i++): ?><span></span><?php endfor; ?>
+        <?php for ($d = 1; $d <= (int)date('t', $calFirst); $d++): $ds = date('Y-m-d', strtotime($calYm . '-' . str_pad((string)$d, 2, '0', STR_PAD_LEFT))); ?>
+          <a class="bd-day<?= isset($activeDays[$ds]) ? ' is-active' : '' ?><?= $ds === $today ? ' is-today' : '' ?><?= isset($dueDays[$ds]) ? ' has-due' : '' ?>"
+             href="<?= APP_BASE ?>/pages/calendar.php?month=<?= (int)date('n', $calFirst) ?>&year=<?= (int)date('Y', $calFirst) ?>&day=<?= $ds ?>"
+             role="gridcell" aria-label="<?= h(date('j F', strtotime($ds))) ?><?= isset($activeDays[$ds]) ? ', active' : '' ?><?= isset($dueDays[$ds]) ? ', tasks due' : '' ?>"><?= $d ?></a>
+        <?php endfor; ?>
+      </div>
+      <p class="bd-cal-foot">
+        <?php if ($monthDelta !== null): ?>
+          <b class="<?= $monthDelta >= 0 ? 'is-up' : 'is-down' ?>"><?= $monthDelta >= 0 ? '+' : '' ?><?= rtrim(rtrim(number_format($monthDelta, 1), '0'), '.') ?>%</b> active days vs last month
+        <?php else: ?>
+          <b><?= $thisSpan ?></b> active day<?= $thisSpan === 1 ? '' : 's' ?> this month
+        <?php endif; ?>
+      </p>
+    </section>
+
+    <section class="bd-card bd-app" id="bdApp" style="--o:12">
+      <div class="bd-app-art" aria-hidden="true"><i class="fas fa-mobile-screen-button"></i><i class="fas fa-bell bd-app-bell"></i></div>
+      <h2>Sync anywhere with the Trackie app</h2>
+      <p>Reminders that ring, a focus timer that survives the lock screen.</p>
+      <a class="bd-btn bd-btn-soft" href="<?= APP_BASE ?>/pages/download.php">Download app</a>
+    </section>
+  </div>
+
+  <!-- ═══ Column 2 ═══ -->
+  <div class="bd-col bd-c2">
+    <section class="bd-card bd-weather<?= $weather ? '' : ' is-empty' ?>" aria-labelledby="bdWxTitle" style="--o:5">
+      <header class="bd-card-head"><h2 id="bdWxTitle">Weather</h2><?php if ($weather): ?><span class="bd-muted"><?= h($weather['city'] ?? '') ?></span><?php endif; ?></header>
+      <?php if ($weather): ?>
+        <div class="bd-wx-top">
+          <span class="bd-wx-icon" aria-hidden="true"><i class="fas <?= h(str_contains(strtolower((string)$weather['desc']), 'rain') ? 'fa-cloud-rain' : (str_contains(strtolower((string)$weather['desc']), 'cloud') ? 'fa-cloud-sun' : 'fa-sun')) ?>"></i></span>
+          <span class="bd-wx-temp"><?= (int)round((float)$weather['temp']) ?>°C</span>
+        </div>
+        <p class="bd-wx-desc"><?= h(ucfirst((string)$weather['desc'])) ?></p>
+        <dl class="bd-wx-stats">
+          <div><dt>Wind</dt><dd><?= h((string)$weather['wind']) ?> km/h</dd></div>
+          <div><dt>Pressure</dt><dd><?= h((string)$weather['pressure']) ?> mb</dd></div>
+          <div><dt>Humidity</dt><dd><?= h((string)$weather['humidity']) ?>%</dd></div>
+        </dl>
+        <i class="fas fa-umbrella bd-wx-art" aria-hidden="true"></i>
+      <?php else: ?>
+        <div class="bd-wx-top"><span class="bd-wx-icon" aria-hidden="true"><i class="fas fa-cloud-sun"></i></span></div>
+        <p class="bd-wx-desc">Add your city to see today's weather here.</p>
+        <a class="bd-btn bd-btn-soft" href="<?= APP_BASE ?>/pages/settings.php">Set location</a>
+        <i class="fas fa-umbrella bd-wx-art" aria-hidden="true"></i>
       <?php endif; ?>
     </section>
 
-    <!-- ═══ Habits, last 7 days ═══ -->
-    <section class="card db-card" id="dbHabits" aria-labelledby="dbHabitsTitle" style="--o:3">
-      <header class="ov-card-head">
-        <h2 id="dbHabitsTitle"><i class="fas fa-heart" aria-hidden="true"></i> Habits</h2>
-        <a class="ov-link" href="<?= APP_BASE ?>/pages/habits.php">Manage →</a>
-      </header>
-      <?php if (!$habits): ?>
-        <p class="db-empty">No habits yet. <a href="<?= APP_BASE ?>/pages/habits.php">Add one small thing</a> you want to do most days.</p>
+    <section class="bd-card bd-should" id="bdShould" aria-labelledby="bdShouldTitle" style="--o:3">
+      <header class="bd-card-head"><h2 id="bdShouldTitle">Should Do!</h2><a class="bd-link" href="<?= APP_BASE ?>/pages/habits.php">View Details</a></header>
+      <?php if (!$shouldDo): ?>
+        <p class="bd-empty">No habits due today. <a href="<?= APP_BASE ?>/pages/habits.php">Add one</a> you want to do most days.</p>
       <?php else: ?>
-        <div class="db-habit-days" aria-hidden="true"><span></span><?php foreach ($habitDays as $d): ?><span class="<?= $d === $today ? 'is-today' : '' ?>"><?= h(mb_substr(date('D', strtotime($d)), 0, 1)) ?></span><?php endforeach; ?><span></span></div>
-        <ul class="db-habits">
-          <?php foreach ($habits as $hb):
-            $logs = $habitLogs[$hb['id']] ?? [];
-            $set = array_flip($logs);
-            $hs = habitStreak($hb, $logs, $weekStartDay);
-            $sched = habitDays($hb);
-            $weekly = $hb['frequency'] === 'weekly';
-          ?>
-            <li class="db-habit" data-id="<?= (int)$hb['id'] ?>" style="--hc:<?= h($hb['color'] ?: '#ef4444') ?>">
-              <span class="db-habit-name"><span class="habit-dot" style="background:<?= h($hb['color'] ?: '#ef4444') ?>" aria-hidden="true"></span><?= h($hb['name']) ?></span>
-              <?php foreach ($habitDays as $d):
-                $t = strtotime("$d 12:00");
-                $st = isset($set[$d]) ? 'done' : ($habitMarks[$hb['id']][$d] ?? null);
-                if (!$st) $st = (!$weekly && $sched && !in_array((int)date('w', $t), $sched, true)) ? 'off' : 'open';
-                if ($d < substr((string)$hb['created_at'], 0, 10) && $st !== 'done') $st = 'before';
-              ?>
-                <button type="button" class="hb-day db-dot is-<?= $st ?><?= $d === $today ? ' is-today' : '' ?>" data-date="<?= $d ?>"
-                        aria-pressed="<?= $st === 'done' ? 'true' : 'false' ?>" aria-label="<?= h($hb['name'] . ', ' . date('D j M', $t) . ': ' . ($st === 'done' ? 'done' : ($st === 'off' ? 'not scheduled' : 'not done'))) ?>"
-                        <?= $st === 'before' ? 'disabled' : '' ?>><span class="hb-day-dot"><i class="fas fa-check" aria-hidden="true"></i></span></button>
-              <?php endforeach; ?>
-              <span class="hb-flame<?= $hs['current'] > 0 ? ' is-lit' : '' ?>" title="Streak · best <?= (int)$hs['best'] ?>"><i class="fas fa-fire" aria-hidden="true"></i> <?= (int)$hs['current'] ?></span>
+        <ul class="bd-should-list">
+          <?php foreach ($shouldDo as $hb): ?>
+            <li class="bd-should-item<?= $hb['done'] ? ' is-done' : '' ?>" style="--hc:<?= h($hb['color']) ?>" data-id="<?= (int)$hb['id'] ?>">
+              <span class="bd-tile" aria-hidden="true"><?= h(mb_strtoupper(mb_substr($hb['title'], 0, 1))) ?></span>
+              <span class="bd-item-text"><strong><?= h($hb['title']) ?></strong><small><?= (int)($habitTotals[$hb['id']] ?? 0) ?> logs total</small></span>
+              <button type="button" class="bd-log" data-done="<?= $hb['done'] ? 1 : 0 ?>" aria-pressed="<?= $hb['done'] ? 'true' : 'false' ?>"
+                      aria-label="<?= $hb['done'] ? 'Logged today — undo' : 'Log ' . h($hb['title']) . ' for today' ?>">
+                <?= $hb['done'] ? '<i class="fas fa-check" aria-hidden="true"></i> Done' : 'Log it' ?>
+              </button>
             </li>
           <?php endforeach; ?>
         </ul>
       <?php endif; ?>
     </section>
 
-    <!-- ═══ Activity ═══ -->
-    <section class="card db-card ov-activity" aria-labelledby="dbActTitle" style="--o:6">
-      <header class="ov-card-head">
-        <h2 id="dbActTitle"><i class="fas fa-chart-column" aria-hidden="true"></i> Activity · last 14 days</h2>
-        <span class="ov-muted"><?= (int)$range['activities'] ?> logged on <?= (int)$range['active_days'] ?> days · <?= number_format((int)$range['xp']) ?> XP</span>
-      </header>
-      <div class="ov-bars" role="img" aria-label="Things logged per day over the last 14 days">
-        <?php foreach ($range['per_day'] as $i => $d): $hgt = $d['count'] ? max(6, (int)round($d['count'] / $maxDay * 100)) : 0; ?>
-          <div class="ov-bar<?= $d['date'] === $today ? ' is-today' : '' ?>" style="--i:<?= $i ?>" title="<?= h(date('D j M', strtotime($d['date']))) ?>: <?= (int)$d['count'] ?>">
-            <span class="ov-bar-fill" style="--h:<?= $hgt ?>%"></span><span class="ov-bar-lbl"><?= h(mb_substr(date('D', strtotime($d['date'])), 0, 1)) ?></span>
-          </div>
-        <?php endforeach; ?>
-      </div>
-      <?php if ($range['modules']): ?>
-        <div class="ov-mods"><?php foreach (array_slice($range['modules'], 0, 6) as $m): ?><span><b><?= (int)$m['count'] ?></b> <?= h($m['label']) ?></span><?php endforeach; ?></div>
-      <?php endif; ?>
-      <?php if ($week['metrics']): ?>
-        <h3 class="db-subhead">This week vs last <a class="ov-link" href="<?= APP_BASE ?>/pages/review.php">Weekly review →</a></h3>
-        <ul class="ov-metrics db-metrics">
-          <?php foreach ($week['metrics'] as $label => $m): ?>
-            <li><span class="ov-metric-label"><?= h($label) ?></span>
-              <strong class="ov-metric-now"><?= str_contains($label, 'minutes') ? h($fmtMin((int)$m['now'])) : (int)$m['now'] ?></strong>
-              <?= $delta((int)$m['now'], (int)$m['prev']) ?></li>
-          <?php endforeach; ?>
-        </ul>
+    <section class="bd-card bd-goal" aria-labelledby="bdGoalTitle" style="--o:9">
+      <header class="bd-card-head"><h2 id="bdGoalTitle"><?= $goal ? h($goal['goal_name']) : 'Goal in focus' ?></h2><?php if ($goal): ?><a class="bd-round" href="<?= APP_BASE ?>/pages/goals.php" aria-label="Open goals"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a><?php endif; ?></header>
+      <?php if ($goal):
+        $t = max(1, (int)$goal['target_value']); $p = (int)$goal['progress']; $pct = min(100, (int)round($p / $t * 100));
+        $daysLeft = $goal['deadline'] ? max(0, (int)round((strtotime($goal['deadline']) - strtotime($today)) / 86400)) : null;
+      ?>
+        <div class="bd-goal-stats">
+          <span><i class="fas fa-flag" aria-hidden="true"></i> <?= $p ?>/<?= $t ?></span>
+          <?php if ($daysLeft !== null): ?><span><i class="fas fa-hourglass-half" aria-hidden="true"></i> <?= $daysLeft ?> day<?= $daysLeft === 1 ? '' : 's' ?></span><?php endif; ?>
+          <?php if ($goalPace['perDay'] ?? null): ?><span><i class="fas fa-gauge" aria-hidden="true"></i> <?= rtrim(rtrim(number_format($goalPace['perDay'], 1), '0'), '.') ?>/day</span><?php endif; ?>
+        </div>
+        <div class="bd-goal-track pace-<?= h($goalPace['state']) ?>" role="progressbar" aria-valuenow="<?= $pct ?>" aria-valuemin="0" aria-valuemax="100" aria-label="Goal progress">
+          <span class="bd-goal-fill" style="--w:<?= $pct / 100 ?>"></span>
+          <span class="bd-goal-pin" style="--x:<?= $pct ?>%"><b><?= $pct ?>%</b></span>
+        </div>
+        <p class="bd-goal-pace pace-<?= h($goalPace['state']) ?>">
+          <?= h(['ahead' => 'Ahead of pace by ' . $goalPace['diff'], 'on' => 'Right on pace', 'behind' => 'Behind pace by ' . -$goalPace['diff'], 'overdue' => 'The deadline has passed', 'none' => 'No deadline — steady wins'][$goalPace['state']] ?? '') ?>
+        </p>
+      <?php else: ?>
+        <p class="bd-empty">A number and a date — “read 12 books by December”. <a href="<?= APP_BASE ?>/pages/goals.php">Set a goal</a></p>
       <?php endif; ?>
     </section>
+  </div>
 
-    <!-- ═══ Areas ═══ -->
-    <?php if ($areas || $moduleStreaks): ?>
-    <section class="db-areas" aria-label="Your areas" style="--o:7">
-      <?php foreach ($areas as $key => $a): [$label, $icon, $color, $href, $rows] = $a; $bar = $a[5] ?? null; ?>
-        <a class="card db-area" href="<?= APP_BASE ?>/pages/<?= h($href) ?>" style="--ac:<?= $color ?>">
-          <span class="db-area-head"><span class="db-area-ic"><i class="fas <?= $icon ?>" aria-hidden="true"></i></span> <?= h($label) ?> <i class="fas fa-arrow-right db-area-go" aria-hidden="true"></i></span>
-          <dl class="db-area-rows">
-            <?php foreach ($rows as [$k, $v]): ?><div><dt><?= h($k) ?></dt><dd><?= h((string)$v) ?></dd></div><?php endforeach; ?>
-          </dl>
-          <?php if ($bar !== null): ?><span class="db-area-bar<?= $bar >= 100 ? ' is-over' : '' ?>" role="progressbar" aria-valuenow="<?= $bar ?>" aria-valuemin="0" aria-valuemax="100" aria-label="Budget used"><span style="--w:<?= $bar / 100 ?>"></span></span><?php endif; ?>
-        </a>
-      <?php endforeach; ?>
-      <?php if ($moduleStreaks): ?>
-        <div class="card db-area db-hobbies">
-          <span class="db-area-head"><span class="db-area-ic" style="--ac:#f59e0b"><i class="fas fa-star" aria-hidden="true"></i></span> Hobbies &amp; more</span>
-          <ul>
-            <?php foreach (array_slice($moduleStreaks, 0, 6) as $m): ?>
-              <li><span><?= h($m['label']) ?></span><span class="ov-muted">last <?= h(date('j M', strtotime($m['last']))) ?></span><span class="hb-flame<?= $m['current'] > 0 ? ' is-lit' : '' ?>"><i class="fas fa-fire" aria-hidden="true"></i> <?= (int)$m['current'] ?></span></li>
+  <!-- ═══ Columns 3–4 ═══ -->
+  <div class="bd-col bd-c34">
+    <div class="bd-c34-top">
+      <section class="bd-card bd-todos" id="bdTodos" aria-labelledby="bdTodosTitle" style="--o:2">
+        <header class="bd-card-head"><h2 id="bdTodosTitle">Today's Todos</h2><a class="bd-link" href="<?= APP_BASE ?>/pages/todos.php">View Details</a></header>
+        <?php if (!$todos): ?>
+          <p class="bd-empty">Nothing due today. <a href="<?= APP_BASE ?>/pages/todos.php">Plan something</a> or enjoy the space.</p>
+        <?php else: ?>
+          <ul class="bd-todo-list">
+            <?php foreach (array_slice($todos, 0, 7) as $it): [$ic, $col] = $kindTile[$it['kind']] ?? ['fa-check', 'var(--accent)']; ?>
+              <li class="bd-todo<?= $it['done'] ? ' is-done' : '' ?><?= $it['section'] === 'overdue' ? ' is-late' : '' ?>"
+                  data-kind="<?= h($it['kind']) ?>" data-id="<?= (int)$it['id'] ?>" data-key="<?= h($it['key']) ?>">
+                <span class="bd-tile" style="--hc:<?= h($it['kind'] === 'todo' ? $it['color'] : $col) ?>" aria-hidden="true"><i class="fas <?= h($ic) ?>"></i></span>
+                <span class="bd-item-text">
+                  <strong><?= h($it['title']) ?></strong>
+                  <small>
+                    <span><i class="fas fa-clock" aria-hidden="true"></i> <?= h($it['kind'] === 'routine' ? $it['label'] : ($it['section'] === 'overdue' ? 'Overdue' : 'Today')) ?></span>
+                    <span><i class="fas fa-tag" aria-hidden="true"></i> <?= h($it['kind'] === 'routine' ? 'Routine' : ucfirst($it['kind'])) ?></span>
+                  </small>
+                </span>
+                <?php if ($it['kind'] === 'workout'): ?>
+                  <a class="bd-box<?= $it['done'] ? ' is-on' : '' ?>" href="<?= h($it['link'] ?? (APP_BASE . '/pages/gym.php')) ?>" aria-label="<?= $it['done'] ? 'Workout done' : 'Start ' . h($it['title']) ?>"><i class="fas <?= $it['done'] ? 'fa-check' : 'fa-play' ?>" aria-hidden="true"></i></a>
+                <?php else: ?>
+                  <button type="button" class="bd-box<?= $it['done'] ? ' is-on' : '' ?>" role="checkbox" aria-checked="<?= $it['done'] ? 'true' : 'false' ?>" aria-label="<?= h($it['title']) ?>"><i class="fas fa-check" aria-hidden="true"></i></button>
+                <?php endif; ?>
+              </li>
             <?php endforeach; ?>
           </ul>
+          <?php if (count($todos) > 7): ?><a class="bd-link bd-more" href="<?= APP_BASE ?>/pages/today.php">+<?= count($todos) - 7 ?> more on Today</a><?php endif; ?>
+        <?php endif; ?>
+      </section>
+
+      <div class="bd-col bd-c4">
+        <section class="bd-card bd-spotify" style="--o:10" aria-label="Spotify">
+          <span class="bd-sp-logo" aria-hidden="true"><i class="fab fa-spotify"></i></span>
+          <?php if ($spConnected): ?>
+            <h2>Now playing</h2>
+            <div id="ovSpotify" class="ov-sp-body"><span class="bd-muted">Checking Spotify…</span></div>
+            <a class="bd-btn bd-btn-dark" href="<?= APP_BASE ?>/pages/music.php"><i class="fab fa-spotify" aria-hidden="true"></i> Open Music</a>
+          <?php else: ?>
+            <h2>Connect your Spotify account</h2>
+            <p>See what's playing and start a focus playlist with every session.</p>
+            <?php if ($spConfigured): ?>
+              <a class="bd-btn bd-btn-dark" href="<?= APP_BASE ?>/pages/spotify_callback.php"><i class="fas fa-link" aria-hidden="true"></i> Link Account</a>
+            <?php else: ?>
+              <a class="bd-btn bd-btn-dark" href="<?= APP_BASE ?>/pages/music.php">Open Music</a>
+            <?php endif; ?>
+          <?php endif; ?>
+        </section>
+        <a class="bd-card bd-integr" href="<?= APP_BASE ?>/pages/settings.php" style="--o:11">
+          <span>More Integrations</span><small>GitHub, Google, Steam &amp; more</small>
+          <i class="fas fa-plug bd-integr-art" aria-hidden="true"></i>
+        </a>
+      </div>
+    </div>
+
+    <section class="bd-analytics" aria-labelledby="bdAnTitle" style="--o:8">
+      <header class="bd-card-head bd-an-head"><h2 id="bdAnTitle">Analytics</h2><a class="bd-link" href="<?= APP_BASE ?>/pages/analytics.php">View Details</a></header>
+      <div class="bd-an-grid">
+        <div class="bd-an-side">
+          <div class="bd-card bd-pos">
+            <span class="bd-pos-ic" aria-hidden="true"><i class="fas fa-face-smile"></i></span>
+            <span class="bd-pos-label">Positive Habits</span>
+            <strong><?php if ($habitDelta !== null): ?><?= $habitDelta >= 0 ? '+' : '' ?><?= rtrim(rtrim(number_format($habitDelta, 1), '0'), '.') ?>%<?php else: ?><?= $hThis ?><?php endif; ?></strong>
+            <small><?= $habitDelta !== null ? 'check-ins vs last month' : 'check-ins this month' ?></small>
+          </div>
+          <a class="bd-card bd-wrapped" href="<?= APP_BASE ?>/pages/progress.php">
+            <span class="bd-wrapped-ic" aria-hidden="true"><i class="fas fa-gift"></i></span>
+            <span class="bd-wrapped-label">Habits Wrapped</span>
+            <strong><?= $year ?></strong>
+            <small><?= (int)$yearActs['n'] ?> things on <?= (int)$yearActs['d'] ?> days</small>
+            <span class="bd-btn bd-btn-light">View</span>
+          </a>
         </div>
-      <?php endif; ?>
+        <div class="bd-card bd-fav" id="bdFav">
+          <header class="bd-fav-head">
+            <h3>Favorite Habits</h3>
+            <label class="bd-select"><span class="sr-only">Month</span>
+              <select id="bdFavMonth">
+                <?php foreach (array_reverse($months) as $m): ?><option value="<?= $m ?>"><?= h(date('F', strtotime($m . '-01'))) ?></option><?php endforeach; ?>
+              </select>
+            </label>
+          </header>
+          <div class="bd-fav-bars" id="bdFavBars" role="img" aria-label="Check-ins per habit this month"></div>
+          <?php if (!$favHabits): ?><p class="bd-empty">Your habits' check-ins show up here.</p><?php endif; ?>
+        </div>
+      </div>
     </section>
-    <?php endif; ?>
   </div>
-
-  <aside class="db-col db-side">
-    <!-- ═══ Up next ═══ -->
-    <section class="card db-card" aria-labelledby="dbNextTitle" style="--o:2">
-      <header class="ov-card-head"><h2 id="dbNextTitle"><i class="fas fa-forward" aria-hidden="true"></i> Up next</h2><a class="ov-link" href="<?= APP_BASE ?>/pages/calendar.php">Calendar →</a></header>
-      <?php
-        $laterRoutines = array_values(array_filter($routinesNext, static fn($r) => substr($r['time_slot'], 0, 5) >= $nowHm));
-        $anyNext = $laterRoutines || $remindersToday || $weekAhead;
-      ?>
-      <?php if (!$anyNext): ?>
-        <p class="db-empty">Nothing scheduled for the rest of today or the coming week.</p>
-      <?php endif; ?>
-      <?php if ($laterRoutines || $remindersToday): ?>
-        <h3 class="db-subhead">Later today</h3>
-        <ul class="db-next">
-          <?php
-            $later = [];
-            foreach ($laterRoutines as $r) $later[] = [substr($r['time_slot'], 0, 5), $r['title'], 'fa-clock', 'Routine'];
-            foreach ($remindersToday as $r) $later[] = [date('H:i', strtotime($r['next_fire_at'])), $r['title'], 'fa-bell', 'Reminder'];
-            usort($later, static fn($a, $b) => strcmp($a[0], $b[0]));
-            foreach (array_slice($later, 0, 6) as [$t, $title, $ic, $kind]):
-          ?>
-            <li><time><?= h(date('g:i A', strtotime("2000-01-01 $t"))) ?></time><i class="fas <?= $ic ?>" aria-hidden="true" title="<?= $kind ?>"></i><span><?= h($title) ?></span></li>
-          <?php endforeach; ?>
-        </ul>
-      <?php endif; ?>
-      <?php if ($weekAhead): ?>
-        <h3 class="db-subhead">Next 7 days</h3>
-        <ul class="db-agenda">
-          <?php $shown = 0; foreach ($weekAhead as $d => $evs): if ($shown >= 6) break; ?>
-            <li>
-              <span class="db-agenda-day"><b><?= h(date('j', strtotime($d))) ?></b><?= h(date('D', strtotime($d))) ?></span>
-              <span class="db-agenda-items">
-                <?php foreach (array_slice($evs, 0, 3) as $e): $shown++; $src = CALENDAR_SOURCES[$e['source']] ?? ['', 'fa-circle', '#64748b']; ?>
-                  <span><i class="fas <?= h($src[1]) ?>" style="color:<?= h($src[2]) ?>" aria-hidden="true"></i> <?= $e['time'] ? '<b>' . h($e['time']) . '</b> ' : '' ?><?= h($e['title']) ?></span>
-                <?php endforeach; ?>
-                <?php if (count($evs) > 3): ?><span class="ov-muted">+<?= count($evs) - 3 ?> more</span><?php endif; ?>
-              </span>
-            </li>
-          <?php endforeach; ?>
-        </ul>
-      <?php endif; ?>
-    </section>
-
-    <!-- ═══ Goals ═══ -->
-    <section class="card db-card" aria-labelledby="dbGoalsTitle" style="--o:4">
-      <header class="ov-card-head"><h2 id="dbGoalsTitle"><i class="fas fa-bullseye" aria-hidden="true"></i> Goals</h2><a class="ov-link" href="<?= APP_BASE ?>/pages/goals.php">All goals →</a></header>
-      <?php if ($goals): ?>
-        <ul class="ov-goal-list">
-          <?php foreach ($goals as $g):
-            $t = max(1, (int)$g['target_value']); $p = (int)$g['progress']; $pct = min(100, (int)round($p / $t * 100));
-            $pace = goalPace($g);
-            $paceTxt = ['ahead' => 'Ahead by ' . $pace['diff'], 'on' => 'On track', 'behind' => 'Behind by ' . -$pace['diff'], 'overdue' => 'Deadline passed'][$pace['state']] ?? '';
-          ?>
-            <li class="pace-<?= h($pace['state']) ?>">
-              <div class="gl-ring ov-mini-ring" style="--p:<?= $pct ?>" aria-hidden="true">
-                <svg viewBox="0 0 100 100"><circle class="td-ring-track" cx="50" cy="50" r="42" pathLength="100"/><circle class="gl-ring-fill" cx="50" cy="50" r="42" pathLength="100"/></svg>
-                <span class="gl-pct"><?= $pct ?></span>
-              </div>
-              <div class="ov-goal-text">
-                <strong><?= h($g['goal_name']) ?></strong>
-                <span><?= $p ?> / <?= $t ?><?= $paceTxt ? ' · <b class="gl-pace">' . h($paceTxt) . '</b>' : '' ?><?= $g['deadline'] ? ' · ' . h(date('j M', strtotime($g['deadline']))) : '' ?></span>
-              </div>
-            </li>
-          <?php endforeach; ?>
-        </ul>
-      <?php else: ?>
-        <p class="db-empty">No active goals. A goal is a number and a date — <a href="<?= APP_BASE ?>/pages/goals.php">set one</a>.</p>
-      <?php endif; ?>
-    </section>
-
-    <?php if ($insights): ?>
-    <section class="card db-card ov-insights" aria-labelledby="dbInsTitle" style="--o:5">
-      <header class="ov-card-head"><h2 id="dbInsTitle"><i class="fas fa-lightbulb" aria-hidden="true"></i> What your data says</h2></header>
-      <ul><?php foreach ($insights as $in): ?><li><i class="fas <?= h($in['icon']) ?>" aria-hidden="true"></i> <?= h($in['text']) ?></li><?php endforeach; ?></ul>
-    </section>
-    <?php endif; ?>
-
-    <?php if ($spotifyOn): ?>
-    <section class="card db-card ov-spotify" aria-label="Spotify" style="--o:8">
-      <span class="ov-kicker"><i class="fab fa-spotify" style="color:#1db954" aria-hidden="true"></i> Now playing</span>
-      <div id="ovSpotify" class="ov-sp-body"><span class="ov-muted">Checking Spotify…</span></div>
-      <a class="ov-link" href="<?= APP_BASE ?>/pages/music.php">Open Music →</a>
-    </section>
-    <?php endif; ?>
-  </aside>
 </div>
+</div><!-- /.bd-wrap -->
 
 </div>
 <?php include '../includes/footer.php'; ?>
 
 <script>
 (() => {
+  const root = document.getElementById('bdRoot');
   const main = document.getElementById('page-main');
-  if (!main || !document.getElementById('dbHero')) return;
+  if (!root || !main) return;
   const base = document.querySelector('meta[name="app-base"]')?.content || '';
-  const TODAY = <?= json_encode($today) ?>;
-  const $ = id => document.getElementById(id);
+  const TODAY = root.dataset.today;
   const reduce = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
   const refresh = (...ids) => Trackie.refreshFragments(ids);
 
-  // ── Tick things off right here (same APIs as Today) ─────────────────
-  function call(kind, id, done) {
-    const post = (file, body) => Trackie.API.post(`${base}/api/${file}`, body);
-    switch (kind) {
-      case 'todo':    return post('todos.php', { action: 'toggle', todo_id: id, completed: done ? 1 : 0 });
-      case 'study':   return post('study_plan.php', { action: 'toggle', task_id: id, completed: done ? 1 : 0 });
-      case 'habit':   return post('habits.php', done ? { action: 'log', habit_id: id, date: TODAY, status: 'done' } : { action: 'unlog', habit_id: id, date: TODAY });
-      case 'routine': return post('routines.php', { action: done ? 'complete' : 'uncomplete', routine_id: id });
-    }
-    return Promise.reject(new Error('Unknown item'));
-  }
+  // The app card is for the browser; inside the Android app it's pointless.
+  if (window.TrackieNative || window.Capacitor?.isNativePlatform?.()) document.getElementById('bdApp')?.remove();
+
+  // Live clock in the greeting.
+  const clock = document.getElementById('bdClock');
+  const tickClock = () => { if (clock?.isConnected) clock.textContent = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }).toLowerCase(); };
+  setInterval(tickClock, 15000);
+
+  // ── Should do: log a habit for today (tap again to undo) ────────────
   main.addEventListener('click', async e => {
-    const btn = e.target.closest('#dbTodayList button.td-check');
-    if (btn) {
-      if (btn.getAttribute('aria-busy') === 'true') return;
-      const li = btn.closest('.td-item');
-      const done = btn.getAttribute('aria-checked') !== 'true';
-      btn.setAttribute('aria-checked', String(done)); btn.setAttribute('aria-busy', 'true');
-      li.classList.toggle('is-done', done);
-      if (done) Trackie.Delight?.tap();
+    const log = e.target.closest('#bdShould .bd-log');
+    if (log) {
+      if (log.getAttribute('aria-busy') === 'true') return;
+      const li = log.closest('.bd-should-item'), id = +li.dataset.id, was = log.dataset.done === '1';
+      log.setAttribute('aria-busy', 'true');
+      li.classList.toggle('is-done', !was);
+      if (!was) Trackie.Delight?.tap();
       try {
-        const res = await call(li.dataset.kind, +li.dataset.id, done);
+        const res = await Trackie.API.post(`${base}/api/habits.php`, was ? { action: 'unlog', habit_id: id, date: TODAY } : { action: 'log', habit_id: id, date: TODAY, status: 'done' });
         if (!res?.success) throw res;
         if (res.achievements?.length) Trackie.showAchievementToasts?.(res.achievements);
-        if (done && res.xp?.gained) Trackie.Toast.success(`+${res.xp.gained} XP`, 1600);
-        await new Promise(r => setTimeout(r, done && !reduce() ? 450 : 0));
-        const allDone = done && ![...$('dbTodayList').querySelectorAll('.td-check')].some(b => b.getAttribute('aria-checked') !== 'true');
-        await refresh('dbToday', 'dbHero', 'dbHabits');
-        if (allDone) { Trackie.Delight?.burst(document.querySelector('#dbHero .td-ring')); Trackie.Toast.success('All done for today 🎉', 3500); }
-      } catch (err) {
-        btn.setAttribute('aria-checked', String(!done)); li.classList.toggle('is-done', !done);
-        Trackie.UI.toastError(err, "Couldn't update that — please try again.");
-      } finally { btn.removeAttribute('aria-busy'); }
+        if (!was && res.xp?.gained) Trackie.Toast.success(`+${res.xp.gained} XP`, 1600);
+        await new Promise(r => setTimeout(r, was || reduce() ? 0 : 350));
+        await refresh('bdShould');
+        if (!was && !document.querySelector('#bdShould .bd-should-item:not(.is-done)')) {
+          Trackie.Delight?.burst(document.getElementById('bdShould'));
+          Trackie.Toast.success('Every habit done for today 🎉', 3000);
+        }
+      } catch (err) { li.classList.toggle('is-done', was); Trackie.UI.toastError(err, "Couldn't log that habit."); }
+      finally { log.removeAttribute('aria-busy'); }
       return;
     }
-    // ── Habit dots: log / un-log any of the last 7 days ────────────────
-    const day = e.target.closest('#dbHabits .db-dot');
-    if (day && !day.disabled && day.getAttribute('aria-busy') !== 'true') {
-      const id = +day.closest('.db-habit').dataset.id, date = day.dataset.date;
-      const wasDone = day.classList.contains('is-done');
-      day.setAttribute('aria-busy', 'true');
-      day.classList.toggle('is-done', !wasDone); day.classList.toggle('is-open', wasDone);
-      if (!wasDone) Trackie.Delight?.tap();
-      try {
-        const res = await Trackie.API.post(`${base}/api/habits.php`, wasDone ? { action: 'unlog', habit_id: id, date } : { action: 'log', habit_id: id, date, status: 'done' });
-        if (!res?.success) throw res;
-        if (!wasDone && res.xp?.gained) Trackie.Toast.success(`+${res.xp.gained} XP`, 1600);
-        await refresh('dbHabits', 'dbToday', 'dbHero');
-      } catch (err) {
-        day.classList.toggle('is-done', wasDone); day.classList.toggle('is-open', !wasDone);
-        Trackie.UI.toastError(err, "Couldn't update that day.");
-      } finally { day.removeAttribute('aria-busy'); }
-    }
-  });
 
-  // ── Quick add in plain words ────────────────────────────────────────
-  const NL = Trackie.NL;
-  main.addEventListener('focusin', e => { if (e.target.id === 'dbAddInput') NL.load(); });
-  main.addEventListener('input', e => { if (e.target.id === 'dbAddInput') NL.hint($('dbAddHint'), e.target.value, TODAY); });
-  main.addEventListener('submit', async e => {
-    if (e.target.id !== 'dbAdd') return;
-    e.preventDefault();
-    await NL.load();
-    const p = NL.parse($('dbAddInput').value);
-    if (!p.title) return;
-    const due = p.due || TODAY;
-    const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
+    // ── Today's todos: tick off in place ──────────────────────────────
+    const box = e.target.closest('#bdTodos button.bd-box');
+    if (!box || box.getAttribute('aria-busy') === 'true') return;
+    const li = box.closest('.bd-todo'), kind = li.dataset.kind, id = +li.dataset.id;
+    const done = box.getAttribute('aria-checked') !== 'true';
+    box.setAttribute('aria-checked', String(done)); box.setAttribute('aria-busy', 'true');
+    box.classList.toggle('is-on', done); li.classList.toggle('is-done', done);
+    if (done) Trackie.Delight?.tap();
+    const post = (file, body) => Trackie.API.post(`${base}/api/${file}`, body);
     try {
-      const res = await Trackie.API.post(`${base}/api/todos.php`, { action: 'add', title: p.title, priority: p.priority, due_date: due, tags: p.tags.join(',') });
+      const res = await (kind === 'study' ? post('study_plan.php', { action: 'toggle', task_id: id, completed: done ? 1 : 0 })
+                       : kind === 'routine' ? post('routines.php', { action: done ? 'complete' : 'uncomplete', routine_id: id })
+                       : post('todos.php', { action: 'toggle', todo_id: id, completed: done ? 1 : 0 }));
       if (!res?.success) throw res;
-      if (due === TODAY) {
-        await refresh('dbToday', 'dbHero');
-        document.querySelector(`#dbTodayList [data-key="todo-${res.id}"]`)?.classList.add('is-new');
-        Trackie.Toast.success('Added to today', 1600);
-      } else Trackie.Toast.success(`Added for ${NL.describe(due, TODAY)}`, 2200);
-    } catch (err) { Trackie.UI.toastError(err, "Couldn't add that task."); }
-    finally { const b = document.querySelector('#dbAdd button[type="submit"]'); if (b) b.disabled = false; $('dbAddInput')?.focus(); }
+      if (res.achievements?.length) Trackie.showAchievementToasts?.(res.achievements);
+      if (done && res.xp?.gained) Trackie.Toast.success(`+${res.xp.gained} XP`, 1600);
+      await new Promise(r => setTimeout(r, done && !reduce() ? 400 : 0));
+      await Trackie.UI.transition(() => {
+        const ul = li.parentElement;
+        if (done) ul.append(li); else ul.prepend(li);          // done sinks, reopened rises
+      }, [...li.parentElement.children]);
+      if (done && !document.querySelector('#bdTodos .bd-box[aria-checked="false"]')) {
+        Trackie.Delight?.burst(document.getElementById('bdTodos'));
+        Trackie.Toast.success('All of today\'s todos are done 🎉', 3000);
+      }
+    } catch (err) {
+      box.setAttribute('aria-checked', String(!done)); box.classList.toggle('is-on', !done); li.classList.toggle('is-done', !done);
+      Trackie.UI.toastError(err, "Couldn't update that.");
+    } finally { box.removeAttribute('aria-busy'); }
   });
 
-  // ── Spotify now playing (every 30 s while the page is open) ─────────
+  // ── Favourite habits: bars per habit for the chosen month ───────────
+  const FAV = { habits: <?= json_encode(array_map(static fn($hb) => ['id' => (int)$hb['id'], 'name' => $hb['name'], 'color' => $hb['color'] ?: '#ef4444'], $favHabits), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+                counts: <?= json_encode($favCounts ?: new stdClass(), JSON_FORCE_OBJECT) ?> };
+  function paintFav(ym) {
+    const el = document.getElementById('bdFavBars');
+    if (!el || !FAV.habits.length) return;
+    const counts = FAV.counts[ym] || {};
+    const rows = FAV.habits.map(h => ({ ...h, n: +(counts[h.id] || 0) })).slice(0, 7);
+    const max = Math.max(1, ...rows.map(r => r.n));
+    const top = rows.reduce((a, b) => (b.n > a.n ? b : a), rows[0]);
+    el.innerHTML = rows.map((r, i) => {
+      const hgt = r.n ? Math.max(8, Math.round(r.n / max * 100)) : 4;
+      const isTop = r === top && r.n > 0;
+      return `<div class="bd-fav-col${isTop ? ' is-top' : ''}" style="--i:${i}" title="${escHtml(r.name)}: ${r.n} check-in${r.n === 1 ? '' : 's'}">
+        <span class="bd-fav-bar" style="--h:${hgt}%">${isTop ? `<span class="bd-fav-tip">${escHtml(r.name)}<b>${r.n} times</b></span>` : ''}</span>
+        <span class="bd-fav-name">${escHtml(r.name)}</span></div>`;
+    }).join('');
+    el.setAttribute('aria-label', rows.map(r => `${r.name}: ${r.n}`).join(', '));
+  }
+  const sel = document.getElementById('bdFavMonth');
+  sel?.addEventListener('change', () => paintFav(sel.value));
+  if (sel) paintFav(sel.value);
+
+  // ── Spotify now playing (connected only) ────────────────────────────
   if (document.getElementById('ovSpotify')) {
     const poll = async () => {
       const el = document.getElementById('ovSpotify'); if (!el) return;
@@ -539,10 +428,10 @@ require_once '../includes/head.php';
         const r = await fetch(`${base}/api/spotify.php`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         if (!r.ok) return;
         const d = await r.json();
-        if (!d.connected) { el.innerHTML = '<span class="ov-muted">Reconnect Spotify in Music.</span>'; return; }
-        if (!d.playing || !d.track) { el.innerHTML = '<span class="ov-muted">Nothing playing right now.</span>'; return; }
+        if (!d.connected) { el.innerHTML = '<span class="bd-muted">Reconnect Spotify in Music.</span>'; return; }
+        if (!d.playing || !d.track) { el.innerHTML = '<span class="bd-muted">Nothing playing right now.</span>'; return; }
         const t = d.track;
-        const art = typeof t.art === 'string' && t.art.startsWith('https://') ? `<img src="${escHtml(t.art)}" alt="" width="48" height="48">` : '';
+        const art = typeof t.art === 'string' && t.art.startsWith('https://') ? `<img src="${escHtml(t.art)}" alt="" width="44" height="44">` : '';
         el.innerHTML = `${art}<div class="ov-sp-text"><strong>${escHtml(t.name)}</strong><span>${escHtml(t.artist)}</span></div><span class="ov-sp-eq" aria-label="Playing"><i></i><i></i><i></i></span>`;
       } catch { /* non-critical */ }
     };

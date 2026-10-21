@@ -56,17 +56,15 @@ try {
 
     $num = static fn(string $re, string $html) => preg_match($re, $html, $x) ? (int)$x[1] : null;
     $s = '\s*';
-    // Overview shows the overall activity streak (any module), not the habit streak.
+    // The dashboard shows today's habits under "Should Do!" (no streak tile any more).
     $ovHtml = $get('/pages/dashboard.php');
-    $dash = $num('~Streak</span>\s*<div class="ov-big[^"]*"><span class="stat-val">(\d+)</span>~', $ovHtml);
+    $dash = substr_count($ovHtml, 'class="bd-should-item');
     $hab  = $num('~id="habitsStatsWrap".*?<strong>(\d+)</strong>-day streak~s', $get('/pages/habits.php'));
     $ana  = $num("~Current streak</span>.*?stat-val[^>]*>(\d+) d<~s", $get('/pages/analytics.php'));
     $gymH = $get('/pages/gym.php');
     $gym  = $num('~<strong>(\d+)</strong> Workout Streak~', $gymH);
 
-    require_once '../includes/activity.php';
-    ok($dash !== null && $dash === (int)activityStreak($uid)['current'] && str_contains($ovHtml, 'id="page-main"'),
-       'Overview streak tile = activityStreak() (got ' . var_export($dash, true) . ')');
+    ok($dash >= 1 && str_contains($ovHtml, 'id="page-main"'), "dashboard renders with the habit under Should Do ($dash)");
     ok($hab  === $want, "Habits header streak = $want (got " . var_export($hab, true) . ')');
     ok($ana  === $want, "Analytics current streak = $want (got " . var_export($ana, true) . ')');
     ok($gym  === $want, "Fitness badge = $want, labelled Workout Streak (got " . var_export($gym, true) . ')');
